@@ -10,13 +10,13 @@ const CTASection = () => {
         <div className="flex flex-col sm:flex-row justify-center gap-4">
           <Link 
             href="/signup" 
-            className="bg-gradient-to-r from-yellow-400 to-yellow-500 text-slate-900 px-8 py-3 rounded-full font-semibold hover:from-yellow-300 hover:to-yellow-400 transition-all duration-300 transform hover:scale-105"
+            className="bg-gradient-to-r from-pink-500 to-pink-600 text-white px-8 py-3 rounded-full font-semibold hover:from-pink-600 hover:to-pink-700 transition-all duration-300 transform hover:scale-105"
           >
             Get Started Free
           </Link>
           <Link 
             href="/features" 
-            className="border border-yellow-400 text-yellow-400 px-8 py-3 rounded-full font-semibold hover:bg-yellow-400/10 transition-all duration-300"
+            className="border border-pink-500 text-pink-400 px-8 py-3 rounded-full font-semibold hover:bg-pink-500/10 transition-all duration-300"
           >
             Learn More
           </Link>

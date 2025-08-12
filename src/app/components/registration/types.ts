@@ -20,7 +20,8 @@ export interface FormFieldProps {
 }
 
 export interface SocialAuthProps {
-  onSocialLogin: (provider: 'github' | 'facebook') => void;
+  callbackUrl?: string;
+  onSocialLogin?: (provider: 'github' | 'google' | 'facebook') => void;
 }
 
 export interface TermsAndPrivacyProps {

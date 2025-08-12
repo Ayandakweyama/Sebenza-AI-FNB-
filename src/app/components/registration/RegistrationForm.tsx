@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useSignUp } from '@clerk/nextjs';
 import { 
   FiUser, 
   FiMail, 
@@ -50,17 +51,22 @@ interface EnhancedFormData extends FormData {
   graduationYear: string;
   keySkills: string;
   
-  // Additional
-  resumeConsent: boolean;
-  marketingConsent: boolean;
+  // Documents
+  resume: File | null;
+  coverLetter: File | null;
+  
+  // Terms
+  acceptTerms: boolean;
+  subscribeToNewsletter: boolean;
 }
 
 const RegistrationForm = () => {
+  const { isLoaded, signUp } = useSignUp();
   const router = useRouter();
-  const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<EnhancedFormData>({
     // Basic Info
-    fullName: '',
+    firstName: '',
+    lastName: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -91,15 +97,22 @@ const RegistrationForm = () => {
     education: '',
     university: '',
     graduationYear: '',
-    keySkills: '',
+    skills: [],
+    newSkill: '',
     
-    // Additional
-    resumeConsent: false,
-    marketingConsent: false,
+    // Documents
+    resume: null,
+    coverLetter: null,
+    
+    // Terms
+    acceptTerms: false,
+    subscribeToNewsletter: false,
   });
   
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = '';
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -109,88 +122,74 @@ const RegistrationForm = () => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
-    
-    // Clear error when user types
-    if (errors[name]) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[name];
-        return newErrors;
-      });
-    }
-  };
-
-  const validateStep = (step: number) => {
-    const newErrors: Record<string, string> = {};
-    
-    if (step === 1) {
-      // Basic Information
-      if (!formData.fullName.trim()) newErrors.fullName = 'Full name is required';
-      if (!formData.email) {
-        newErrors.email = 'Email is required';
-      } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-        newErrors.email = 'Email is invalid';
-      }
-      if (!formData.password) {
-        newErrors.password = 'Password is required';
-      } else if (formData.password.length < 8) {
-        newErrors.password = 'Password must be at least 8 characters';
-      }
-      if (formData.password !== formData.confirmPassword) {
-        newErrors.confirmPassword = 'Passwords do not match';
-      }
-      if (!formData.phone.trim()) newErrors.phone = 'Phone number is required';
-    }
-    
-    if (step === 2) {
-      // Location & Professional Info
-      if (!formData.city.trim()) newErrors.city = 'City is required';
-      if (!formData.country.trim()) newErrors.country = 'Country is required';
-      if (!formData.currentJobTitle.trim()) newErrors.currentJobTitle = 'Current job title is required';
-      if (!formData.industry) newErrors.industry = 'Industry is required';
-      if (!formData.experienceLevel) newErrors.experienceLevel = 'Experience level is required';
-    }
-    
-    if (step === 3) {
-      // Job Preferences & Education
-      if (!formData.desiredJobTitle.trim()) newErrors.desiredJobTitle = 'Desired job title is required';
-      if (!formData.jobType) newErrors.jobType = 'Job type preference is required';
-      if (!formData.workArrangement) newErrors.workArrangement = 'Work arrangement preference is required';
-      if (!formData.education) newErrors.education = 'Education level is required';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleNext = () => {
-    if (validateStep(currentStep)) {
-      setCurrentStep(prev => prev + 1);
-    }
-  };
-
-  const handlePrevious = () => {
-    setCurrentStep(prev => prev - 1);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateStep(3)) return;
+    if (!isLoaded) return;
+    
+    if (!formData.acceptTerms) {
+      setError('You must accept the terms and conditions to register.');
+      return;
+    }
+    
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
     
     setIsLoading(true);
+    setError('');
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      console.log('Registration data:', formData);
-      router.push('/dashboard');
-    } catch (error) {
-      console.error('Registration failed:', error);
-      setErrors({
-        submit: 'Registration failed. Please try again.'
+      // Create user with Clerk
+      const result = await signUp.create({
+        emailAddress: formData.email,
+        password: formData.password,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
       });
+      
+      // Prepare user metadata for Clerk
+      const metadata = {
+        publicMetadata: {
+          phone: formData.phone,
+          city: formData.city,
+          state: formData.state,
+          country: formData.country,
+          linkedinUrl: formData.linkedinUrl,
+          portfolioUrl: formData.portfolioUrl,
+          currentJobTitle: formData.currentJobTitle,
+          industry: formData.industry,
+          experienceLevel: formData.experienceLevel,
+          currentCompany: formData.currentCompany,
+          desiredJobTitle: formData.desiredJobTitle,
+          desiredSalaryMin: formData.desiredSalaryMin,
+          desiredSalaryMax: formData.desiredSalaryMax,
+          jobType: formData.jobType,
+          workArrangement: formData.workArrangement,
+          willingToRelocate: formData.willingToRelocate,
+          education: formData.education,
+          university: formData.university,
+          graduationYear: formData.graduationYear,
+          skills: formData.skills,
+          subscribeToNewsletter: formData.subscribeToNewsletter,
+        }
+      };
+      
+      // Update user with metadata
+      await result.update(metadata);
+      
+      // Send verification email
+      await result.prepareEmailAddressVerification({ strategy: 'email_code' });
+      
+      // Redirect to verification page
+      router.push('/verify-email');
+      
+    } catch (err: any) {
+      console.error('Registration error:', err);
+      setError(err.errors?.[0]?.message || 'Registration failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -208,14 +207,25 @@ const RegistrationForm = () => {
       </div>
       
       <FormField
-        id="fullName"
-        name="fullName"
+        id="firstName"
+        name="firstName"
         type="text"
-        label="Full Name"
-        placeholder="John Doe"
-        value={formData.fullName}
+        label="First Name"
+        placeholder="John"
+        value={formData.firstName}
         onChange={handleChange}
-        error={errors.fullName}
+        icon={<FiUser className="h-5 w-5 text-slate-400" />}
+        required
+      />
+      
+      <FormField
+        id="lastName"
+        name="lastName"
+        type="text"
+        label="Last Name"
+        placeholder="Doe"
+        value={formData.lastName}
+        onChange={handleChange}
         icon={<FiUser className="h-5 w-5 text-slate-400" />}
         required
       />
@@ -228,7 +238,6 @@ const RegistrationForm = () => {
         placeholder="you@example.com"
         value={formData.email}
         onChange={handleChange}
-        error={errors.email}
         icon={<FiMail className="h-5 w-5 text-slate-400" />}
         required
       />
@@ -241,7 +250,6 @@ const RegistrationForm = () => {
         placeholder="+1 (555) 123-4567"
         value={formData.phone}
         onChange={handleChange}
-        error={errors.phone}
         icon={<FiPhone className="h-5 w-5 text-slate-400" />}
         required
       />
@@ -254,7 +262,6 @@ const RegistrationForm = () => {
         placeholder="••••••••"
         value={formData.password}
         onChange={handleChange}
-        error={errors.password}
         icon={<FiLock className="h-5 w-5 text-slate-400" />}
         required
       />
@@ -267,7 +274,6 @@ const RegistrationForm = () => {
         placeholder="••••••••"
         value={formData.confirmPassword}
         onChange={handleChange}
-        error={errors.confirmPassword}
         icon={<FiLock className="h-5 w-5 text-slate-400" />}
         required
       />
@@ -290,7 +296,6 @@ const RegistrationForm = () => {
           placeholder="New York"
           value={formData.city}
           onChange={handleChange}
-          error={errors.city}
           icon={<FiMapPin className="h-5 w-5 text-slate-400" />}
           required
         />
@@ -315,7 +320,6 @@ const RegistrationForm = () => {
         placeholder="United States"
         value={formData.country}
         onChange={handleChange}
-        error={errors.country}
         icon={<FiGlobe className="h-5 w-5 text-slate-400" />}
         required
       />
@@ -328,7 +332,6 @@ const RegistrationForm = () => {
         placeholder="Software Engineer"
         value={formData.currentJobTitle}
         onChange={handleChange}
-        error={errors.currentJobTitle}
         icon={<FiBriefcase className="h-5 w-5 text-slate-400" />}
         required
       />
@@ -367,7 +370,7 @@ const RegistrationForm = () => {
           <option value="consulting">Consulting</option>
           <option value="other">Other</option>
         </select>
-        {errors.industry && <p className="mt-1 text-sm text-red-600">{errors.industry}</p>}
+        {error.industry && <p className="mt-1 text-sm text-red-600">{error.industry}</p>}
       </div>
       
       <div>
@@ -388,7 +391,7 @@ const RegistrationForm = () => {
           <option value="lead">Lead/Principal (10+ years)</option>
           <option value="executive">Executive</option>
         </select>
-        {errors.experienceLevel && <p className="mt-1 text-sm text-red-600">{errors.experienceLevel}</p>}
+        {error.experienceLevel && <p className="mt-1 text-sm text-red-600">{error.experienceLevel}</p>}
       </div>
       
       <FormField
@@ -419,7 +422,6 @@ const RegistrationForm = () => {
         placeholder="Senior Software Engineer"
         value={formData.desiredJobTitle}
         onChange={handleChange}
-        error={errors.desiredJobTitle}
         icon={<FiBriefcase className="h-5 w-5 text-slate-400" />}
         required
       />
@@ -466,7 +468,7 @@ const RegistrationForm = () => {
           <option value="freelance">Freelance</option>
           <option value="internship">Internship</option>
         </select>
-        {errors.jobType && <p className="mt-1 text-sm text-red-600">{errors.jobType}</p>}
+        {error.jobType && <p className="mt-1 text-sm text-red-600">{error.jobType}</p>}
       </div>
       
       <div>
@@ -486,7 +488,7 @@ const RegistrationForm = () => {
           <option value="onsite">On-site</option>
           <option value="flexible">Flexible</option>
         </select>
-        {errors.workArrangement && <p className="mt-1 text-sm text-red-600">{errors.workArrangement}</p>}
+        {error.workArrangement && <p className="mt-1 text-sm text-red-600">{error.workArrangement}</p>}
       </div>
       
       <div>
@@ -508,7 +510,7 @@ const RegistrationForm = () => {
           <option value="phd">PhD</option>
           <option value="other">Other</option>
         </select>
-        {errors.education && <p className="mt-1 text-sm text-red-600">{errors.education}</p>}
+        {error.education && <p className="mt-1 text-sm text-red-600">{error.education}</p>}
       </div>
       
       <div className="grid grid-cols-2 gap-4">
@@ -520,7 +522,7 @@ const RegistrationForm = () => {
           placeholder="MIT"
           value={formData.university}
           onChange={handleChange}
-          icon={<FiGraduationCap className="h-5 w-5 text-slate-400" />}
+          icon={<FiBookOpen className="h-5 w-5 text-slate-400" />}
         />
         
         <FormField
@@ -540,8 +542,8 @@ const RegistrationForm = () => {
           Key Skills (Optional)
         </label>
         <textarea
-          name="keySkills"
-          value={formData.keySkills}
+          name="skills"
+          value={formData.skills.join(', ')}
           onChange={handleChange}
           placeholder="React, Node.js, Python, AWS, etc. (comma-separated)"
           rows={3}
@@ -567,28 +569,14 @@ const RegistrationForm = () => {
         
         <div className="flex items-start">
           <input
-            id="resumeConsent"
-            name="resumeConsent"
+            id="subscribeToNewsletter"
+            name="subscribeToNewsletter"
             type="checkbox"
-            checked={formData.resumeConsent}
+            checked={formData.subscribeToNewsletter}
             onChange={handleChange}
             className="mt-1 h-4 w-4 text-purple-600 border-slate-300 rounded focus:ring-purple-500"
           />
-          <label htmlFor="resumeConsent" className="ml-2 text-sm text-slate-700">
-            Allow employers to view my profile and contact me with relevant opportunities
-          </label>
-        </div>
-        
-        <div className="flex items-start">
-          <input
-            id="marketingConsent"
-            name="marketingConsent"
-            type="checkbox"
-            checked={formData.marketingConsent}
-            onChange={handleChange}
-            className="mt-1 h-4 w-4 text-purple-600 border-slate-300 rounded focus:ring-purple-500"
-          />
-          <label htmlFor="marketingConsent" className="ml-2 text-sm text-slate-700">
+          <label htmlFor="subscribeToNewsletter" className="ml-2 text-sm text-slate-700">
             Send me job alerts and career tips via email
           </label>
         </div>
@@ -624,9 +612,9 @@ const RegistrationForm = () => {
           {currentStep === 2 && renderStep2()}
           {currentStep === 3 && renderStep3()}
           
-          {errors.submit && (
+          {error && (
             <div className="mt-6 p-3 bg-red-50 text-red-700 text-sm rounded-lg">
-              {errors.submit}
+              {error}
             </div>
           )}
           
@@ -634,7 +622,7 @@ const RegistrationForm = () => {
             {currentStep > 1 && (
               <button
                 type="button"
-                onClick={handlePrevious}
+                onClick={() => setCurrentStep(prev => prev - 1)}
                 className="px-6 py-3 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors"
               >
                 Previous
@@ -644,7 +632,7 @@ const RegistrationForm = () => {
             {currentStep < 3 ? (
               <button
                 type="button"
-                onClick={handleNext}
+                onClick={() => setCurrentStep(prev => prev + 1)}
                 className="ml-auto flex items-center px-6 py-3 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-lg hover:from-purple-600 hover:to-blue-600 transition-all"
               >
                 Next
@@ -678,7 +666,7 @@ const RegistrationForm = () => {
           )}
         </form>
         
-        {currentStep === 1 && <SocialAuth onSocialLogin={handleSocialLogin} />}
+        {currentStep === 1 && <SocialAuth callbackUrl="/dashboard" />}
         
         <TermsAndPrivacy className="mt-6" />
       </div>

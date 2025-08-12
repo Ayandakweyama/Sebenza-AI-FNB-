@@ -3,7 +3,7 @@ import { Linkedin, Twitter, Github, Mail } from 'lucide-react';
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
-  
+
   const footerLinks = [
     {
       title: 'Product',
@@ -68,9 +68,11 @@ const Footer = () => {
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8">
           <div className="col-span-2">
             <Link href="/" className="flex items-center">
-              <span className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-yellow-400 bg-clip-text text-transparent">
-                Sebenza AI
-              </span>
+              <img
+                src="/sebenza ai full.ico"
+                alt="Sebenza AI"
+                className="h-8 w-auto"
+              />
             </Link>
             <p className="mt-4 text-slate-400 max-w-xs">
               AI-powered tools to accelerate your job search and career growth.
@@ -90,7 +92,7 @@ const Footer = () => {
               ))}
             </div>
           </div>
-          
+
           {footerLinks.map((section) => (
             <div key={section.title}>
               <h3 className="text-sm font-semibold text-white tracking-wider uppercase">
@@ -111,7 +113,7 @@ const Footer = () => {
             </div>
           ))}
         </div>
-        
+
         <div className="mt-12 pt-8 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center">
           <p className="text-slate-400 text-sm">
             &copy; {currentYear} Sebenza AI. All rights reserved.

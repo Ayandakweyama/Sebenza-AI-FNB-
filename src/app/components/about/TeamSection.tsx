@@ -32,13 +32,13 @@ const TeamSection = () => {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {team.map((member, index) => (
-            <div key={index} className="bg-slate-800/50 rounded-xl overflow-hidden border border-slate-700/50 hover:border-yellow-400/30 transition-all duration-300">
+            <div key={index} className="bg-slate-800/50 rounded-xl overflow-hidden border border-slate-700/50 hover:border-pink-500/30 transition-all duration-300">
               <div className="h-48 bg-slate-700/50 flex items-center justify-center">
                 <Users className="w-20 h-20 text-gray-500" />
               </div>
               <div className="p-6">
                 <h3 className="text-xl font-semibold text-white">{member.name}</h3>
-                <p className="text-yellow-400 mb-3">{member.role}</p>
+                <p className="text-pink-500 mb-3">{member.role}</p>
                 <p className="text-gray-400">{member.bio}</p>
               </div>
             </div>

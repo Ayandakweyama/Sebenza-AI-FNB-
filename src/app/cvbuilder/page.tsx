@@ -1,14 +1,9 @@
 'use client';
 import React, { useState } from 'react';
-import { Download, Eye, FileText, ArrowRight } from 'lucide-react';
+import { Download, Eye, FileText, ArrowRight, ArrowLeft } from 'lucide-react';
 import CVLayout from '../components/cvbuilder/CVLayout';
 import CVForm from '../components/cvbuilder/CVForm';
 import CVPreview from '../components/cvbuilder/CVPreview';
-
-// Add padding to the top of the page to account for the fixed navbar
-const pageStyle = {
-  paddingTop: '4rem', // h-16 (navbar height) + 1rem (padding)
-};
 
 // Template types
 type Template = 'professional' | 'modern' | 'creative' | 'minimal';
@@ -141,33 +136,46 @@ const CVBuilderPage: React.FC = () => {
   // Template selection view
   if (!selectedTemplate) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800 text-white pt-24 pb-12 px-4 sm:px-6 lg:px-8">
+      <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 pt-32 pb-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <h1 className="text-4xl sm:text-5xl font-bold mb-4 bg-gradient-to-r from-white via-purple-200 to-yellow-400 bg-clip-text text-transparent">
-              Choose a Template
+          <div className="text-center mb-16">
+            <h1 className="text-5xl font-bold bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent mb-6">
+              CV Builder
             </h1>
-            <p className="text-lg text-gray-300 max-w-2xl mx-auto">
-              Select a template that best fits your style and industry. You can customize it later.
+            <p className="text-gray-300 text-xl max-w-3xl mx-auto leading-relaxed">
+              Create a professional CV in minutes with our easy-to-use builder. Select a template to get started.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 max-w-5xl mx-auto">
             {templates.map((template) => (
               <div 
                 key={template.id}
                 onClick={() => handleTemplateSelect(template.id as Template)}
-                className="bg-slate-800 rounded-xl overflow-hidden border-2 border-transparent hover:border-purple-500 transition-all duration-300 cursor-pointer transform hover:-translate-y-1"
+                className="group relative bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl overflow-hidden border border-slate-700/50 hover:border-pink-500/30 transition-all duration-300 cursor-pointer transform hover:-translate-y-1 hover:shadow-xl hover:shadow-pink-500/10"
               >
-                <div className="h-48 bg-slate-700 flex items-center justify-center">
-                  <div className="text-center p-4">
-                    <div className="text-4xl mb-2">📄</div>
-                    <h3 className="text-xl font-semibold">{template.name} Template</h3>
+                <div className="absolute inset-0 bg-gradient-to-br from-pink-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                <div className="h-48 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-br from-pink-500/10 to-purple-500/10"></div>
+                  <div className="relative h-full flex items-center justify-center p-6">
+                    <div className="text-center">
+                      <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-pink-500/20 to-purple-500/20 mb-4 group-hover:scale-110 transition-transform duration-300">
+                        <div className="text-3xl">📄</div>
+                      </div>
+                      <h3 className="text-2xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
+                        {template.name} Template
+                      </h3>
+                    </div>
                   </div>
                 </div>
-                <div className="p-6">
-                  <h3 className="text-xl font-semibold mb-2">{template.name}</h3>
-                  <p className="text-gray-400 mb-4">{template.description}</p>
+                <div className="p-6 relative">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-xl font-bold text-white">{template.name}</h3>
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-pink-500/10 text-pink-400">
+                      Popular
+                    </span>
+                  </div>
+                  <p className="text-gray-300 mb-4">{template.description}</p>
                   <button className="flex items-center text-purple-400 hover:text-purple-300 transition-colors">
                     Select Template <ArrowRight className="ml-2 h-4 w-4" />
                   </button>
@@ -182,42 +190,37 @@ const CVBuilderPage: React.FC = () => {
 
   // CV Form view with selected template
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800 text-white pt-24 pb-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 pt-24 pb-16 px-4 sm:px-6 lg:px-8">
       <CVLayout template={selectedTemplate as Template}>
-        <div className="container mx-auto px-4 mb-6">
-          <button 
-            onClick={handleBackToTemplates}
-            className="text-purple-400 hover:text-purple-300 flex items-center text-sm mb-4 transition-colors"
-          >
-            ← Back to Templates
-          </button>
-        </div>
-        <main className="text-white">
-          {/* Header */}
-          <div className="text-center mb-10">
-            <h1 className="text-4xl sm:text-6xl font-bold mb-4">
-              <span className="bg-gradient-to-r from-white via-purple-200 to-yellow-400 bg-clip-text text-transparent">
-                CV Builder
-              </span>
-            </h1>
-            <p className="text-lg text-gray-300 max-w-2xl mx-auto">
-              Create a professional resume that stands out. Fill in your information and watch your CV come to life in real-time.
+        <div className="max-w-7xl mx-auto">
+          <div className="mb-8">
+            <button
+              onClick={handleBackToTemplates}
+              className="inline-flex items-center text-pink-400 hover:text-pink-300 transition-colors mb-6"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Templates
+            </button>
+            <h2 className="text-3xl font-bold text-white mb-2">
+              CV Builder - <span className="text-pink-400">{selectedTemplate.charAt(0).toUpperCase() + selectedTemplate.slice(1)}</span> Template
+            </h2>
+            <p className="text-gray-300">
+              Create a professional CV that stands out. Fill in your information and watch your CV come to life in real-time.
             </p>
           </div>
 
-          {/* Main Content */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Form Section */}
             <div className="space-y-6">
               <CVForm formData={formData} setFormData={setFormData} />
               
               {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-6">
-                <button className="bg-gradient-to-r from-yellow-400 to-yellow-500 text-slate-900 px-6 py-3 rounded-full font-bold hover:from-yellow-300 hover:to-yellow-400 transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center space-x-2">
+              <div className="flex flex-col sm:flex-row gap-4 justify-start pt-4">
+                <button className="bg-gradient-to-r from-pink-500 to-pink-600 text-white px-6 py-2.5 rounded-md font-medium hover:from-pink-600 hover:to-pink-700 transition-all duration-200 flex items-center space-x-2">
                   <Download className="h-5 w-5" />
                   <span>Download PDF</span>
                 </button>
-                <button className="border-2 border-purple-400 text-purple-300 px-6 py-3 rounded-full font-semibold hover:bg-purple-400 hover:text-white transition-all duration-300 transform hover:scale-105 flex items-center space-x-2">
+                <button className="border border-pink-500 text-pink-400 px-6 py-2.5 rounded-md font-medium hover:bg-pink-900/30 transition-all duration-200 flex items-center space-x-2">
                   <Eye className="h-5 w-5" />
                   <span>Preview</span>
                 </button>
@@ -226,12 +229,12 @@ const CVBuilderPage: React.FC = () => {
 
             {/* Preview Section */}
             <div className="sticky top-24">
-              <div className="bg-white rounded-xl shadow-2xl overflow-hidden transform transition-all duration-300 hover:scale-[1.02]">
+              <div className="bg-white rounded-lg shadow-xl overflow-hidden">
                 <CVPreview formData={formData} selectedTemplate={selectedTemplate as Template} />
               </div>
             </div>
           </div>
-        </main>
+        </div>
       </CVLayout>
     </div>
   );

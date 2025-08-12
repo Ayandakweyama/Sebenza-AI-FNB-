@@ -1,13 +1,9 @@
-import React, { useState, Dispatch, SetStateAction } from 'react';
+import React, { useState, ReactNode } from 'react';
+import { LucideIcon } from 'lucide-react';
 import { 
   Plus, 
   Trash2, 
-  Edit2, 
   Save, 
-  Check, 
-  X, 
-  ChevronDown, 
-  ChevronUp,
   Eye,
   Download,
   User,
@@ -23,16 +19,8 @@ import {
   Award
 } from 'lucide-react';
 
-// Import UI components
-import { Button } from "@/app/components/ui/button"
-import { Input } from "@/app/components/ui/input"
-import { Textarea } from "@/app/components/ui/textarea"
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/app/components/ui/card"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/app/components/ui/tabs"
-import { Badge } from "@/app/components/ui/badge"
-import { HTMLAttributes } from "react";
-
-export interface PersonalInfo {
+// Type definitions
+interface PersonalInfo {
   name: string;
   email: string;
   phone: string;
@@ -43,7 +31,7 @@ export interface PersonalInfo {
   github: string;
 }
 
-export interface Experience {
+interface Experience {
   company: string;
   position: string;
   duration: string;
@@ -52,7 +40,7 @@ export interface Experience {
   achievements: string[];
 }
 
-export interface Education {
+interface Education {
   institution: string;
   degree: string;
   duration: string;
@@ -61,14 +49,14 @@ export interface Education {
   honors: string;
 }
 
-export interface Project {
+interface Project {
   name: string;
   technologies: string;
   description: string;
   link: string;
 }
 
-export interface FormData {
+interface FormData {
   personalInfo: PersonalInfo;
   experience: Experience[];
   education: Education[];
@@ -76,24 +64,16 @@ export interface FormData {
   projects: Project[];
 }
 
-interface CVFormProps {
-  formData: FormData;
-  setFormData: React.Dispatch<React.SetStateAction<FormData>>;
+// CVSection Props
+interface CVSectionProps {
+  title: string;
+  icon: LucideIcon;
+  children: ReactNode;
+  collapsible?: boolean;
 }
 
-// Helper type for form sections
-type FormSection = 'personalInfo' | 'experience' | 'education' | 'projects';
-
-// Helper type for form fields
-type FormField = keyof PersonalInfo | keyof Experience | keyof Education | keyof Project;
-
 // CVSection Component
-const CVSection: React.FC<{ title: string; icon: React.ElementType; children: React.ReactNode; collapsible?: boolean }> = ({ 
-  title, 
-  icon: Icon, 
-  children, 
-  collapsible = false 
-}) => {
+const CVSection = ({ title, icon: Icon, children, collapsible = false }: CVSectionProps) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
@@ -117,8 +97,14 @@ const CVSection: React.FC<{ title: string; icon: React.ElementType; children: Re
   );
 };
 
+// SkillBadge Props
+interface SkillBadgeProps {
+  skill: string;
+  onRemove: () => void;
+}
+
 // Skill Badge Component
-const SkillBadge: React.FC<{ skill: string; onRemove: () => void }> = ({ skill, onRemove }) => (
+const SkillBadge = ({ skill, onRemove }: SkillBadgeProps) => (
   <div className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-500/20 to-yellow-400/20 border border-purple-400/30 rounded-full px-3 py-1 text-sm text-white">
     <span>{skill}</span>
     <button onClick={onRemove} className="hover:text-red-400 transition-colors">
@@ -127,56 +113,26 @@ const SkillBadge: React.FC<{ skill: string; onRemove: () => void }> = ({ skill, 
   </div>
 );
 
-const CVForm: React.FC<CVFormProps> = ({ formData, setFormData }) => {
-  const [newSkill, setNewSkill] = useState('');
+const CVForm = () => {
+  const [formData, setFormData] = useState<FormData>({
+    personalInfo: {
+      name: '',
+      email: '',
+      phone: '',
+      location: '',
+      summary: '',
+      website: '',
+      linkedin: '',
+      github: ''
+    },
+    experience: [],
+    education: [],
+    skills: [],
+    projects: []
+  });
+
+  const [newSkill, setNewSkill] = useState<string>('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
-  
-  // Helper function to update form data
-  const updateFormData = <K extends keyof FormData>(
-    section: K,
-    value: FormData[K]
-  ) => {
-    setFormData(prev => ({
-      ...prev,
-      [section]: value
-    }));
-  };
-  
-  // Helper to update nested fields
-  const updateNestedField = <
-    T extends keyof FormData,
-    K extends keyof FormData[T],
-    V extends FormData[T][K]
-  >(
-    section: T,
-    field: K,
-    value: V
-  ) => {
-    setFormData(prev => ({
-      ...prev,
-      [section]: {
-        ...prev[section],
-        [field]: value
-      }
-    }));
-  };
-  
-  // Helper to update array items
-  const updateArrayItem = <T extends 'experience' | 'education' | 'projects'>(
-    section: T,
-    index: number,
-    field: keyof FormData[T][number],
-    value: any
-  ) => {
-    setFormData(prev => {
-      const newArray = [...prev[section]];
-      (newArray[index] as any)[field] = value;
-      return {
-        ...prev,
-        [section]: newArray
-      };
-    });
-  };
 
   // Experience handlers
   const addExperience = () => {
@@ -191,12 +147,8 @@ const CVForm: React.FC<CVFormProps> = ({ formData, setFormData }) => {
           description: '',
           location: '',
           achievements: ['']
-        }
+        } as Experience
       ]
-    }));
-    setFormData(prev => ({
-      ...prev,
-      experience: [...prev.experience, { company: '', position: '', duration: '', description: '', location: '', achievements: [''] }]
     }));
   };
 
@@ -211,7 +163,12 @@ const CVForm: React.FC<CVFormProps> = ({ formData, setFormData }) => {
     setFormData(prev => ({
       ...prev,
       experience: prev.experience.map((exp, i) => 
-        i === index ? { ...exp, [field]: value } : exp
+        i === index ? { 
+          ...exp, 
+          [field]: field === 'achievements' && Array.isArray(value) 
+            ? value 
+            : value as string 
+        } : exp
       )
     }));
   };
@@ -220,7 +177,10 @@ const CVForm: React.FC<CVFormProps> = ({ formData, setFormData }) => {
     setFormData(prev => ({
       ...prev,
       experience: prev.experience.map((exp, i) => 
-        i === expIndex ? { ...exp, achievements: [...(exp.achievements || []), ''] } : exp
+        i === expIndex ? { 
+          ...exp, 
+          achievements: [...(exp.achievements || []), ''] 
+        } : exp
       )
     }));
   };
@@ -228,24 +188,32 @@ const CVForm: React.FC<CVFormProps> = ({ formData, setFormData }) => {
   const updateAchievement = (expIndex: number, achievementIndex: number, value: string) => {
     setFormData(prev => ({
       ...prev,
-      experience: prev.experience.map((exp, i) => 
-        i === expIndex ? {
+      experience: prev.experience.map((exp, i) => {
+        if (i !== expIndex) return exp;
+        
+        const updatedAchievements = [...(exp.achievements || [])];
+        updatedAchievements[achievementIndex] = value;
+        
+        return {
           ...exp,
-          achievements: exp.achievements?.map((ach, j) => j === achievementIndex ? value : ach) || []
-        } : exp
-      )
+          achievements: updatedAchievements
+        };
+      })
     }));
   };
 
   const removeAchievement = (expIndex: number, achievementIndex: number) => {
     setFormData(prev => ({
       ...prev,
-      experience: prev.experience.map((exp, i) => 
-        i === expIndex ? {
+      experience: prev.experience.map((exp, i) => {
+        if (i !== expIndex) return exp;
+        
+        const updatedAchievements = (exp.achievements || []).filter((_, j) => j !== achievementIndex);
+        return {
           ...exp,
-          achievements: exp.achievements?.filter((_, j) => j !== achievementIndex) || []
-        } : exp
-      )
+          achievements: updatedAchievements
+        };
+      })
     }));
   };
 
@@ -253,7 +221,14 @@ const CVForm: React.FC<CVFormProps> = ({ formData, setFormData }) => {
   const addEducation = () => {
     setFormData(prev => ({
       ...prev,
-      education: [...prev.education, { institution: '', degree: '', duration: '', gpa: '', location: '', honors: '' }]
+      education: [...prev.education, { 
+        institution: '', 
+        degree: '', 
+        duration: '', 
+        gpa: '', 
+        location: '', 
+        honors: '' 
+      } as Education]
     }));
   };
 
@@ -268,7 +243,10 @@ const CVForm: React.FC<CVFormProps> = ({ formData, setFormData }) => {
     setFormData(prev => ({
       ...prev,
       education: prev.education.map((edu, i) => 
-        i === index ? { ...edu, [field]: value } : edu
+        i === index ? { 
+          ...edu, 
+          [field]: value 
+        } : edu
       )
     }));
   };
@@ -277,7 +255,12 @@ const CVForm: React.FC<CVFormProps> = ({ formData, setFormData }) => {
   const addProject = () => {
     setFormData(prev => ({
       ...prev,
-      projects: [...prev.projects, { name: '', technologies: '', description: '', link: '' }]
+      projects: [...prev.projects, { 
+        name: '', 
+        technologies: '', 
+        description: '', 
+        link: '' 
+      } as Project]
     }));
   };
 
@@ -292,15 +275,22 @@ const CVForm: React.FC<CVFormProps> = ({ formData, setFormData }) => {
     setFormData(prev => ({
       ...prev,
       projects: prev.projects.map((proj, i) => 
-        i === index ? { ...proj, [field]: value } : proj
+        i === index ? { 
+          ...proj, 
+          [field]: value 
+        } : proj
       )
     }));
   };
 
   // Skills handlers
   const addSkill = () => {
-    if (newSkill.trim() && !formData.skills.includes(newSkill.trim())) {
-      setFormData(prev => ({ ...prev, skills: [...prev.skills, newSkill.trim()] }));
+    const trimmedSkill = newSkill.trim();
+    if (trimmedSkill && !formData.skills.includes(trimmedSkill)) {
+      setFormData(prev => ({ 
+        ...prev, 
+        skills: [...prev.skills, trimmedSkill] 
+      }));
       setNewSkill('');
     }
   };
@@ -313,41 +303,109 @@ const CVForm: React.FC<CVFormProps> = ({ formData, setFormData }) => {
   };
 
   // Save functionality
-  const handleSave = async () => {
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
     setSaveStatus('saving');
-    // Simulate save delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setSaveStatus('saved');
-    setTimeout(() => setSaveStatus('idle'), 2000);
+    try {
+      // Here you would typically send the data to an API
+      await new Promise<void>((resolve) => {
+        setTimeout(() => {
+          // Log only a summary of the form data to avoid cluttering the console
+          console.log('Form data saved:', {
+            personalInfo: { ...formData.personalInfo },
+            experience: formData.experience.length,
+            education: formData.education.length,
+            skills: formData.skills.length,
+            projects: formData.projects.length
+          });
+          resolve();
+        }, 1000);
+      });
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch (error) {
+      console.error('Error saving data:', error);
+      setSaveStatus('idle');
+    }
   };
 
-  const inputClass = "bg-slate-700/50 border border-purple-400/30 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all duration-200 hover:border-purple-400/50";
-  const buttonClass = "bg-gradient-to-r from-purple-500 to-yellow-400 text-white px-6 py-3 rounded-lg font-medium hover:from-purple-400 hover:to-yellow-300 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5";
+  // Handle input change for personal info
+  // Generic handler for personal info changes
+  const handlePersonalInfoChange = (field: keyof PersonalInfo) => 
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      setFormData(prev => ({
+        ...prev,
+        personalInfo: {
+          ...prev.personalInfo,
+          [field]: e.target.value
+        }
+      }));
+    };
+
+  // Generic handler for experience changes
+  const handleExperienceChange = (index: number, field: keyof Experience) => 
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      updateExperience(index, field, e.target.value);
+    };
+
+  // Generic handler for education changes
+  const handleEducationChange = (index: number, field: keyof Education) => 
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      updateEducation(index, field, e.target.value);
+    };
+
+  // Generic handler for project changes
+  const handleProjectChange = (index: number, field: keyof Project) => 
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      updateProject(index, field, e.target.value);
+    };
+
+  const inputClass = "bg-slate-700/50 border border-purple-400/30 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all duration-200 hover:border-purple-400/50 w-full";
+  const buttonClass = "bg-pink-500 hover:bg-pink-400 text-white px-6 py-3 rounded-lg font-medium transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center";
+  const sectionButtonClass = "bg-slate-700/50 hover:bg-slate-600/50 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 border border-purple-400/20";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900 p-6">
+    <form onSubmit={handleSave} className="min-h-screen bg-slate-900 p-4 sm:p-6">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 to-yellow-400 bg-clip-text text-transparent mb-4">
+          <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-purple-400 to-yellow-400 bg-clip-text text-transparent mb-3 sm:mb-4">
             Professional CV Builder
           </h1>
-          <p className="text-gray-300 text-lg">Create a stunning resume that stands out</p>
+          <p className="text-gray-300 text-base sm:text-lg">Create a stunning resume that stands out</p>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-wrap gap-4 justify-center mb-8">
-          <button onClick={handleSave} className={buttonClass} disabled={saveStatus === 'saving'}>
+        <div className="flex flex-wrap gap-3 sm:gap-4 justify-center mb-8">
+          <button 
+            onClick={handleSave} 
+            className={`${buttonClass} ${saveStatus === 'saving' ? 'opacity-75 cursor-not-allowed' : ''}`} 
+            disabled={saveStatus === 'saving'}
+          >
             <Save className="w-4 h-4 mr-2" />
             {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved!' : 'Save Progress'}
           </button>
-          <button className="bg-slate-700 hover:bg-slate-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-300 shadow-lg">
+          <button 
+            className="bg-slate-700 hover:bg-slate-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-medium transition-all duration-300 shadow-lg flex items-center"
+            onClick={(e) => {
+              e.preventDefault();
+              // Handle preview logic here
+            }}
+          >
             <Eye className="w-4 h-4 mr-2" />
-            Preview CV
+            <span className="hidden sm:inline">Preview CV</span>
+            <span className="sm:hidden">Preview</span>
           </button>
-          <button className="bg-slate-700 hover:bg-slate-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-300 shadow-lg">
+          <button 
+            className="bg-slate-700 hover:bg-slate-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-medium transition-all duration-300 shadow-lg flex items-center"
+            onClick={(e) => {
+              e.preventDefault();
+              // Handle export logic here
+            }}
+          >
             <Download className="w-4 h-4 mr-2" />
-            Export PDF
+            <span className="hidden sm:inline">Export PDF</span>
+            <span className="sm:hidden">Export</span>
           </button>
         </div>
 
@@ -363,10 +421,7 @@ const CVForm: React.FC<CVFormProps> = ({ formData, setFormData }) => {
                   type="text"
                   placeholder="Enter your full name"
                   value={formData.personalInfo.name}
-                  onChange={(e) => setFormData(prev => ({
-                    ...prev,
-                    personalInfo: { ...prev.personalInfo, name: e.target.value }
-                  }))}
+                  onChange={handlePersonalInfoChange('name')}
                   className={`w-full ${inputClass} pl-12 py-4 text-lg font-medium border-2 focus:border-purple-400`}
                 />
               </div>
@@ -387,16 +442,27 @@ const CVForm: React.FC<CVFormProps> = ({ formData, setFormData }) => {
                       type="email"
                       placeholder="your.email@domain.com"
                       value={formData.personalInfo.email}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        personalInfo: { ...prev.personalInfo, email: e.target.value }
-                      }))}
+                      onChange={handlePersonalInfoChange('email')}
                       className={`w-full ${inputClass} pl-10`}
                     />
                   </div>
                 </div>
                 
                 <div className="group">
+                  <label className="block text-sm font-medium text-purple-300 mb-2">GitHub Profile</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-3.5 w-4 h-4 text-purple-400 group-focus-within:text-yellow-400 transition-colors" />
+                    <input
+                      type="url"
+                      placeholder="https://github.com/yourusername"
+                      value={formData.personalInfo.github}
+                      onChange={handlePersonalInfoChange('github')}
+                      className={`w-full ${inputClass} pl-10`}
+                    />
+                  </div>
+                </div>
+                
+                <div className="group md:col-span-2 lg:col-span-1">
                   <label className="block text-sm font-medium text-purple-300 mb-2">Phone Number</label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-3.5 w-4 h-4 text-purple-400 group-focus-within:text-yellow-400 transition-colors" />
@@ -404,10 +470,7 @@ const CVForm: React.FC<CVFormProps> = ({ formData, setFormData }) => {
                       type="tel"
                       placeholder="+1 (555) 123-4567"
                       value={formData.personalInfo.phone}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        personalInfo: { ...prev.personalInfo, phone: e.target.value }
-                      }))}
+                      onChange={handlePersonalInfoChange('phone')}
                       className={`w-full ${inputClass} pl-10`}
                     />
                   </div>
@@ -421,10 +484,7 @@ const CVForm: React.FC<CVFormProps> = ({ formData, setFormData }) => {
                       type="text"
                       placeholder="City, State/Country"
                       value={formData.personalInfo.location}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        personalInfo: { ...prev.personalInfo, location: e.target.value }
-                      }))}
+                      onChange={handlePersonalInfoChange('location')}
                       className={`w-full ${inputClass} pl-10`}
                     />
                   </div>
@@ -447,10 +507,7 @@ const CVForm: React.FC<CVFormProps> = ({ formData, setFormData }) => {
                       type="url"
                       placeholder="https://yourwebsite.com"
                       value={formData.personalInfo.website}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        personalInfo: { ...prev.personalInfo, website: e.target.value }
-                      }))}
+                      onChange={handlePersonalInfoChange('website')}
                       className={`w-full ${inputClass} pl-10`}
                     />
                   </div>
@@ -464,10 +521,7 @@ const CVForm: React.FC<CVFormProps> = ({ formData, setFormData }) => {
                       type="url"
                       placeholder="https://linkedin.com/in/yourprofile"
                       value={formData.personalInfo.linkedin}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        personalInfo: { ...prev.personalInfo, linkedin: e.target.value }
-                      }))}
+                      onChange={handlePersonalInfoChange('linkedin')}
                       className={`w-full ${inputClass} pl-10`}
                     />
                   </div>
@@ -485,10 +539,7 @@ const CVForm: React.FC<CVFormProps> = ({ formData, setFormData }) => {
                 <textarea
                   placeholder="Write a compelling professional summary that highlights your key achievements, skills, and career objectives. This is your elevator pitch to potential employers..."
                   value={formData.personalInfo.summary}
-                  onChange={(e) => setFormData(prev => ({
-                    ...prev,
-                    personalInfo: { ...prev.personalInfo, summary: e.target.value }
-                  }))}
+                  onChange={handlePersonalInfoChange('summary')}
                   rows={5}
                   className={`w-full ${inputClass} resize-none border-2 focus:border-purple-400 leading-relaxed`}
                 />
@@ -723,7 +774,7 @@ const CVForm: React.FC<CVFormProps> = ({ formData, setFormData }) => {
                 />
                 <button
                   onClick={addSkill}
-                  className="bg-purple-500 hover:bg-purple-400 text-white px-4 py-3 rounded-lg transition-all duration-200"
+                  className="bg-pink-500 hover:bg-pink-400 text-white px-4 py-3 rounded-lg transition-all duration-200"
                 >
                   <Plus className="w-4 h-4" />
                 </button>
@@ -749,7 +800,7 @@ const CVForm: React.FC<CVFormProps> = ({ formData, setFormData }) => {
           <p>Your CV data is stored locally and never sent to external servers.</p>
         </div>
       </div>
-    </div>
+    </form>
   );
 };
 

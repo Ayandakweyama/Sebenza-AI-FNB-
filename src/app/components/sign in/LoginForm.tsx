@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { FiMail, FiLock, FiArrowRight } from 'react-icons/fi';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useSignIn } from '@clerk/nextjs';
+import { FiMail, FiLock, FiArrowRight, FiAlertCircle } from 'react-icons/fi';
 import FormField from '../registration/FormField';
 import SocialAuth from '../registration/SocialAuth';
 import TermsAndPrivacy from '../registration/TermsAndPrivacy';
@@ -15,7 +16,11 @@ interface FormData {
 }
 
 export default function LoginForm() {
+  const { isLoaded, signIn, setActive } = useSignIn();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get('callbackUrl') || '/dashboard';
+  
   const [formData, setFormData] = useState<FormData>({
     email: '',
     password: '',
@@ -23,6 +28,14 @@ export default function LoginForm() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  
+  // Check for error in URL (e.g., from auth failure redirect)
+  useEffect(() => {
+    const error = searchParams.get('error');
+    if (error) {
+      setError('An error occurred during sign in');
+    }
+  }, [searchParams]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -34,25 +47,30 @@ export default function LoginForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    if (!isLoaded) return;
+    
     setIsLoading(true);
-
-    // Simulate API call
+    setError('');
+    
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      // TODO: Replace with actual authentication logic
-      console.log('Login data:', formData);
-      router.push('/dashboard');
-    } catch (err) {
-      setError('Failed to sign in. Please check your credentials and try again.');
-    } finally {
+      const result = await signIn.create({
+        identifier: formData.email,
+        password: formData.password,
+      });
+      
+      if (result.status === 'complete') {
+        await setActive({ session: result.createdSessionId });
+        router.push(callbackUrl);
+      }
+    } catch (err: any) {
+      console.error('Error signing in:', err);
+      setError(err.errors?.[0]?.message || 'Invalid email or password');
       setIsLoading(false);
     }
   };
 
   const handleSocialLogin = (provider: string) => {
-    // TODO: Implement social login
-    console.log(`Signing in with ${provider}`);
+    signIn(provider.toLowerCase(), { callbackUrl });
   };
 
   return (
@@ -64,8 +82,11 @@ export default function LoginForm() {
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (
-          <div className="bg-red-500/20 border border-red-500 text-red-200 px-4 py-3 rounded-md text-sm">
-            {error}
+          <div className="bg-red-500/20 border border-red-500 text-red-200 px-4 py-3 rounded-md text-sm flex items-start">
+            <div className="mr-2 mt-0.5 flex-shrink-0">
+              <FiAlertCircle />
+            </div>
+            <span>{error}</span>
           </div>
         )}
 
@@ -146,7 +167,7 @@ export default function LoginForm() {
         </div>
 
         <div className="mt-6">
-          <SocialAuth onSocialLogin={handleSocialLogin} />
+          <SocialAuth callbackUrl={callbackUrl} onSocialLogin={handleSocialLogin} />
         </div>
       </div>
 

@@ -62,9 +62,13 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="md:col-span-2">
             <Link href="/" className="flex items-center">
-              <span className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-yellow-400 bg-clip-text text-transparent">
-                Sebenza AI
-              </span>
+            <div className="relative h-48 w-48 md:h-56 md:w-56 transition-all duration-300 transform">
+              <img 
+                src="/images/logonobg.png" 
+                alt="Sebenza AI"
+                className="h-full w-full object-contain"
+              />
+            </div>
             </Link>
             <p className="mt-4 text-slate-400 max-w-md">
               AI-powered tools to accelerate your job search and career growth. 

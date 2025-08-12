@@ -245,15 +245,15 @@ export const JobsContainer = () => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[80vh] px-4 pt-10 relative">
+    <div className="flex flex-col items-center justify-center min-h-[80vh] px-4 pt-10 relative bg-slate-900 text-white">
       {/* Progress Bar with Enhanced Counter */}
       <div className="w-full max-w-md mb-6">
         <div className="flex justify-between items-center mb-2">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-slate-600">
-              <span className="text-lg font-bold text-primary">{Math.min(currentIndex + 1, filteredJobs.length)}</span> of {filteredJobs.length} jobs
+            <span className="text-sm font-medium text-purple-200">
+              <span className="text-lg font-bold text-yellow-400">{Math.min(currentIndex + 1, filteredJobs.length)}</span> of {filteredJobs.length} jobs
             </span>
-            <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">
+            <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full">
               {Math.round((Math.min(currentIndex + 1, filteredJobs.length) / filteredJobs.length) * 100)}% complete
             </span>
           </div>
@@ -262,7 +262,7 @@ export const JobsContainer = () => {
             <button
               onClick={() => setShowFilters(!showFilters)}
               className={`p-2 rounded-full transition-all duration-300 ${
-                showFilters ? 'bg-purple-100 text-purple-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                showFilters ? 'bg-purple-500/20 text-purple-400' : 'bg-slate-800 text-slate-400 hover:bg-slate-700/50'
               }`}
             >
               <FiFilter className="w-4 h-4" />
@@ -272,7 +272,7 @@ export const JobsContainer = () => {
             <button
               onClick={() => setShowStats(!showStats)}
               className={`p-2 rounded-full transition-all duration-300 ${
-                showStats ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                showStats ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-800 text-slate-400 hover:bg-slate-700/50'
               }`}
             >
               <FiTrendingUp className="w-4 h-4" />
@@ -280,17 +280,17 @@ export const JobsContainer = () => {
           </div>
         </div>
         
-        <div className="relative w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+        <div className="relative w-full bg-slate-700/50 rounded-full h-2.5 overflow-hidden">
           <motion.div
-            className="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full relative"
+            className="h-full bg-gradient-to-r from-yellow-500 to-purple-500 rounded-full relative"
             initial={{ width: 0 }}
             animate={{ width: `${progress}%` }}
             transition={{ duration: 0.5, ease: "easeOut" }}
           >
-            <div className="absolute inset-0 bg-white/30 animate-pulse"></div>
+            <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
           </motion.div>
           <div className="absolute top-0 right-0 bottom-0 left-0 flex items-center justify-end pr-2">
-            <span className="text-[10px] font-medium text-white drop-shadow-sm">
+            <span className="text-[10px] font-medium text-white/80 drop-shadow-sm">
               {Math.min(currentIndex + 1, filteredJobs.length)}/{filteredJobs.length}
             </span>
           </div>

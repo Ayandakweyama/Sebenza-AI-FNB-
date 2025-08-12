@@ -77,7 +77,7 @@ export const JobCard = ({ job, onSwipe, active, preview = false, swipeDirection 
         opacity: preview ? 0.8 : 1,
         transition: { duration: 0.3 }
       }}
-      className={`relative bg-white rounded-2xl shadow-lg overflow-hidden h-full ${preview ? 'mt-4' : ''}`}
+      className={`relative bg-slate-800 rounded-2xl shadow-lg overflow-hidden h-full ${preview ? 'mt-4' : ''} border border-slate-700`}
       dragElastic={0.2}
       whileDrag={{ scale: 1.02 }}
       onDragEnd={handleDragEnd}
@@ -85,19 +85,22 @@ export const JobCard = ({ job, onSwipe, active, preview = false, swipeDirection 
       initial={{ scale: 0.95, opacity: 0 }}
       whileInView={{ scale: 1, opacity: 1 }}
       viewport={{ once: true }}
-      className="relative bg-card p-6 rounded-2xl shadow-xl w-full max-w-md mx-auto cursor-grab active:cursor-grabbing transition-all duration-300"
+      style={{
+        background: 'linear-gradient(145deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%)',
+        backdropFilter: 'blur(10px)'
+      }}
     >
       {/* Match Score */}
-      <div className="absolute top-4 right-4 bg-primary text-primary-foreground text-xs font-bold px-3 py-1 rounded-full shadow-md z-10">
+      <div className="absolute top-4 right-4 bg-gradient-to-r from-yellow-500 to-yellow-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg z-10">
         Match: {job.matchScore}%
       </div>
 
       {/* Job Title + Company */}
-      <h3 className="text-xl font-bold text-foreground mb-1">{job.title}</h3>
-      <p className="text-muted-foreground font-medium mb-4">{job.company}</p>
+      <h3 className="text-xl font-bold text-white mb-1">{job.title}</h3>
+      <p className="text-purple-300 font-medium mb-4">{job.company}</p>
 
       {/* Location + Salary */}
-      <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mb-4">
+      <div className="flex flex-wrap items-center gap-4 text-sm text-slate-300 mb-4">
         <div className="flex items-center gap-1">
           <FiMapPin className="w-4 h-4" />
           <span>{job.location}</span>
@@ -111,7 +114,7 @@ export const JobCard = ({ job, onSwipe, active, preview = false, swipeDirection 
       </div>
 
       {/* Short Description */}
-      <p className="text-foreground/80 mb-4 line-clamp-3 text-sm leading-relaxed">
+      <p className="text-slate-300 mb-4 line-clamp-3 text-sm leading-relaxed">
         {job.description}
       </p>
 
@@ -120,7 +123,7 @@ export const JobCard = ({ job, onSwipe, active, preview = false, swipeDirection 
         {job.skills.map((skill, index) => (
           <span
             key={index}
-            className="bg-muted text-muted-foreground text-xs px-3 py-1 rounded-full"
+            className="bg-slate-700/50 text-purple-300 text-xs px-3 py-1 rounded-full border border-purple-500/30"
           >
             {skill}
           </span>
@@ -128,10 +131,10 @@ export const JobCard = ({ job, onSwipe, active, preview = false, swipeDirection 
       </div>
 
       {/* Action Buttons */}
-      <div className="flex justify-between pt-4 border-t border-border mt-6">
+      <div className="flex justify-between pt-4 border-t border-slate-700 mt-6">
         {/* Skip */}
         <button
-          className="p-3 rounded-full bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
+          className="p-3 rounded-full bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
           onClick={() => onSwipe('left')}
         >
           <FiX className="w-6 h-6" />
@@ -139,7 +142,7 @@ export const JobCard = ({ job, onSwipe, active, preview = false, swipeDirection 
 
         {/* Apply */}
         <button
-          className="px-6 py-2 rounded-full bg-gradient-to-r from-primary to-primary/80 text-white font-medium hover:opacity-90 transition-all flex items-center gap-2 shadow"
+          className="px-6 py-2 rounded-full bg-gradient-to-r from-yellow-500 to-yellow-600 text-white font-medium hover:opacity-90 transition-all flex items-center gap-2 shadow-lg hover:shadow-yellow-500/20"
           onClick={() => onSwipe('right')}
         >
           <FiSend className="w-4 h-4" />
@@ -147,7 +150,7 @@ export const JobCard = ({ job, onSwipe, active, preview = false, swipeDirection 
         </button>
 
         {/* Save */}
-        <button className="p-3 rounded-full bg-muted text-foreground hover:bg-muted/70 transition-colors">
+        <button className="p-3 rounded-full bg-slate-700/50 text-yellow-400 hover:bg-slate-600/50 transition-colors border border-slate-600/50">
           <FiBookmark className="w-6 h-6" />
         </button>
       </div>
