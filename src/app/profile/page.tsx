@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   description: 'Manage your profile, applications, and career journey.'
 };
 
+
 export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-slate-950">

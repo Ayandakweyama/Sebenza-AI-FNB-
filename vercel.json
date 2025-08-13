@@ -7,18 +7,17 @@
       "config": {
         "maxLambdaSize": "15mb"
       }
-    },
-    {
-      "src": "src/app/api/scrape-jobs/route.ts",
-      "use": "@vercel/node",
-      "config": {
-        "maxLambdaSize": "50mb",
-        "memory": 3008,
-        "maxDuration": 60
-      }
     }
   ],
   "routes": [
+    {
+      "src": "/api/(afrigter|ai|analyze-job-post|scrape-jobs|scrape-careerjunction|tasks)(/.*)?",
+      "dest": "/api/disabled"
+    },
+    {
+      "src": "/(afrigter|career-roadmap|resume-analyzer)(/.*)?",
+      "dest": "/api/disabled"
+    },
     {
       "src": "/api/(.*)",
       "dest": "/api/$1"

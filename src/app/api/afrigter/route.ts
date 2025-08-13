@@ -57,12 +57,12 @@ export async function POST(request: Request) {
   }
   
   try {
-    // Check for API key
-    console.log('Afrigter API: Checking for OpenAI API key');
-    if (!process.env.OPENAI_API_KEY) {
+    // Check for DeepSeek API key
+    console.log('Afrigter API: Checking for DeepSeek API key');
+    if (!process.env.DEEPSEEK_CHAT_API_KEY) {
       return createErrorResponse(
         'Server configuration error',
-        'OpenAI API key is not configured. Please check your .env.local file and restart the server.',
+        'DeepSeek Chat API key is not configured. Please check your Vercel environment variables.',
         500
       );
     }

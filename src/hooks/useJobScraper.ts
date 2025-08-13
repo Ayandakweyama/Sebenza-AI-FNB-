@@ -11,14 +11,14 @@ export interface Job {
   jobType?: string;
   industry?: string;
   reference?: string;
-  source?: 'indeed' | 'careerjunction';
+  source?: 'careerjunction'; // Only using CareerJunction as the job source
 }
 
 interface ScraperOptions {
   query: string;
   location: string;
   maxPages?: number;
-  source?: 'indeed' | 'careerjunction';
+  source?: 'careerjunction'; // Only using CareerJunction as the job source
 }
 
 interface UseJobScraperProps {
@@ -36,20 +36,22 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
     query, 
     location, 
     maxPages = 1,
-    source = 'careerjunction' 
+    // Only using CareerJunction as the job source
+    source = 'careerjunction' as const // Force type to only allow 'careerjunction'
   }: ScraperOptions) => {
-    const endpoint = source === 'indeed' ? '/api/scrape-jobs' : '/api/scrape-careerjunction';
+    // Only use CareerJunction endpoint
+    const endpoint = '/api/scrape-careerjunction';
     
-    console.log(`🚀 Starting ${source} job scrape with query: "${query}", location: "${location}"`);
+    console.log(`🚀 Starting CareerJunction job scrape with query: "${query}", location: "${location}"`);
     setIsLoading(prev => ({ ...prev, [source]: true }));
     setErrors(prev => ({ ...prev, [source]: null }));
     onScrapeStart?.();
 
     try {
-      console.log(`🌐 Making request to: ${endpoint}`);
+      console.log(`🌐 Making request to CareerJunction API`);
       const startTime = Date.now();
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minute timeout (increased from 2)
+      const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minute timeout
       
       const requestBody = { 
         query, 
@@ -161,13 +163,14 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
     }
   }, [onScrapeComplete, onError, onScrapeStart]);
 
-  // Function to scrape from all sources with enhanced error handling and fallbacks
+  // Function to scrape from CareerJunction with enhanced error handling and fallbacks
   const scrapeAll = useCallback(async (options: Omit<ScraperOptions, 'source'>) => {
-    console.log('🚀 Starting comprehensive job search from all sources');
+    console.log('🚀 Starting job search from CareerJunction');
     
-    const sources: ('indeed' | 'careerjunction')[] = ['careerjunction', 'indeed'];
+    // Only use CareerJunction as the source
+    const sources: ('careerjunction')[] = ['careerjunction'];
     
-    // Start all scrapers in parallel with fallback
+    // Start the scraper with fallback
     const promises = [
       ...sources.map(source => 
         scrapeJobs({ ...options, source }).catch(error => {

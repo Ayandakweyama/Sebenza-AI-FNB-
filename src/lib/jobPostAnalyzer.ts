@@ -1,19 +1,11 @@
-import { OpenAI } from 'openai';
+import { deepseek } from './deepseek';
 
-// Initialize DeepSeek client for job post analysis (server-side only)
-let deepseek: OpenAI | null = null;
-
-// Only initialize on server side
-if (typeof window === 'undefined' && process.env.DEEPSEEK_API_KEY) {
-  try {
-    deepseek = new OpenAI({
-      apiKey: process.env.DEEPSEEK_API_KEY,
-      baseURL: 'https://api.deepseek.com',
-      dangerouslyAllowBrowser: false
-    });
-    console.log('DeepSeek client initialized for job post analysis');
-  } catch (error) {
-    console.error('Failed to initialize DeepSeek client for job analysis:', error);
+// Log initialization status
+if (typeof window === 'undefined') {
+  if (deepseek) {
+    console.log('DeepSeek client is available for job post analysis');
+  } else {
+    console.warn('DeepSeek client is not available for job post analysis');
   }
 }
 
@@ -63,7 +55,7 @@ export async function extractTextFromURL(url: string): Promise<string> {
 // Function to analyze job post and extract keywords using DeepSeek
 export async function analyzeJobPost(jobPostText: string): Promise<JobAnalysisResult> {
   if (!deepseek) {
-    throw new Error('DeepSeek API key is not configured or client initialization failed');
+    throw new Error('DeepSeek client is not available. Make sure DEEPSEEK_API_KEY is set in your environment variables.');
   }
 
   const systemPrompt = `You are an expert ATS (Applicant Tracking System) analyst and job market specialist. Your task is to analyze job postings and extract the exact keywords and phrases that ATS systems would search for when screening candidates.
@@ -98,11 +90,14 @@ Return the response in JSON format with the following structure:
 }`;
 
   try {
+    // Truncate job post text if it's too long (to avoid token limits)
+    const truncatedText = jobPostText.length > 10000 ? jobPostText.substring(0, 10000) + '...' : jobPostText;
+    
     const response = await deepseek.chat.completions.create({
       model: 'deepseek-chat',
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Analyze this job posting:\n\n${jobPostText}` }
+        { role: 'user', content: `Analyze this job posting (truncated if too long):\n\n${truncatedText}` }
       ],
       temperature: 0.1,
       max_tokens: 2000,
@@ -110,11 +105,17 @@ Return the response in JSON format with the following structure:
 
     const content = response.choices[0]?.message?.content;
     if (!content) {
-      throw new Error('No response from DeepSeek');
+      throw new Error('No response content from DeepSeek API');
     }
 
     // Parse JSON response
-    const result = JSON.parse(content) as JobAnalysisResult;
+    let result: JobAnalysisResult;
+    try {
+      result = JSON.parse(content);
+    } catch (parseError) {
+      console.error('Failed to parse DeepSeek response:', content);
+      throw new Error('Failed to parse job analysis response. The response was not valid JSON.');
+    }
     
     // Validate and clean the result
     return {

@@ -423,6 +423,19 @@ export async function POST(request: Request) {
             break;
           }
           
+          // Add debug logging for page content
+          const pageContent = await page.content();
+          console.log('Page content length:', pageContent.length);
+          console.log('Page title:', await page.title());
+          
+          // Take a screenshot for debugging
+          try {
+            const screenshot = await page.screenshot({ encoding: 'base64' });
+            console.log('Page screenshot (first 100 chars):', `data:image/png;base64,${screenshot.substring(0, 100)}...`);
+          } catch (e) {
+            console.error('Failed to take screenshot:', e);
+          }
+          
           // Extract job data from the current page
           const pageJobs = await page.evaluate((baseUrl: string) => {
             // Helper function to get text content with multiple selectors
@@ -456,30 +469,75 @@ export async function POST(request: Request) {
               return '';
             };
             
-            // Try different selectors to find job elements
+            // Log the document body for debugging
+            console.log('Document body length:', document.body?.innerText?.length || 0);
+            
+            // Try different selectors to find job elements - updated with more specific selectors
             const selectors = [
-              '.job-card',
-              '.job-item',
+              'div.job-card',
+              'div.job-listing',
               'article.job',
               'div.job',
               'li.job',
+              'div[data-testid="job-card"]',
+              'div[class*="job-card"]',
+              'div[class*="job-listing"]',
+              'div[class*="job-item"]',
               'div[class*="job-"]',
               'div[class*="listing"]',
               'article[class*="job"]',
               'li[class*="job"]',
               'div[class*="result"]',
-              'div[class*="item"]'
+              'div[class*="item"]',
+              'div.card', // More generic selectors as fallback
+              'div.list-item'
             ];
             
             let jobElements: Element[] = [];
             
+            // First, try to find job container elements
+            const containerSelectors = [
+              'div#search-results',
+              'div.job-listings',
+              'div.jobs-container',
+              'div.search-results',
+              'div[role="list"]'
+            ];
+            
+            // Look for container elements first
+            let container: Element | null = null;
+            for (const selector of containerSelectors) {
+              try {
+                const el = document.querySelector(selector);
+                if (el) {
+                  console.log(`Found container with selector: ${selector}`);
+                  container = el;
+                  break;
+                }
+              } catch (e) {
+                console.warn(`Error with container selector ${selector}:`, e);
+              }
+            }
+            
+            // If we found a container, search within it
+            const searchRoot = container || document;
+            
             // Try each selector until we find some job elements
             for (const selector of selectors) {
               try {
-                const elements = Array.from(document.querySelectorAll(selector));
-                if (elements && elements.length > 0) {
-                  console.log(`Found ${elements.length} job elements with selector: ${selector}`);
-                  jobElements = elements;
+                const elements = Array.from(searchRoot.querySelectorAll(selector));
+                console.log(`Found ${elements.length} elements with selector: ${selector}`);
+                
+                // If we found elements and they look like job listings (have title and company)
+                const filteredElements = elements.filter(el => {
+                  const hasTitle = Boolean(getText(el, ['h2', 'h3', 'h4', '.title', '.job-title', '[data-testid*="title"]']));
+                  const hasCompany = Boolean(getText(el, ['.company', '.employer', '[data-testid*="company"]']));
+                  return hasTitle || hasCompany; // At least one of them should be present
+                });
+                
+                if (filteredElements.length > 0) {
+                  console.log(`Found ${filteredElements.length} valid job elements with selector: ${selector}`);
+                  jobElements = filteredElements;
                   break;
                 }
               } catch (e) {

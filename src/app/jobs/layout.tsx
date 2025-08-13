@@ -48,11 +48,14 @@ export default function JobsLayout({
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-yellow-400 via-yellow-400 to-yellow-300 bg-clip-text text-transparent mb-2">
+        {/* Added spacer to push content down */}
+        <div className="h-16"></div>
+        
+        <div className="mb-12">
+          <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-yellow-400 via-yellow-400 to-yellow-300 bg-clip-text text-transparent mb-3">
             Job Portal
           </h1>
-          <p className="text-purple-200">Find and manage your career opportunities in one place</p>
+          <p className="text-purple-200 text-lg">Find and manage your career opportunities in one place</p>
         </div>
         
         {/* Navigation Cards */}

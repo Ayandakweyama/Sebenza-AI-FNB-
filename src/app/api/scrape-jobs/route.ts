@@ -1,18 +1,20 @@
 import { NextResponse } from 'next/server';
-import puppeteer from 'puppeteer-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 
-// Check if running in Vercel serverless environment
-const isVercel = process.env.VERCEL === '1';
-
-// Import Puppeteer types
-import { Browser, Page, ElementHandle, Response as PuppeteerResponse, Request as PuppeteerRequest } from 'puppeteer';
+// Define types for dynamic imports
+type PuppeteerExtra = typeof import('puppeteer-extra');
+type StealthPlugin = import('puppeteer-extra-plugin-stealth').default;
+type Browser = import('puppeteer').Browser;
+type Page = import('puppeteer').Page;
+type ElementHandle = import('puppeteer').ElementHandle;
+type Response = import('puppeteer').Response;
+type Request = import('puppeteer').Request;
 
 // Type definitions that extend Puppeteer's types
 type PuppeteerBrowser = Browser;
 type PuppeteerPage = Page;
 
-// Custom interface for our job data
+// Check if running in Vercel serverless environment
+const isVercel = process.env.VERCEL === '1';
 
 // Interface for job data
 interface Job {
@@ -26,8 +28,21 @@ interface Job {
   jobType?: string;
 }
 
-// Add stealth plugin to avoid detection
-puppeteer.use(StealthPlugin());
+// Cache for storing browser instance
+let _browser: PuppeteerBrowser | null = null;
+
+// Initialize Puppeteer with dynamic imports
+async function getPuppeteer() {
+  const [puppeteer, StealthPlugin] = await Promise.all([
+    import('puppeteer-extra') as Promise<PuppeteerExtra>,
+    import('puppeteer-extra-plugin-stealth').then(m => m.default)
+  ]);
+  
+  // Add stealth plugin
+  puppeteer.use(StealthPlugin());
+  
+  return puppeteer;
+}
 
 // Auto-scroll function to load all jobs
 async function autoScroll(page: Page): Promise<void> {
@@ -116,14 +131,16 @@ interface ScrapeRequest {
   maxPages?: number;
 }
 
-// Cache for storing browser instance
-let _browser: PuppeteerBrowser | null = null;
-
 // Helper function to get or create browser instance
 async function getBrowser(): Promise<PuppeteerBrowser> {
-  if (_browser) return _browser;
+  if (_browser) {
+    return _browser;
+  }
+
+  const puppeteer = await getPuppeteer();
   
-  _browser = await puppeteer.launch({
+  // Configure launch options for Vercel
+  const launchOptions: any = {
     headless: true,
     args: [
       '--no-sandbox',
@@ -134,17 +151,20 @@ async function getBrowser(): Promise<PuppeteerBrowser> {
       '--no-zygote',
       '--single-process',
       '--disable-gpu',
-      '--disable-web-security',
-      '--disable-features=IsolateOrigins,site-per-process',
-      '--disable-extensions',
       '--disable-software-rasterizer',
-      ...(isVercel ? ['--single-process'] : [])
+      '--disable-features=IsolateOrigins,site-per-process',
+      '--disable-web-security',
+      '--disable-features=BlockInsecurePrivateNetworkRequests',
+      '--disable-site-isolation-trials',
     ],
-    ignoreHTTPSErrors: true,
-    defaultViewport: { width: 1366, height: 768 },
-    timeout: isVercel ? 30000 : 60000
-  });
-  
+  };
+
+  if (isVercel) {
+    // Additional configuration for Vercel serverless environment
+    launchOptions.executablePath = process.env.CHROME_EXECUTABLE_PATH;
+  }
+
+  _browser = await puppeteer.launch(launchOptions);
   return _browser;
 }
 

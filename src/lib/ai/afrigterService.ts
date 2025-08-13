@@ -1,6 +1,8 @@
 import { AIService } from './baseService';
-import { generateCareerAdvice, analyzeSkillGap, generateCareerRoadmap } from '../openai';
 import { generateCareerAdviceWithDeepSeek } from '../deepseek';
+
+// Import DeepSeek functions for other services
+import { generateATSAnalysisWithDeepSeek } from '../deepseek';
 
 export type ServiceType = 
   | 'resume-tips' 
@@ -113,39 +115,22 @@ Provide specific, actionable advice tailored to the African job market.`;
     return this.generateText(prompt, {}, { temperature: 0.7 });
   }
 
-  async provideCareerAdvice(params: CareerAdviceParams) {
+  async provideCareerAdvice(params: CareerAdviceParams): Promise<{ content: string; context?: string }> {
     const { question, experienceLevel, context } = params;
     
-    // Try DeepSeek Chat first for career advice (primary)
-    try {
-      console.log('Attempting career advice with DeepSeek Chat...');
-      return await generateCareerAdviceWithDeepSeek(question, experienceLevel);
-    } catch (error) {
-      console.warn('DeepSeek Chat career advice failed, trying OpenAI fallback:', error);
-      
-      // Fallback to OpenAI if DeepSeek Chat fails
-      try {
-        return await generateCareerAdvice(question, experienceLevel);
-      } catch (openAIError) {
-        console.warn('OpenAI career advice failed, using base service:', openAIError);
-        
-        // Final fallback to base service
-        const contextText = context ? `\n\nAdditional context: ${context}` : '';
-        
-        const prompt = `You are a career advisor helping a ${experienceLevel} professional with the following question:
-
-"${question}"${contextText}
-
-Provide a detailed, actionable response that considers the African job market. Structure your answer with:
-1. Key insights
-2. Actionable steps
-3. Potential challenges and how to overcome them
-4. Resources for further learning
-5. Success metrics`;
-
-        return this.generateText(prompt, {}, { temperature: 0.8 });
-      }
+    // Use DeepSeek Chat for career advice
+    console.log('Generating career advice with DeepSeek Chat...');
+    const response = await generateCareerAdviceWithDeepSeek(question, experienceLevel);
+    
+    // If context was provided, include it in the response
+    if (context) {
+      return {
+        content: response,
+        context: `Additional context provided: ${context}`
+      };
     }
+    
+    return { content: response };
   }
 
   async generateCareerRoadmap(params: CareerRoadmapParams) {

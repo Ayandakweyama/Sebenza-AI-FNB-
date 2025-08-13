@@ -24,13 +24,7 @@ export const navigationItems: NavigationItem[] = [
     title: 'Applications', 
     description: 'Track your job applications', 
     path: '/applications',
-    icon: '📋',
-    hoverOptions: [
-      { label: 'All Applications', path: '/applications' },
-      { label: 'In Progress', path: '/applications/pending' },
-      { label: 'Interviews', path: '/applications/interviews' },
-      { label: 'Follow-ups', path: '/applications/followups' }
-    ]
+    icon: '📋'
   },
   // Analytics section removed as per user request
   // Networking section removed as per user request

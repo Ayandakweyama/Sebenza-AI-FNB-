@@ -1,13 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Disable server-side rendering for the API route that uses Puppeteer
-  experimental: {
-    serverComponentsExternalPackages: ["puppeteer-extra", "puppeteer-extra-plugin-stealth"],
-  },
+  // Use the new serverExternalPackages instead of experimental.serverComponentsExternalPackages
+  serverExternalPackages: ["puppeteer-extra", "puppeteer-extra-plugin-stealth", "puppeteer"],
   
   // Configure webpack to handle problematic dependencies
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, dev }) => {
     // Only apply these changes for server-side builds
     if (isServer) {
       // Exclude node_modules from being processed by babel-loader
@@ -21,18 +19,23 @@ const nextConfig: NextConfig = {
       }
       
       // Handle problematic modules
-      config.externals = [...(config.externals || []), {
-        'puppeteer-extra': 'commonjs puppeteer-extra',
-        'puppeteer-extra-plugin-stealth': 'commonjs puppeteer-extra-plugin-stealth',
-        'puppeteer': 'commonjs puppeteer'
-      }];
+      config.externals = [
+        ...(config.externals || []), 
+        {
+          'puppeteer-extra': 'commonjs puppeteer-extra',
+          'puppeteer-extra-plugin-stealth': 'commonjs puppeteer-extra-plugin-stealth',
+          'puppeteer': 'commonjs puppeteer',
+          'sharp': 'commonjs sharp',
+        }
+      ];
       
       // Ignore specific warnings
       config.ignoreWarnings = [
         ...(config.ignoreWarnings || []),
-        { module: /node_modules\/puppeteer-extra/ },
-        { module: /node_modules\/puppeteer-extra-plugin-stealth/ },
-        { module: /node_modules\/puppeteer/ },
+        { module: /node_modules[\\/]puppeteer-extra/ },
+        { module: /node_modules[\\/]puppeteer-extra-plugin-stealth/ },
+        { module: /node_modules[\\/]puppeteer/ },
+        { module: /node_modules[\\/]sharp/ },
       ];
     }
     
@@ -48,6 +51,9 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  
+  // Enable React Strict Mode
+  reactStrictMode: true,
 };
 
 export default nextConfig;
