@@ -5,13 +5,47 @@ import type { NextRequest } from 'next/server';
 const publicPaths = ['/', '/about', '/pricing'];
 
 // Auth paths that should be handled by Next.js routing
-const authPaths = ['/sign-in', '/sign-up'];
+const authPaths = ['/sign-in', 'sign-up'];
+
+// List of AI/MongoDB dependent routes to disable
+const disabledRoutes = [
+  '/api/afrigter',
+  '/api/ai',
+  '/api/analyze-job-post',
+  '/api/scrape-jobs',
+  '/api/scrape-careerjunction',
+  '/api/tasks',
+  '/afrigter',
+  '/career-roadmap',
+  '/resume-analyzer'
+];
+
+// Function to check if a path should be disabled
+function isDisabledRoute(pathname: string): boolean {
+  return disabledRoutes.some(route => 
+    pathname === route || pathname.startsWith(`${route}/`)
+  );
+}
 
 export default function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
   // Log the request for debugging
   console.log(`[Middleware] Request to: ${pathname}`);
+  
+  // Block disabled routes
+  if (isDisabledRoute(pathname)) {
+    console.log(`Blocking disabled route: ${pathname}`);
+    return new NextResponse(
+      JSON.stringify({ 
+        error: 'This feature is temporarily disabled for deployment' 
+      }), 
+      { 
+        status: 503, 
+        headers: { 'Content-Type': 'application/json' } 
+      }
+    );
+  }
   
   // Allow all public paths
   if (publicPaths.some(path => pathname === path || pathname.startsWith(`${path}/`))) {
@@ -26,7 +60,6 @@ export default function middleware(request: NextRequest) {
   }
   
   // For all other paths, just continue
-  // In a real app, you would check for authentication here
   console.log(`Proceeding with request to: ${pathname}`);
   return NextResponse.next();
 }
