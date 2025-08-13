@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Use the new serverExternalPackages instead of experimental.serverComponentsExternalPackages
+  // Use the new serverExternalPackages instead of // experimental.serverComponentsExternalPackages
   serverExternalPackages: ["puppeteer-extra", "puppeteer-extra-plugin-stealth", "puppeteer"],
   
   // Configure webpack to handle problematic dependencies
