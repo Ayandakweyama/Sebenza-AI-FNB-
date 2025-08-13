@@ -2,44 +2,17 @@ import { NextResponse } from 'next/server';
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 
-// Type definitions for Puppeteer
-interface PuppeteerBrowser {
-  newPage(): Promise<PuppeteerPage>;
-  close(): Promise<void>;
-}
+// Check if running in Vercel serverless environment
+const isVercel = process.env.VERCEL === '1';
 
-interface PuppeteerPage {
-  goto(url: string, options?: { waitUntil?: string; timeout?: number }): Promise<HTTPResponse>;
-  setUserAgent(userAgent: string): Promise<void>;
-  setViewport(viewport: { width: number; height: number }): Promise<void>;
-  setRequestInterception(enable: boolean): Promise<void>;
-  waitForSelector(selector: string, options?: { timeout?: number }): Promise<void>;
-  waitForTimeout(ms: number): Promise<void>;
-  evaluate<T>(pageFunction: () => T | Promise<T>): Promise<T>;
-  $(selector: string): Promise<ElementHandle | null>;
-  on(event: string, handler: (request: PuppeteerRequest) => void): void;
-  click(selector: string): Promise<void>;
-  title(): Promise<string>;
-}
+// Import Puppeteer types
+import { Browser, Page, ElementHandle, Response as PuppeteerResponse, Request as PuppeteerRequest } from 'puppeteer';
 
-interface HTTPResponse {
-  ok(): boolean;
-  status(): number;
-  statusText(): string;
-}
+// Type definitions that extend Puppeteer's types
+type PuppeteerBrowser = Browser;
+type PuppeteerPage = Page;
 
-interface ElementHandle {
-  click(): Promise<void>;
-  getAttribute(attribute: string): Promise<string | null>;
-  evaluate<T>(pageFunction: (element: Element) => T): Promise<T>;
-  textContent(): Promise<string | null>;
-}
-
-interface PuppeteerRequest {
-  resourceType(): string;
-  abort(): void;
-  continue(): void;
-}
+// Custom interface for our job data
 
 // Interface for job data
 interface Job {
@@ -57,7 +30,7 @@ interface Job {
 puppeteer.use(StealthPlugin());
 
 // Auto-scroll function to load all jobs
-async function autoScroll(page: PuppeteerPage): Promise<void> {
+async function autoScroll(page: Page): Promise<void> {
   await page.evaluate(async () => {
     await new Promise<void>((resolve) => {
       let totalHeight = 0;
@@ -83,9 +56,11 @@ async function extractJobData(page: PuppeteerPage): Promise<Job[]> {
     try {
       await page.waitForSelector('div.job_seen_beacon, div.jobsearch-SerpJobCard, div[data-tn-component="organicJob"]', {
         timeout: 15000
+      }).catch(() => {
+        console.warn('Job cards not found, continuing with what we have');
       });
     } catch (error) {
-      console.warn('Job cards not found, continuing with what we have');
+      console.warn('Error waiting for job cards:', error);
     }
 
     return await page.evaluate((): Job[] => {
@@ -141,14 +116,61 @@ interface ScrapeRequest {
   maxPages?: number;
 }
 
-export async function POST(request: Request) {
+// Cache for storing browser instance
+let _browser: PuppeteerBrowser | null = null;
+
+// Helper function to get or create browser instance
+async function getBrowser(): Promise<PuppeteerBrowser> {
+  if (_browser) return _browser;
+  
+  _browser = await puppeteer.launch({
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--no-first-run',
+      '--no-zygote',
+      '--single-process',
+      '--disable-gpu',
+      '--disable-web-security',
+      '--disable-features=IsolateOrigins,site-per-process',
+      '--disable-extensions',
+      '--disable-software-rasterizer',
+      ...(isVercel ? ['--single-process'] : [])
+    ],
+    ignoreHTTPSErrors: true,
+    defaultViewport: { width: 1366, height: 768 },
+    timeout: isVercel ? 30000 : 60000
+  });
+  
+  return _browser;
+}
+
+// Clean up browser instance when the server shuts down
+if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+  process.on('exit', () => {
+    if (_browser) {
+      _browser.close().catch(console.error);
+    }
+  });
+}
+
+export async function POST(request: Request): Promise<NextResponse> {
   // Parse request body with default values
   let query = 'developer';
   let location = 'South Africa';
   let maxPages = 1;
   
+  // Limit max pages in production to prevent excessive resource usage
+  if (isVercel) {
+    maxPages = Math.min(maxPages, 2);
+  }
+  
   try {
-    const requestBody = await request.json() as Partial<ScrapeRequest>;
+    // Parse the request body
+  const requestBody = await new Response(request.body).json() as Partial<ScrapeRequest>;
     query = requestBody.query || query;
     location = requestBody.location || location;
     maxPages = requestBody.maxPages || maxPages;
@@ -158,6 +180,7 @@ export async function POST(request: Request) {
     console.warn('Failed to parse request body, using default values. Error:', error);
   }
 
+  // Configure Puppeteer for serverless environment
   const browser = await puppeteer.launch({
     headless: true,
     args: [
@@ -170,10 +193,35 @@ export async function POST(request: Request) {
       '--single-process',
       '--disable-gpu',
       '--disable-web-security',
-      '--disable-features=IsolateOrigins,site-per-process'
+      '--disable-features=IsolateOrigins,site-per-process',
+      '--disable-extensions',
+      '--disable-software-rasterizer',
+      '--disable-background-networking',
+      '--disable-default-apps',
+      '--disable-notifications',
+      '--disable-sync',
+      '--metrics-recording-only',
+      '--mute-audio',
+      '--no-default-browser-check',
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-breakpad',
+      '--disable-component-extensions-with-background-pages',
+      '--disable-ipc-flooding-protection',
+      '--disable-renderer-backgrounding',
+      '--disable-client-side-phishing-detection',
+      '--disable-hang-monitor',
+      '--disable-popup-blocking',
+      '--disable-prompt-on-repost',
+      '--disable-sync',
+      '--password-store=basic',
+      '--use-mock-keychain',
+      ...(isVercel ? ['--single-process'] : [])
     ],
     ignoreHTTPSErrors: true,
-    defaultViewport: null
+    defaultViewport: { width: 1366, height: 768 },
+    // Set a timeout for the browser launch
+    timeout: isVercel ? 30000 : 60000
   });
 
   try {
@@ -208,9 +256,12 @@ export async function POST(request: Request) {
       const url = `https://za.indeed.com/jobs?q=${encodeURIComponent(query)}&l=${encodeURIComponent(location)}&start=${offset}`;
       
       console.log(`Navigating to page ${currentPage + 1}: ${url}`);
-      const response = await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+      const response = await page.goto(url, { 
+        waitUntil: 'networkidle2' as const, 
+        timeout: 60000 
+      });
       
-      if (!response?.ok()) {
+      if (!response || !response.ok()) {
         throw new Error(`Failed to load page: ${response?.status()} ${response?.statusText()}`);
       }
 
@@ -245,7 +296,7 @@ export async function POST(request: Request) {
       
       // Add a small delay between page loads
       if (hasNextPage && currentPage < maxPages) {
-        await page.waitForTimeout(2000);
+        await page.waitForTimeout(isVercel ? 1000 : 2000);
       }
     }
 
@@ -263,6 +314,9 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   } finally {
-    await browser.close();
+    // Don't close the browser in production to reuse the instance
+    if (!isVercel) {
+      await browser.close();
+    }
   }
 }

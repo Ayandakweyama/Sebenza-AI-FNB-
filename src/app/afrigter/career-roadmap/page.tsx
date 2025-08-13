@@ -131,21 +131,20 @@ export default function CareerRoadmapPage() {
               </button>
             </form>
             
-            {response && (
+            {response ? (
               <div className="mt-8 bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
                 <h2 className="text-2xl font-bold mb-4 text-white">Your Career Roadmap</h2>
                 <div className="prose prose-invert max-w-none text-slate-300">
                   {response}
                 </div>
               </div>
+            ) : (
+              <div className="mt-8 text-center p-6 border-2 border-dashed border-slate-700 rounded-xl">
+                <p className="text-slate-300">Your personalized career roadmap will appear here after generation.</p>
+                <p className="text-sm mt-2 text-slate-400">We'll analyze your current skills and goals to create a step-by-step plan for your career growth.</p>
+              </div>
             )}
           </div>
-              <p>Your personalized career roadmap will appear here after generation.</p>
-              <p className="text-sm mt-2">We'll analyze your current skills and goals to create a step-by-step plan for your career growth.</p>
-            </div>
-          )}
-        </div>
-      </div>
         </div>
       </div>
     </div>
