@@ -16,286 +16,410 @@ interface ATSReportData {
 }
 
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Table, TableCell, TableRow, WidthType } from 'docx';
+import jsPDF from 'jspdf';
 
 export const generateAtsReport = (data: ATSReportData) => {
-  // Create a new window with the report content
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) {
-    alert('Pop-up was blocked. Please allow pop-ups for this site and try again.');
-    return;
+  // Create a new jsPDF instance for direct PDF download
+  const pdf = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  // Sebenza AI Brand Colors
+  const colors = {
+    primary: { r: 236, g: 72, b: 153 },      // Pink #ec4899
+    secondary: { r: 251, g: 207, b: 232 },   // Light pink #fbcfe8
+    dark: { r: 30, g: 41, b: 59 },           // Dark slate #1e293b
+    gray: { r: 100, g: 116, b: 139 },        // Slate gray #64748b
+    lightGray: { r: 241, g: 245, b: 249 },   // Light gray #f1f5f9
+    success: { r: 34, g: 197, b: 94 },       // Green #22c55e
+    warning: { r: 251, g: 146, b: 60 },      // Orange #fb923c
+    danger: { r: 239, g: 68, b: 68 },        // Red #ef4444
+    purple: { r: 168, g: 85, b: 247 }        // Purple accent #a855f7
+  };
+  
+  let yPosition = 15;
+  const pageWidth = pdf.internal.pageSize.width;
+  const pageHeight = pdf.internal.pageSize.height;
+  const margin = 20;
+  const contentWidth = pageWidth - (margin * 2);
+
+  // Helper function to add new page if needed
+  const checkPageBreak = (requiredSpace: number = 20) => {
+    if (yPosition + requiredSpace > pageHeight - margin) {
+      pdf.addPage();
+      yPosition = 20;
+      // Add subtle page header on new pages
+      pdf.setFillColor(colors.primary.r, colors.primary.g, colors.primary.b);
+      pdf.rect(0, 0, pageWidth, 3, 'F');
+    }
+  };
+
+  // Helper function to wrap text
+  const wrapText = (text: string, maxWidth: number): string[] => {
+    return pdf.splitTextToSize(text, maxWidth);
+  };
+
+  // Helper function to draw rounded rectangle
+  const drawRoundedRect = (x: number, y: number, width: number, height: number, radius: number, fillColor?: any) => {
+    if (fillColor) {
+      pdf.setFillColor(fillColor.r, fillColor.g, fillColor.b);
+      pdf.roundedRect(x, y, width, height, radius, radius, 'F');
+    } else {
+      pdf.roundedRect(x, y, width, height, radius, radius, 'S');
+    }
+  };
+
+  // Top gradient bar (simulated with rectangle)
+  pdf.setFillColor(colors.primary.r, colors.primary.g, colors.primary.b);
+  pdf.rect(0, 0, pageWidth, 5, 'F');
+  
+  // Logo area with brand name
+  yPosition = 25;
+  pdf.setFontSize(28);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setTextColor(colors.primary.r, colors.primary.g, colors.primary.b);
+  pdf.text('SEBENZA', margin, yPosition);
+  pdf.setFontSize(28);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(colors.dark.r, colors.dark.g, colors.dark.b);
+  pdf.text(' AI', margin + 35, yPosition);
+  
+  // Tagline
+  pdf.setFontSize(10);
+  pdf.setTextColor(colors.gray.r, colors.gray.g, colors.gray.b);
+  pdf.text('Your Career Success Partner', margin, yPosition + 5);
+  
+  // Report title on the right
+  pdf.setFontSize(16);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setTextColor(colors.dark.r, colors.dark.g, colors.dark.b);
+  pdf.text('ATS COMPATIBILITY REPORT', pageWidth - margin, yPosition - 5, { align: 'right' });
+  
+  pdf.setFontSize(10);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(colors.gray.r, colors.gray.g, colors.gray.b);
+  pdf.text(new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }), pageWidth - margin, yPosition + 1, { align: 'right' });
+  
+  yPosition += 20;
+
+  // Score Section with enhanced visual design
+  yPosition += 10;
+  
+  // Score card background
+  drawRoundedRect(margin, yPosition - 5, contentWidth, 50, 5, colors.lightGray);
+  
+  // Determine score color based on performance
+  const scoreColor = data.score >= 80 ? colors.success :
+                     data.score >= 60 ? colors.warning :
+                     colors.danger;
+  
+  // Large score circle with gradient effect
+  pdf.setFillColor(scoreColor.r, scoreColor.g, scoreColor.b);
+  pdf.circle(pageWidth / 2, yPosition + 20, 18, 'F');
+  
+  // Inner circle for depth effect
+  pdf.setFillColor(255, 255, 255);
+  pdf.circle(pageWidth / 2, yPosition + 20, 15, 'F');
+  
+  // Score text
+  pdf.setFontSize(24);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setTextColor(scoreColor.r, scoreColor.g, scoreColor.b);
+  pdf.text(`${data.score}%`, pageWidth / 2, yPosition + 24, { align: 'center' });
+  
+  // Score label
+  pdf.setFontSize(10);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(colors.gray.r, colors.gray.g, colors.gray.b);
+  pdf.text('COMPATIBILITY SCORE', pageWidth / 2, yPosition + 32, { align: 'center' });
+  
+  // Score description with icon
+  pdf.setFontSize(12);
+  pdf.setFont('helvetica', 'bold');
+  const scoreDesc = data.score >= 80 ? '✓ Excellent ATS Optimization' :
+                    data.score >= 60 ? '⚡ Good ATS Compatibility' :
+                    data.score >= 40 ? '⚠ Needs Improvement' :
+                    '✗ Significant Optimization Required';
+  pdf.setTextColor(scoreColor.r, scoreColor.g, scoreColor.b);
+  pdf.text(scoreDesc, pageWidth / 2, yPosition + 42, { align: 'center' });
+  
+  yPosition += 55;
+
+  // Job Information
+  if (data.jobTitle || data.jobCompany) {
+    checkPageBreak(35);
+    
+    // Section header with underline
+    pdf.setFontSize(12);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(colors.primary.r, colors.primary.g, colors.primary.b);
+    pdf.text('JOB DETAILS', margin, yPosition);
+    
+    // Underline
+    pdf.setDrawColor(colors.primary.r, colors.primary.g, colors.primary.b);
+    pdf.setLineWidth(0.5);
+    pdf.line(margin, yPosition + 2, margin + 30, yPosition + 2);
+    yPosition += 10;
+    
+    pdf.setFontSize(10);
+    pdf.setTextColor(colors.dark.r, colors.dark.g, colors.dark.b);
+    if (data.jobTitle) {
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Position: ', margin, yPosition);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(data.jobTitle, margin + 20, yPosition);
+      yPosition += 6;
+    }
+    if (data.jobCompany) {
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Company: ', margin, yPosition);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(data.jobCompany, margin + 20, yPosition);
+      yPosition += 6;
+    }
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('Analysis Date: ', margin, yPosition);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(data.analysisDate, margin + 28, yPosition);
+    yPosition += 15;
   }
 
-  // Generate the report HTML with enhanced content
-  const reportHTML = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>ATS Compatibility Report - ${data.score}%</title>
-      <meta charset="UTF-8">
-      <style>
-        @media print {
-          @page { size: A4; margin: 2cm; }
-          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #1e293b; background: white; }
-          .header { text-align: center; margin-bottom: 2rem; border-bottom: 3px solid #ec4899; padding-bottom: 1rem; }
-          .title { font-size: 28px; color: #ec4899; margin-bottom: 0.5rem; font-weight: bold; }
-          .subtitle { color: #64748b; margin-bottom: 2rem; font-size: 16px; }
+  // Score Breakdown
+  if (data.breakdown && Object.keys(data.breakdown).length > 0) {
+    checkPageBreak(40);
+    pdf.setFontSize(12);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(colors.primary.r, colors.primary.g, colors.primary.b);
+    pdf.text('SCORE BREAKDOWN', margin, yPosition);
+    
+    // Underline
+    pdf.setDrawColor(colors.primary.r, colors.primary.g, colors.primary.b);
+    pdf.setLineWidth(0.5);
+    pdf.line(margin, yPosition + 2, margin + 40, yPosition + 2);
+    yPosition += 10;
+    
+    pdf.setFontSize(10);
+    Object.entries(data.breakdown).forEach(([key, value]) => {
+      // Progress bar background
+      pdf.setFillColor(colors.lightGray.r, colors.lightGray.g, colors.lightGray.b);
+      pdf.rect(margin, yPosition - 3, contentWidth, 6, 'F');
+      
+      // Progress bar fill
+      const barColor = Number(value) >= 80 ? colors.success : Number(value) >= 60 ? colors.warning : colors.danger;
+      pdf.setFillColor(barColor.r, barColor.g, barColor.b);
+      pdf.rect(margin, yPosition - 3, (contentWidth * Number(value)) / 100, 6, 'F');
+      
+      // Text labels
+      pdf.setTextColor(colors.dark.r, colors.dark.g, colors.dark.b);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(`${key.charAt(0).toUpperCase() + key.slice(1)}`, margin + 2, yPosition);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`${value}%`, pageWidth - margin - 2, yPosition, { align: 'right' });
+      yPosition += 8;
+    });
+    yPosition += 8;
+  }
 
-          .score-container {
-            text-align: center;
-            margin: 2rem 0;
-            padding: 2rem;
-            border-radius: 15px;
-            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-            border: 2px solid #ec4899;
-          }
-          .score-circle {
-            display: inline-block;
-            width: 140px;
-            height: 140px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #ec4899 0%, #f97316 100%);
-            color: white;
-            text-align: center;
-            line-height: 140px;
-            font-size: 36px;
-            font-weight: bold;
-            margin-bottom: 1rem;
-            box-shadow: 0 8px 25px rgba(236, 72, 153, 0.3);
-          }
+  // Strengths
+  if (data.strengths && data.strengths.length > 0) {
+    checkPageBreak(30 + data.strengths.length * 6);
+    pdf.setFontSize(12);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(colors.success.r, colors.success.g, colors.success.b);
+    pdf.text('✓ STRENGTHS', margin, yPosition);
+    yPosition += 8;
+    
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(colors.dark.r, colors.dark.g, colors.dark.b);
+    data.strengths.forEach(strength => {
+      const lines = wrapText(`• ${strength}`, contentWidth);
+      lines.forEach(line => {
+        checkPageBreak(6);
+        pdf.text(line, margin, yPosition);
+        yPosition += 6;
+      });
+    });
+    yPosition += 6;
+  }
 
-          .section {
-            margin: 2rem 0;
-            page-break-inside: avoid;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 1.5rem;
-            background: white;
-          }
-          .section-title {
-            font-size: 20px;
-            color: #1e293b;
-            border-bottom: 2px solid #ec4899;
-            padding-bottom: 0.5rem;
-            margin-bottom: 1rem;
-            font-weight: bold;
-          }
+  // Areas for Improvement
+  if (data.improvements && data.improvements.length > 0) {
+    checkPageBreak(30 + data.improvements.length * 6);
+    pdf.setFontSize(12);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(colors.warning.r, colors.warning.g, colors.warning.b);
+    pdf.text('⚠ AREAS FOR IMPROVEMENT', margin, yPosition);
+    yPosition += 8;
+    
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(colors.dark.r, colors.dark.g, colors.dark.b);
+    data.improvements.forEach(improvement => {
+      const lines = wrapText(`• ${improvement}`, contentWidth);
+      lines.forEach(line => {
+        checkPageBreak(6);
+        pdf.text(line, margin, yPosition);
+        yPosition += 6;
+      });
+    });
+    yPosition += 6;
+  }
 
-          .breakdown-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin: 1rem 0;
-          }
-          .breakdown-item {
-            background: #f8fafc;
-            padding: 1rem;
-            border-radius: 8px;
-            border-left: 4px solid #ec4899;
-          }
-          .breakdown-label { font-weight: bold; color: #374151; margin-bottom: 0.5rem; }
-          .breakdown-score {
-            font-size: 24px;
-            font-weight: bold;
-            color: #ec4899;
-          }
+  // Matched Keywords
+  if (data.matchedKeywords.length > 0) {
+    checkPageBreak(30);
+    pdf.setFontSize(12);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(colors.success.r, colors.success.g, colors.success.b);
+    pdf.text(`✓ MATCHED KEYWORDS (${data.matchedKeywords.length})`, margin, yPosition);
+    yPosition += 8;
+    
+    // Keywords in boxes
+    pdf.setFontSize(9);
+    pdf.setFont('helvetica', 'normal');
+    let xPos = margin;
+    let lineHeight = 0;
+    data.matchedKeywords.slice(0, 30).forEach(keyword => {
+      const textWidth = pdf.getTextWidth(keyword) + 4;
+      
+      // Check if we need to wrap to next line
+      if (xPos + textWidth > pageWidth - margin) {
+        xPos = margin;
+        yPosition += 7;
+        checkPageBreak(7);
+      }
+      
+      // Draw keyword box
+      pdf.setFillColor(colors.secondary.r, colors.secondary.g, colors.secondary.b);
+      drawRoundedRect(xPos, yPosition - 4, textWidth, 6, 1, colors.secondary);
+      
+      // Draw keyword text
+      pdf.setTextColor(colors.primary.r, colors.primary.g, colors.primary.b);
+      pdf.text(keyword, xPos + 2, yPosition);
+      
+      xPos += textWidth + 3;
+    });
+    
+    if (data.matchedKeywords.length > 30) {
+      yPosition += 7;
+      pdf.setTextColor(colors.gray.r, colors.gray.g, colors.gray.b);
+      pdf.setFont('helvetica', 'italic');
+      pdf.text(`... and ${data.matchedKeywords.length - 30} more keywords`, margin, yPosition);
+    }
+    yPosition += 10;
+  }
 
-          .keyword-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-            gap: 0.5rem;
-            margin: 1rem 0;
-          }
-          .keyword {
-            display: inline-block;
-            background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
-            color: #7e22ce;
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            font-size: 0.875rem;
-            font-weight: 500;
-            border: 1px solid #d8b4fe;
-            text-align: center;
-          }
-          .missing-keyword {
-            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-            color: #b91c1c;
-            border-color: #fca5a5;
-          }
+  // Missing Keywords
+  if (data.missingKeywords.length > 0) {
+    checkPageBreak(30);
+    pdf.setFontSize(12);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(colors.danger.r, colors.danger.g, colors.danger.b);
+    pdf.text(`✗ MISSING KEYWORDS (${data.missingKeywords.length})`, margin, yPosition);
+    yPosition += 8;
+    
+    // Keywords in boxes
+    pdf.setFontSize(9);
+    pdf.setFont('helvetica', 'normal');
+    let xPos = margin;
+    let lineHeight = 0;
+    data.missingKeywords.slice(0, 20).forEach(keyword => {
+      const textWidth = pdf.getTextWidth(keyword) + 4;
+      
+      // Check if we need to wrap to next line
+      if (xPos + textWidth > pageWidth - margin) {
+        xPos = margin;
+        yPosition += 7;
+        checkPageBreak(7);
+      }
+      
+      // Draw keyword box with light red background
+      pdf.setFillColor(255, 240, 240);
+      drawRoundedRect(xPos, yPosition - 4, textWidth, 6, 1, { r: 255, g: 240, b: 240 });
+      
+      // Draw keyword text
+      pdf.setTextColor(colors.danger.r, colors.danger.g, colors.danger.b);
+      pdf.text(keyword, xPos + 2, yPosition);
+      
+      xPos += textWidth + 3;
+    });
+    
+    if (data.missingKeywords.length > 20) {
+      yPosition += 7;
+      pdf.setTextColor(colors.gray.r, colors.gray.g, colors.gray.b);
+      pdf.setFont('helvetica', 'italic');
+      pdf.text(`... and ${data.missingKeywords.length - 20} more keywords`, margin, yPosition);
+    }
+    yPosition += 10;
+  }
 
-          .list-item {
-            margin-bottom: 0.75rem;
-            padding-left: 1.5rem;
-            position: relative;
-            line-height: 1.5;
-          }
-          .list-item:before {
-            content: '•';
-            position: absolute;
-            left: 0;
-            color: #ec4899;
-            font-weight: bold;
-            font-size: 1.2em;
-          }
+  // Recommendations
+  if (data.recommendations.length > 0) {
+    checkPageBreak(30 + data.recommendations.length * 6);
+    pdf.setFontSize(12);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(colors.purple.r, colors.purple.g, colors.purple.b);
+    pdf.text('💡 RECOMMENDATIONS', margin, yPosition);
+    yPosition += 8;
+    
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(colors.dark.r, colors.dark.g, colors.dark.b);
+    data.recommendations.forEach((rec, index) => {
+      checkPageBreak(10);
+      
+      // Number circle
+      pdf.setFillColor(colors.purple.r, colors.purple.g, colors.purple.b);
+      pdf.circle(margin + 3, yPosition - 2, 3, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(8);
+      pdf.text(`${index + 1}`, margin + 3, yPosition - 0.5, { align: 'center' });
+      
+      // Recommendation text
+      pdf.setFontSize(10);
+      pdf.setTextColor(colors.dark.r, colors.dark.g, colors.dark.b);
+      const lines = wrapText(rec, contentWidth - 10);
+      lines.forEach((line, lineIndex) => {
+        checkPageBreak(6);
+        pdf.text(line, margin + 10, yPosition + (lineIndex * 5));
+      });
+      yPosition += lines.length * 5 + 3;
+    });
+    yPosition += 6;
+  }
 
-          .footer {
-            margin-top: 3rem;
-            padding-top: 1rem;
-            border-top: 2px solid #e2e8f0;
-            text-align: center;
-            font-size: 0.75rem;
-            color: #64748b;
-          }
+  // Footer
+  checkPageBreak(25);
+  yPosition = pageHeight - 25;
+  
+  // Footer separator line
+  pdf.setDrawColor(colors.lightGray.r, colors.lightGray.g, colors.lightGray.b);
+  pdf.setLineWidth(0.5);
+  pdf.line(margin, yPosition, pageWidth - margin, yPosition);
+  yPosition += 8;
+  
+  // Footer content
+  pdf.setFontSize(9);
+  pdf.setTextColor(colors.gray.r, colors.gray.g, colors.gray.b);
+  pdf.setFont('helvetica', 'normal');
+  pdf.text('SEBENZA AI ATS CHECKER', pageWidth / 2, yPosition, { align: 'center' });
+  yPosition += 4;
+  pdf.setFontSize(8);
+  pdf.text(`Report generated on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} at ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`, pageWidth / 2, yPosition, { align: 'center' });
+  yPosition += 4;
+  pdf.setFont('helvetica', 'italic');
+  pdf.text('For optimal ATS performance, aim for scores above 70%', pageWidth / 2, yPosition, { align: 'center' });
+  
+  // Bottom accent bar
+  pdf.setFillColor(colors.primary.r, colors.primary.g, colors.primary.b);
+  pdf.rect(0, pageHeight - 3, pageWidth, 3, 'F');
 
-          .strengths-list, .improvements-list {
-            background: #f0fdf4;
-            border: 1px solid #bbf7d0;
-            border-radius: 8px;
-            padding: 1rem;
-            margin: 1rem 0;
-          }
-
-          .issues-list {
-            background: #fef2f2;
-            border: 1px solid #fecaca;
-            border-radius: 8px;
-            padding: 1rem;
-            margin: 1rem 0;
-          }
-        }
-
-        @media screen {
-          body { padding: 20px; }
-        }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <h1 class="title">ATS Compatibility Report</h1>
-        <p class="subtitle">Generated by Sebenza AI • Analysis Score: ${data.score}%</p>
-      </div>
-
-      <div class="score-container">
-        <div class="score-circle">${data.score}%</div>
-        <div style="font-weight: bold; font-size: 1.25rem; color: #374151;">ATS Compatibility Score</div>
-        <div style="color: #64748b; margin-top: 0.5rem;">
-          ${data.score >= 80 ? 'Excellent ATS optimization' :
-            data.score >= 60 ? 'Good ATS compatibility' :
-            data.score >= 40 ? 'Fair performance - needs improvement' :
-            'Significant optimization needed'}
-        </div>
-      </div>
-
-      ${data.jobTitle || data.jobCompany ? `
-        <div class="section">
-          <h2 class="section-title">Job Information</h2>
-          ${data.jobTitle ? `<p><strong>Position:</strong> ${data.jobTitle}</p>` : ''}
-          ${data.jobCompany ? `<p><strong>Company:</strong> ${data.jobCompany}</p>` : ''}
-          <p><strong>Analysis Date:</strong> ${data.analysisDate}</p>
-        </div>
-      ` : ''}
-
-      ${data.breakdown && Object.keys(data.breakdown).length > 0 ? `
-        <div class="section">
-          <h2 class="section-title">Detailed Score Breakdown</h2>
-          <div class="breakdown-grid">
-            ${Object.entries(data.breakdown).map(([key, value]) => `
-              <div class="breakdown-item">
-                <div class="breakdown-label">${key.charAt(0).toUpperCase() + key.slice(1)}</div>
-                <div class="breakdown-score">${value}%</div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      ` : ''}
-
-      ${data.strengths && data.strengths.length > 0 ? `
-        <div class="section">
-          <h2 class="section-title">Strengths</h2>
-          <div class="strengths-list">
-            ${data.strengths.map(strength => `<div class="list-item">${strength}</div>`).join('')}
-          </div>
-        </div>
-      ` : ''}
-
-      ${data.improvements && data.improvements.length > 0 ? `
-        <div class="section">
-          <h2 class="section-title">Areas for Improvement</h2>
-          <div class="improvements-list">
-            ${data.improvements.map(improvement => `<div class="list-item">${improvement}</div>`).join('')}
-          </div>
-        </div>
-      ` : ''}
-
-      ${data.matchedKeywords.length > 0 ? `
-        <div class="section">
-          <h2 class="section-title">Matched Keywords (${data.matchedKeywords.length})</h2>
-          <p>Keywords found in both your resume and the job description:</p>
-          <div class="keyword-grid">
-            ${data.matchedKeywords.slice(0, 50).map(keyword =>
-              `<span class="keyword">${keyword}</span>`
-            ).join('')}
-          </div>
-          ${data.matchedKeywords.length > 50 ? `<p><em>... and ${data.matchedKeywords.length - 50} more keywords</em></p>` : ''}
-        </div>
-      ` : ''}
-
-      ${data.missingKeywords.length > 0 ? `
-        <div class="section">
-          <h2 class="section-title">Missing Keywords (${data.missingKeywords.length})</h2>
-          <p>Important keywords from the job description not found in your resume:</p>
-          <div class="keyword-grid">
-            ${data.missingKeywords.slice(0, 30).map(keyword =>
-              `<span class="keyword missing-keyword">${keyword}</span>`
-            ).join('')}
-          </div>
-          ${data.missingKeywords.length > 30 ? `<p><em>... and ${data.missingKeywords.length - 30} more keywords</em></p>` : ''}
-        </div>
-      ` : ''}
-
-      ${data.atsCompatibility && data.atsCompatibility.issues && data.atsCompatibility.issues.length > 0 ? `
-        <div class="section">
-          <h2 class="section-title">ATS Compatibility Issues</h2>
-          <div class="issues-list">
-            ${data.atsCompatibility.issues.map(issue => `<div class="list-item">${issue}</div>`).join('')}
-          </div>
-        </div>
-      ` : ''}
-
-      ${data.recommendations.length > 0 ? `
-        <div class="section">
-          <h2 class="section-title">Recommendations</h2>
-          <div>
-            ${data.recommendations.map(rec =>
-              `<div class="list-item">${rec}</div>`
-            ).join('')}
-          </div>
-        </div>
-      ` : ''}
-
-      <div class="footer">
-        <div style="margin-bottom: 0.5rem;"><strong>Sebenza AI ATS Checker</strong></div>
-        <div>Report generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</div>
-        <div style="margin-top: 0.5rem; color: #9ca3af;">For optimal ATS performance, aim for scores above 70%</div>
-      </div>
-
-      <script>
-        // Auto-print when the page loads
-        window.onload = function() {
-          setTimeout(function() {
-            window.print();
-            window.onafterprint = function() {
-              window.close();
-            };
-          }, 500);
-        };
-      </script>
-    </body>
-    </html>
-  `;
-
-  // Write the HTML to the new window
-  printWindow.document.write(reportHTML);
-  printWindow.document.close();
+  // Save the PDF with a descriptive filename
+  const fileName = `ATS_Report_${data.score}%_${new Date().toISOString().split('T')[0]}.pdf`;
+  pdf.save(fileName);
 };
 
 // Generate Word document report

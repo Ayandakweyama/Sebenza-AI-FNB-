@@ -66,74 +66,104 @@ export async function scrapePnet(config: ScraperConfig): Promise<ScraperResult> 
       console.log(`📊 Pnet page ${pageNum} - Available selectors:`, debugSelectors);
       
       const jobs = await page.evaluate((): Job[] => {
-        // Try multiple selector strategies for PNet
-        let jobElements = document.querySelectorAll('article.job-result, div.job-item, div[data-job-id]');
-        
-        // If no jobs found, try broader selectors
-        if (jobElements.length === 0) {
-          jobElements = document.querySelectorAll('div.listing, div[class*="listing"], div[class*="job-card"]');
-        }
-        
-        // Last resort - find all links that look like job postings
-        if (jobElements.length === 0) {
-          const jobLinks = document.querySelectorAll('a[href*="/jobs/"]');
-          const uniqueJobs = new Set();
-          jobLinks.forEach(link => {
-            const parent = link.closest('div, article, section');
-            if (parent && !uniqueJobs.has(parent)) {
-              uniqueJobs.add(parent);
-            }
-          });
-          jobElements = Array.from(uniqueJobs) as any;
-        }
-        
         const extractedJobs: Job[] = [];
         
-        jobElements.forEach((element) => {
-          try {
-            const titleElement = element.querySelector('h2 a, h3 a, a.job-title, .title a');
-            const title = titleElement?.textContent?.trim() || '';
+        // PNet specific: Find all job links and extract from their containers
+        const jobLinks = document.querySelectorAll('a[href*="/jobs/"]');
+        const processedContainers = new Set();
+        
+        jobLinks.forEach((link) => {
+          // Skip if not a job listing link
+          const href = link.getAttribute('href') || '';
+          if (!href.includes('/jobs/') || href.includes('/search') || href.includes('/alerts')) {
+            return;
+          }
+          
+          // Find the container element (usually a parent div or article)
+          let container: Element | null = link.closest('div[class*="listing"], article, div[class*="job"], div[class*="result"]');
+          if (!container) {
+            container = link.parentElement?.parentElement || null;
+          }
+          
+          if (!container || processedContainers.has(container)) {
+            return;
+          }
+          processedContainers.add(container);
+          
+          // Extract job details from the container
+          const title = link.textContent?.trim() || 
+                       container.querySelector('h2, h3, h4')?.textContent?.trim() || '';
+          
+          // Look for company name in various places
+          const company = container.querySelector('.company, .company-name, [class*="company"]')?.textContent?.trim() ||
+                         container.querySelector('span:not([class*="location"]):not([class*="salary"])')?.textContent?.trim() ||
+                         'Company not specified';
+          
+          // Look for location
+          const location = container.querySelector('.location, [class*="location"]')?.textContent?.trim() ||
+                          container.querySelector('span[class*="loc"]')?.textContent?.trim() ||
+                          'South Africa';
+          
+          // Look for salary
+          const salary = container.querySelector('.salary, [class*="salary"], [class*="pay"]')?.textContent?.trim() ||
+                        'Salary not specified';
+          
+          // Look for date
+          const postedDate = container.querySelector('.date, time, [class*="date"], [class*="posted"]')?.textContent?.trim() ||
+                           'Recently posted';
+          
+          // Get description
+          const description = container.querySelector('.description, [class*="desc"], p')?.textContent?.trim() ||
+                            container.textContent?.replace(title, '').replace(company, '').substring(0, 200).trim() ||
+                            'No description available';
+          
+          const url = href.startsWith('http') ? href : `https://www.pnet.co.za${href}`;
+          
+          if (title && title.length > 2) {
+            extractedJobs.push({
+              title,
+              company,
+              location,
+              salary,
+              postedDate,
+              description,
+              url,
+              jobType: 'Full-time',
+              source: 'pnet' as const
+            });
+          }
+        });
+        
+        // If still no jobs found, try a more aggressive approach
+        if (extractedJobs.length === 0) {
+          // Look for any container with job-like content
+          const allContainers = document.querySelectorAll('div, article, section');
+          allContainers.forEach(container => {
+            const text = container.textContent || '';
+            const hasJobKeywords = /developer|engineer|manager|analyst|designer/i.test(text);
+            const hasLink = container.querySelector('a[href*="/jobs/"]');
             
-            const companyElement = element.querySelector('.company, .company-name, span[itemprop="name"]');
-            const company = companyElement?.textContent?.trim() || '';
-            
-            const locationElement = element.querySelector('.location, .job-location, span[itemprop="addressLocality"]');
-            const location = locationElement?.textContent?.trim() || '';
-            
-            const salaryElement = element.querySelector('.salary, .job-salary, .salary-range');
-            const salary = salaryElement?.textContent?.trim() || 'Not specified';
-            
-            const dateElement = element.querySelector('.date, .posted-date, time');
-            const postedDate = dateElement?.textContent?.trim() || 
-                              dateElement?.getAttribute('datetime') || 'Recently';
-            
-            const descElement = element.querySelector('.description, .job-description, .snippet');
-            const description = descElement?.textContent?.trim() || '';
-            
-            const linkElement = element.querySelector('a.job-title, h2 a, h3 a, a[href*="/job/"]');
-            const href = linkElement?.getAttribute('href') || '';
-            const url = href.startsWith('http') ? href : `https://www.pnet.co.za${href}`;
-            
-            const jobTypeElement = element.querySelector('.job-type, .employment-type');
-            const jobType = jobTypeElement?.textContent?.trim() || 'Full-time';
-            
-            if (title && company) {
+            if (hasJobKeywords && hasLink && !processedContainers.has(container)) {
+              processedContainers.add(container);
+              const link = hasLink as HTMLAnchorElement;
+              const title = link.textContent?.trim() || 'Job Opening';
+              const href = link.getAttribute('href') || '';
+              const url = href.startsWith('http') ? href : `https://www.pnet.co.za${href}`;
+              
               extractedJobs.push({
                 title,
-                company,
-                location,
-                salary,
-                postedDate,
-                description,
+                company: 'See job details',
+                location: 'South Africa',
+                salary: 'Competitive',
+                postedDate: 'Recently posted',
+                description: text.substring(0, 200),
                 url,
-                jobType,
+                jobType: 'Full-time',
                 source: 'pnet' as const
               });
             }
-          } catch (error) {
-            console.warn('Error extracting job:', error);
-          }
-        });
+          });
+        }
         
         return extractedJobs;
       });

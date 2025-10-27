@@ -1,11 +1,16 @@
-import { deepseek } from './deepseek';
+import OpenAI from 'openai';
+
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 // Log initialization status
 if (typeof window === 'undefined') {
-  if (deepseek) {
-    console.log('DeepSeek client is available for job post analysis');
+  if (process.env.OPENAI_API_KEY) {
+    console.log('OpenAI client is available for job post analysis');
   } else {
-    console.warn('DeepSeek client is not available for job post analysis');
+    console.warn('OpenAI API key is not configured for job post analysis');
   }
 }
 
@@ -52,10 +57,12 @@ export async function extractTextFromURL(url: string): Promise<string> {
   }
 }
 
-// Function to analyze job post and extract keywords using DeepSeek
+// Function to analyze job post and extract keywords using OpenAI GPT-4o-mini
 export async function analyzeJobPost(jobPostText: string): Promise<JobAnalysisResult> {
-  if (!deepseek) {
-    throw new Error('DeepSeek client is not available. Make sure DEEPSEEK_API_KEY is set in your environment variables.');
+  // Check if OpenAI is available, if not, use enhanced extraction
+  if (!process.env.OPENAI_API_KEY) {
+    console.warn('OpenAI API key not configured, using enhanced keyword extraction');
+    return enhancedKeywordExtraction(jobPostText);
   }
 
   const systemPrompt = `You are an expert ATS (Applicant Tracking System) analyst and job market specialist. Your task is to analyze job postings and extract the exact keywords and phrases that ATS systems would search for when screening candidates.
@@ -93,8 +100,8 @@ Return the response in JSON format with the following structure:
     // Truncate job post text if it's too long (to avoid token limits)
     const truncatedText = jobPostText.length > 10000 ? jobPostText.substring(0, 10000) + '...' : jobPostText;
     
-    const response = await deepseek.chat.completions.create({
-      model: 'deepseek-chat',
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `Analyze this job posting (truncated if too long):\n\n${truncatedText}` }
@@ -105,7 +112,7 @@ Return the response in JSON format with the following structure:
 
     const content = response.choices[0]?.message?.content;
     if (!content) {
-      throw new Error('No response content from DeepSeek API');
+      throw new Error('No response content from OpenAI API');
     }
 
     // Parse JSON response
@@ -113,7 +120,7 @@ Return the response in JSON format with the following structure:
     try {
       result = JSON.parse(content);
     } catch (parseError) {
-      console.error('Failed to parse DeepSeek response:', content);
+      console.error('Failed to parse OpenAI response:', content);
       throw new Error('Failed to parse job analysis response. The response was not valid JSON.');
     }
     
@@ -131,6 +138,65 @@ Return the response in JSON format with the following structure:
     console.error('Error analyzing job post:', error);
     throw new Error(`Failed to analyze job post: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
+}
+
+// Enhanced keyword extraction without AI
+function enhancedKeywordExtraction(jobPostText: string): JobAnalysisResult {
+  const text = jobPostText.toLowerCase();
+  
+  // Common technical skills and tools
+  const techKeywords = [
+    'javascript', 'python', 'java', 'c++', 'react', 'angular', 'vue', 'node.js', 'nodejs',
+    'sql', 'mongodb', 'postgresql', 'mysql', 'aws', 'azure', 'gcp', 'docker', 'kubernetes',
+    'git', 'github', 'gitlab', 'ci/cd', 'agile', 'scrum', 'typescript', 'html', 'css',
+    'rest', 'api', 'graphql', 'microservices', 'cloud', 'devops', 'machine learning',
+    'ai', 'data science', 'analytics', 'excel', 'powerpoint', 'word', 'office',
+    'linux', 'windows', 'macos', 'mobile', 'ios', 'android', 'flutter', 'react native'
+  ];
+  
+  // Common qualifications
+  const qualificationKeywords = [
+    'bachelor', 'master', 'phd', 'degree', 'certification', 'certified', 'years experience',
+    'senior', 'junior', 'mid-level', 'entry level', 'lead', 'manager', 'director',
+    'mba', 'cpa', 'pmp', 'aws certified', 'microsoft certified', 'google certified'
+  ];
+  
+  // Extract found keywords
+  const foundSkills = techKeywords.filter(skill => text.includes(skill));
+  const foundQualifications = qualificationKeywords.filter(qual => text.includes(qual));
+  
+  // Extract all significant words (3+ chars, not stop words)
+  const stopWords = new Set([
+    'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with',
+    'by', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had',
+    'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must',
+    'can', 'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they'
+  ]);
+  
+  const words = text
+    .replace(/[^\w\s]/g, ' ')
+    .split(/\s+/)
+    .filter(word => word.length >= 3 && !stopWords.has(word));
+  
+  // Get unique keywords
+  const uniqueWords = Array.from(new Set(words)).slice(0, 50);
+  
+  // Try to extract job title (usually in first few lines)
+  const lines = jobPostText.split('\n').filter(line => line.trim());
+  const possibleTitle = lines[0] || 'Job Position';
+  
+  // Try to extract company name (look for common patterns)
+  const companyMatch = jobPostText.match(/(?:company|employer|organization|firm)[\s:]+([A-Z][A-Za-z\s&]+)/i);
+  const company = companyMatch ? companyMatch[1].trim() : 'Company';
+  
+  return {
+    jobTitle: possibleTitle.substring(0, 100),
+    company: company.substring(0, 100),
+    keywords: uniqueWords,
+    skills: foundSkills,
+    qualifications: foundQualifications,
+    summary: jobPostText.substring(0, 300) + '...'
+  };
 }
 
 // Function to detect if input is a URL

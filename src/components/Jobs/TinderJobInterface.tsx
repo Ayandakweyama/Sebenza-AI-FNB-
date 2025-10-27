@@ -135,7 +135,7 @@ export function TinderJobInterface({
   const handleSearch = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim() && location.trim()) {
-      scrapeAll({ query, location, maxPages: 1 }); // 1 page for faster results
+      scrapeAll({ query, location, maxPages: 2 }); // 2 pages for more results
     }
   }, [query, location, scrapeAll]);
 
@@ -210,7 +210,7 @@ export function TinderJobInterface({
     setCurrentIndex(0);
     setSwipeHistory([]);
     if (query.trim() && location.trim()) {
-      scrapeAll({ query, location, maxPages: 1 }); // 1 page for faster results
+      scrapeAll({ query, location, maxPages: 2 }); // 2 pages for more results
     }
   }, [query, location, scrapeAll]);
 

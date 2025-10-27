@@ -77,7 +77,7 @@ export async function POST(request: Request) {
       
       // Create a timeout promise for each scraper
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error(`${source} scraper timed out after 40 seconds`)), 40000);
+        setTimeout(() => reject(new Error(`${source} scraper timed out after 30 seconds`)), 30000);
       });
       
       try {

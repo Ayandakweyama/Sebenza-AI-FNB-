@@ -74,16 +74,24 @@ let browserPool: Browser[] = [];
 const MAX_POOL_SIZE = 3;
 
 export async function getBrowserFromPool(): Promise<Browser> {
-  if (browserPool.length > 0) {
-    return browserPool.pop()!;
+  // Check if we have a browser in the pool and if it's still connected
+  while (browserPool.length > 0) {
+    const browser = browserPool.pop()!;
+    if (browser.isConnected()) {
+      return browser;
+    }
+    // If not connected, close it and continue
+    await browser.close().catch(() => {});
   }
   
+  // Create a new browser instance
   const puppeteer = await import('puppeteer');
   return await puppeteer.default.launch(FAST_BROWSER_CONFIG);
 }
 
 export async function returnBrowserToPool(browser: Browser) {
-  if (browserPool.length < MAX_POOL_SIZE) {
+  // Only return to pool if browser is still connected
+  if (browser.isConnected() && browserPool.length < MAX_POOL_SIZE) {
     browserPool.push(browser);
   } else {
     await browser.close().catch(() => {});

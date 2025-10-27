@@ -57,7 +57,7 @@ const ATSAnalyzer = () => {
   const [dragActive, setDragActive] = useState<boolean>(false);
   const [jobQualifications, setJobQualifications] = useState<string>('');
   const [qualificationKeywords, setQualificationKeywords] = useState<string[]>([]);
-  const [isAnalyzingJobPost, setIsAnalyzingJobPost] = useState<boolean>(false);
+  // const [isAnalyzingJobPost, setIsAnalyzingJobPost] = useState<boolean>(false); // No longer needed - automatic extraction
   const [jobAnalysis, setJobAnalysis] = useState<JobAnalysisResult | null>(null);
   
 
@@ -204,37 +204,111 @@ const ATSAnalyzer = () => {
   const handleQualificationsChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value;
     setJobQualifications(text);
-    // Clear previous job analysis when manually editing
-    setJobAnalysis(null);
-    setQualificationKeywords(extractKeywords(text));
+    
+    // Automatically extract keywords as user types/pastes
+    if (text.trim()) {
+      const keywords = extractKeywords(text);
+      setQualificationKeywords(keywords);
+      
+      // Set a simple job analysis for keyword highlighting
+      setJobAnalysis({
+        keywords: keywords,
+        skills: [],
+        qualifications: [],
+        title: 'Job Posting',
+        company: 'Company',
+        description: text
+      });
+    } else {
+      setQualificationKeywords([]);
+      setJobAnalysis(null);
+    }
   };
 
-  const handleAnalyzeJobPost = async () => {
+  // No longer needed - automatic extraction on paste/type
+  /* const handleAnalyzeJobPost = async () => {
     if (!jobQualifications.trim()) return;
     
     setIsAnalyzingJobPost(true);
     try {
-      // Extract keywords directly from the job qualifications
-      const keywords = extractKeywords(jobQualifications);
+      // Use AI-powered job post analysis
+      const response = await fetch('/api/analyze-job-post', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jobPostText: jobQualifications
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Analysis failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
       
-      // Create a simple analysis result
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      // Create comprehensive analysis result
       const analysis = {
-        keywords,
-        skills: [],
-        title: 'Job Posting',
-        description: jobQualifications
+        keywords: data.analysis.keywords || [],
+        skills: data.analysis.skills || [],
+        qualifications: data.analysis.qualifications || [],
+        title: data.analysis.jobTitle || 'Job Posting',
+        company: data.analysis.company || 'Unknown Company',
+        description: data.analysis.summary || jobQualifications
       };
       
+      // Combine all keywords for ATS matching
+      const allKeywords = [
+        ...analysis.keywords,
+        ...analysis.skills,
+        ...analysis.qualifications
+      ].filter((keyword, index, array) => 
+        keyword && keyword.trim() && array.indexOf(keyword) === index
+      );
+      
       setJobAnalysis(analysis);
-      setQualificationKeywords(keywords);
+      setQualificationKeywords(allKeywords);
+      
+      // Show success message with analysis details
+      const keywordCount = allKeywords.length;
+      const skillCount = analysis.skills.length;
+      const qualCount = analysis.qualifications.length;
+      
+      // Determine if this was AI analysis or fallback
+      const isAiAnalysis = skillCount > 0 || qualCount > 0 || analysis.title !== 'Job Position';
+      const analysisType = isAiAnalysis ? '🤖 AI Analysis' : '⚡ Basic Analysis';
+      
+      alert(`✅ Job post analyzed successfully!\n\n📊 ${analysisType} Results:\n• ${keywordCount} ATS keywords extracted\n• ${skillCount} technical skills identified\n• ${qualCount} qualifications found\n• Job Title: ${analysis.title}\n• Company: ${analysis.company}\n\nKeywords will now be highlighted in your resume analysis.`);
       
     } catch (error) {
       console.error('Failed to analyze job post:', error);
-      alert(`Failed to analyze job post: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
+      // Fallback to basic keyword extraction
+      console.log('Falling back to basic keyword extraction...');
+      const fallbackKeywords = extractKeywords(jobQualifications);
+      
+      const fallbackAnalysis = {
+        keywords: fallbackKeywords,
+        skills: [],
+        qualifications: [],
+        title: 'Job Posting',
+        company: 'Unknown Company',
+        description: jobQualifications
+      };
+      
+      setJobAnalysis(fallbackAnalysis);
+      setQualificationKeywords(fallbackKeywords);
+      
+      alert(`⚠️ AI analysis failed, using basic keyword extraction instead.\n\nError: ${error instanceof Error ? error.message : 'Unknown error'}\n\nExtracted ${fallbackKeywords.length} basic keywords from the job post.`);
     } finally {
-      setIsAnalyzingJobPost(false);
+      // setIsAnalyzingJobPost(false);
     }
-  };
+  }; */
 
   const highlightMatchingKeywords = (text: string) => {
     if (!qualificationKeywords.length) return text;
@@ -396,12 +470,25 @@ const ATSAnalyzer = () => {
           >
             <Upload className="w-10 h-10 mx-auto mb-4 text-purple-400" />
             <p className="mb-2">Drag & drop your resume here, or click to browse</p>
-            <p className="text-sm text-gray-400 mb-4">Supported formats: PDF, DOCX, DOC, TXT</p>
+            <p className="text-sm text-gray-400 mb-4">Supported formats: DOCX, DOC (Word documents only)</p>
+            
+            {/* Fun Fact about Word Documents */}
+            <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-left">
+              <div className="flex items-start gap-2">
+                <div className="text-xs text-blue-300">
+                  <strong>💡 Fun Fact:</strong> Word documents (.doc/.docx) are optimal for ATS systems because they preserve formatting structure and metadata that helps ATS software parse sections, headers, and content hierarchy more accurately than PDFs or plain text.
+                  <div className="mt-2 space-x-2">
+                    <span className="text-blue-500">•</span>
+                    <a href="https://www.indeed.com/career-advice/resumes-cover-letters/ats-resume" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline text-xs">Indeed ATS Tips</a>
+                  </div>
+                </div>
+              </div>
+            </div>
             <input
               type="file"
               id="resume-upload"
               className="hidden"
-              accept=".pdf,.docx,.doc,.txt"
+              accept=".docx,.doc"
               onChange={handleFileChange}
             />
             <label
@@ -432,22 +519,39 @@ const ATSAnalyzer = () => {
             <FileText className="w-5 h-5 mr-2 text-purple-400" />
             Job Description or Requirements
           </h2>
-          <div className="mb-4">
-            <textarea
-              value={jobQualifications}
-              onChange={handleQualificationsChange}
-              placeholder="Paste the job description or requirements here..."
-              className="w-full h-40 p-3 bg-slate-700 border border-slate-600 rounded-lg text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-            />
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Job Description/Requirements (Optional) 
+              <span className="text-purple-400 text-xs ml-2">✨ Automatic Keyword Extraction</span>
+            </label>
+            <div className="mb-4">
+              <textarea
+                value={jobQualifications}
+                onChange={handleQualificationsChange}
+                placeholder="Paste the job description or requirements here...
+
+Keywords will be automatically extracted and highlighted in your resume analysis!"
+                className="w-full h-40 p-3 bg-slate-700 border border-slate-600 rounded-lg text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+            </div>
+            {jobQualifications.trim() && qualificationKeywords.length > 0 && (
+              <div className="mt-3 p-3 bg-slate-700/50 rounded-lg">
+                <p className="text-xs text-purple-400 mb-2">✅ {qualificationKeywords.length} keywords extracted</p>
+                <div className="flex flex-wrap gap-1">
+                  {qualificationKeywords.slice(0, 10).map((keyword, idx) => (
+                    <span key={idx} className="text-xs px-2 py-1 bg-purple-600/20 text-purple-300 rounded">
+                      {keyword}
+                    </span>
+                  ))}
+                  {qualificationKeywords.length > 10 && (
+                    <span className="text-xs px-2 py-1 text-gray-400">
+                      +{qualificationKeywords.length - 10} more
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
-          <button
-            onClick={handleAnalyzeJobPost}
-            disabled={!jobQualifications.trim() || isAnalyzingJobPost}
-            className={`flex items-center justify-center px-6 py-2 rounded-lg transition-colors ${!jobQualifications.trim() || isAnalyzingJobPost ? 'bg-slate-600 text-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 text-white'}`}
-          >
-            {isAnalyzingJobPost ? 'Analyzing...' : 'Analyze Job Post'}
-            {!isAnalyzingJobPost && <Zap className="w-4 h-4 ml-2" />}
-          </button>
         </div>
 
         {/* Analysis Button */}

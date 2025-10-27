@@ -20,14 +20,24 @@ export default function AllJobsClient() {
     isLoading, 
     error
   } = useJobScraper({
-    onScrapeStart: () => console.log('🔍 Starting job search...'),
+    onScrapeStart: () => console.log('🔍 AllJobsClient - Starting job search...'),
     onScrapeComplete: (jobs, source) => {
-      console.log(`✅ Found ${jobs.length} jobs from ${source}`);
+      console.log(`✅ AllJobsClient - Found ${jobs.length} jobs from ${source}`);
+      console.log('Jobs received:', jobs);
     },
     onError: (error) => {
-      console.error(`❌ Error:`, error);
+      console.error(`❌ AllJobsClient - Error:`, error);
     },
   });
+  
+  // Log jobs state changes
+  useEffect(() => {
+    console.log('📊 AllJobsClient - Jobs state updated:', {
+      count: jobs?.length || 0,
+      isArray: Array.isArray(jobs),
+      jobs: jobs
+    });
+  }, [jobs]);
   
   // Initial search on mount - only once
   useEffect(() => {
@@ -37,7 +47,7 @@ export default function AllJobsClient() {
       scrapeAll({ 
         query: 'software engineer', 
         location: 'South Africa', 
-        maxPages: 1 // Reduced for faster initial load
+        maxPages: 1 // Start with 1 page for faster results
       });
     }
   }, [scrapeAll]);

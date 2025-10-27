@@ -36,8 +36,8 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
   const scrapeJobs = useCallback(async ({ 
     query, 
     location, 
-    maxPages = 1,
-    sources = ['indeed'] // Start with one source for faster response
+    maxPages = 2,
+    sources = ['indeed', 'pnet'] // Default to most reliable sources
   }: ScraperOptions) => {
     // Use enhanced multi-source scraper with LinkedIn support
     const endpoint = '/api/scrape-multi';  // Enhanced Puppeteer-based scraper with LinkedIn
@@ -245,13 +245,7 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
   const scrapeAll = useCallback(async (options: Omit<ScraperOptions, 'sources'>) => {
     console.log('🚀 Starting multi-source job search');
     
-    // Temporarily use simple scraper with mock data
-    // TODO: Switch back to real scraper once browser issues are fixed
-    // return scrapeJobs({
-    //   ...options,
-    //   sources: ['indeed', 'pnet', 'careerjunction']
-    // });
-    
+    // Use Indeed and PNet for now as they're most reliable
     return scrapeJobs({
       ...options,
       sources: ['indeed', 'pnet']
