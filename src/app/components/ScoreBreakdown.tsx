@@ -60,7 +60,7 @@ export function ScoreBreakdown({ scores, feedback }: ScoreBreakdownProps) {
         'Review the job description and include relevant keywords',
         'Incorporate industry-specific terminology',
         'List both general and specific skills relevant to the position',
-        'Include variations of important terms (e.g., "JavaScript" and "JS")
+        'Include variations of important terms (e.g., "JavaScript" and "JS")'
       ],
       length: [
         'Aim for 1-2 pages for most industries',

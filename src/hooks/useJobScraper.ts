@@ -11,14 +11,14 @@ export interface Job {
   jobType?: string;
   industry?: string;
   reference?: string;
-  source?: 'careerjunction'; // Only using CareerJunction as the job source
+  source?: 'indeed' | 'pnet' | 'careerjunction' | 'linkedin';
 }
 
 interface ScraperOptions {
   query: string;
   location: string;
   maxPages?: number;
-  source?: 'careerjunction'; // Only using CareerJunction as the job source
+  sources?: ('indeed' | 'pnet' | 'careerjunction' | 'linkedin')[];
 }
 
 interface UseJobScraperProps {
@@ -30,33 +30,55 @@ interface UseJobScraperProps {
 export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJobScraperProps = {}) => {
   const [isLoading, setIsLoading] = useState<{ [key: string]: boolean }>({});
   const [errors, setErrors] = useState<{ [key: string]: string | null }>({});
-  const [jobs, setJobs] = useState<{ [key: string]: Job[] }>({});
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [activeRequests, setActiveRequests] = useState<Set<string>>(new Set());
 
   const scrapeJobs = useCallback(async ({ 
     query, 
     location, 
     maxPages = 1,
-    // Only using CareerJunction as the job source
-    source = 'careerjunction' as const // Force type to only allow 'careerjunction'
+    sources = ['indeed'] // Start with one source for faster response
   }: ScraperOptions) => {
-    // Only use CareerJunction endpoint
-    const endpoint = '/api/scrape-careerjunction';
+    // Use enhanced multi-source scraper with LinkedIn support
+    const endpoint = '/api/scrape-multi';  // Enhanced Puppeteer-based scraper with LinkedIn
+    // const endpoint = '/api/scrape-fallback';  // Fallback Adzuna API (limited sources)
     
-    console.log(`🚀 Starting CareerJunction job scrape with query: "${query}", location: "${location}"`);
-    setIsLoading(prev => ({ ...prev, [source]: true }));
-    setErrors(prev => ({ ...prev, [source]: null }));
+    // Create a unique request key to prevent duplicates
+    const requestKey = `${query}-${location}-${sources.join(',')}-${maxPages}`;
+    
+    // Check if this exact request is already in progress
+    if (activeRequests.has(requestKey)) {
+      console.warn('🔄 Duplicate request detected, skipping...');
+      return jobs; // Return current jobs if duplicate request
+    }
+    
+    console.log(`🚀 Starting multi-source job scrape with query: "${query}", location: "${location}"`);
+    console.log(`   Sources: ${sources.join(', ')}`);
+    
+    // Mark this request as active
+    setActiveRequests(prev => new Set(prev).add(requestKey));
+    
+    sources.forEach(source => {
+      setIsLoading(prev => ({ ...prev, [source]: true }));
+      setErrors(prev => ({ ...prev, [source]: null }));
+    });
+    
     onScrapeStart?.();
 
     try {
-      console.log(`🌐 Making request to CareerJunction API`);
+      console.log(`🌐 Making request to multi-source scraper API`);
       const startTime = Date.now();
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minute timeout
+      const timeoutId = setTimeout(() => {
+        console.warn('⏰ Request timeout after 45 seconds, aborting...');
+        controller.abort();
+      }, 45000); // 45 second timeout - increased for slower scrapers
       
       const requestBody = { 
         query, 
         location, 
         maxPages,
+        sources,
         timestamp: new Date().toISOString()
       };
       
@@ -76,7 +98,16 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
       clearTimeout(timeoutId);
       const responseTime = Date.now() - startTime;
       
-      console.log(`⏱️ ${source} API response received in ${responseTime}ms with status: ${response.status}`);
+      console.log(`⏱️ Multi-source API response received in ${responseTime}ms with status: ${response.status}`);
+      
+      // Log performance metrics
+      if (responseTime > 40000) {
+        console.warn(`⚠️ Very slow response: ${responseTime}ms - scrapers may be overloaded`);
+      } else if (responseTime > 20000) {
+        console.warn(`⚠️ Slow response: ${responseTime}ms - consider using fewer sources`);
+      } else if (responseTime < 5000) {
+        console.log(`⚡ Fast response: ${responseTime}ms - likely from cache`);
+      }
 
       let responseData;
       try {
@@ -87,7 +118,7 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
       }
 
       if (!response.ok) {
-        console.error(`❌ ${source} API error:`, {
+        console.error(`❌ Multi-source API error:`, {
           status: response.status,
           statusText: response.statusText,
           response: responseData,
@@ -95,7 +126,7 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
           method: 'POST'
         });
         
-        let errorMessage = `Error from ${source}: `;
+        let errorMessage = 'Error from job scraper: ';
         
         if (response.status === 500) {
           errorMessage += 'Internal server error. Please try again later.';
@@ -113,120 +144,131 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
       }
       
       if (!responseData.success) {
-        console.error(`❌ ${source} API returned unsuccessful response:`, responseData);
+        console.error(`❌ Multi-source API returned unsuccessful response:`, responseData);
         throw new Error(
           responseData.error || 
           responseData.message || 
-          `Failed to fetch jobs from ${source}`
+          'Failed to fetch jobs from multiple sources'
         );
       }
 
-      const sourceJobs = (responseData.jobs || []).map((job: Job) => ({
-        ...job,
-        source: source as 'indeed' | 'careerjunction',
-      }));
+      const allJobs = Array.isArray(responseData.jobs) ? responseData.jobs : [];
       
-      console.log(`✅ Successfully fetched ${sourceJobs.length} jobs from ${source}`);
+      console.log(`✅ Successfully fetched ${allJobs.length} jobs`);
+      console.log(`   Jobs data:`, allJobs);
+      console.log(`   Source breakdown:`, responseData.sourceCounts);
       
-      setJobs(prev => ({
-        ...prev,
-        [source]: sourceJobs,
-      }));
+      // Store all jobs as a flat array
+      setJobs(allJobs as any);
+      console.log(`   Jobs state updated with ${allJobs.length} jobs`);
         
-        onScrapeComplete?.(sourceJobs, source);
-        return sourceJobs;
+      onScrapeComplete?.(allJobs, sources.join(','));
+      return allJobs;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-      console.error(`❌ Error fetching jobs from ${source}:`, {
+      
+      // Handle timeout errors specifically
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.error('⏰ Request timed out - attempting quick search fallback');
+        
+        // Try quick search as fallback
+        try {
+          const quickResponse = await fetch('/api/jobs/quick-search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query, location })
+          });
+          
+          if (quickResponse.ok) {
+            const quickData = await quickResponse.json();
+            if (quickData.success && quickData.jobs) {
+              console.log(`✅ Quick search returned ${quickData.jobs.length} jobs`);
+              setJobs(quickData.jobs);
+              onScrapeComplete?.(quickData.jobs, 'quick-search');
+              return quickData.jobs;
+            }
+          }
+        } catch (quickError) {
+          console.error('Quick search also failed:', quickError);
+        }
+        
+        // If quick search also fails, return empty
+        setJobs([]);
+        sources.forEach(source => {
+          setErrors(prev => ({
+            ...prev,
+            [source]: 'Request timed out. Please try again.'
+          }));
+        });
+        console.log('❌ All fallbacks failed, no jobs returned');
+        onScrapeComplete?.([], sources.join(','));
+        return [];
+      }
+      
+      console.error(`❌ Error fetching jobs:`, {
         error: errorMessage,
         stack: error instanceof Error ? error.stack : undefined,
-        source,
+        sources,
         endpoint,
         query,
         location,
         maxPages
       });
       
-      setErrors(prev => ({
-        ...prev,
-        [source]: errorMessage
-      }));
+      sources.forEach(source => {
+        setErrors(prev => ({
+          ...prev,
+          [source]: errorMessage
+        }));
+      });
       
-      onError?.(errorMessage, source);
+      onError?.(errorMessage);
     } finally {
-      setIsLoading(prev => ({
-        ...prev,
-        [source]: false
-      }));
+      // Remove this request from active requests
+      setActiveRequests(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(requestKey);
+        return newSet;
+      });
       
-      console.log(`🏁 Finished ${source} job scrape`);
+      sources.forEach(source => {
+        setIsLoading(prev => ({
+          ...prev,
+          [source]: false
+        }));
+      });
+      
+      console.log(`🏁 Finished multi-source job scrape`);
     }
-  }, [onScrapeComplete, onError, onScrapeStart]);
+  }, [onScrapeComplete, onError, onScrapeStart, activeRequests, jobs]);
 
-  // Function to scrape from CareerJunction with enhanced error handling and fallbacks
-  const scrapeAll = useCallback(async (options: Omit<ScraperOptions, 'source'>) => {
-    console.log('🚀 Starting job search from CareerJunction');
+  const scrapeAll = useCallback(async (options: Omit<ScraperOptions, 'sources'>) => {
+    console.log('🚀 Starting multi-source job search');
     
-    // Only use CareerJunction as the source
-    const sources: ('careerjunction')[] = ['careerjunction'];
+    // Temporarily use simple scraper with mock data
+    // TODO: Switch back to real scraper once browser issues are fixed
+    // return scrapeJobs({
+    //   ...options,
+    //   sources: ['indeed', 'pnet', 'careerjunction']
+    // });
     
-    // Start the scraper with fallback
-    const promises = [
-      ...sources.map(source => 
-        scrapeJobs({ ...options, source }).catch(error => {
-          console.error(`Failed to scrape ${source}:`, error);
-          return [];
-        })
-      ),
-      // Add Jooble API fallback for immediate results
-      fetch('/api/jobs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          query: options.query, 
-          location: options.location, 
-          maxPages: options.maxPages 
-        })
-      }).then(async (res) => {
-        if (res.ok) {
-          const data = await res.json();
-          const fallbackJobs = Array.isArray(data) ? data : (data.jobs || []);
-          console.log(`✅ Jooble API: ${fallbackJobs.length} jobs found`);
-          return fallbackJobs.map((job: any) => ({
-            ...job,
-            source: 'jooble'
-          }));
-        }
-        throw new Error('Jooble API failed');
-      }).catch((error) => {
-        console.log(`❌ Jooble API failed:`, error);
-        return [];
-      })
-    ];
-    
-    const results = await Promise.all(promises);
-    const allJobs = results.flat();
-    
-    // Deduplicate jobs based on URL or title+company combination
-    const uniqueJobs = allJobs.filter((job, index, self) => {
-      const identifier = job.url || `${job.title}-${job.company}-${job.location}`;
-      return self.findIndex(j => (j.url || `${j.title}-${j.company}-${j.location}`) === identifier) === index;
+    return scrapeJobs({
+      ...options,
+      sources: ['indeed', 'pnet']
     });
-    
-    console.log(`🎉 Total unique jobs found: ${uniqueJobs.length} (${allJobs.length - uniqueJobs.length} duplicates removed)`);
-    return uniqueJobs;
   }, [scrapeJobs]);
 
   // Get jobs from a specific source or all sources
-  const getJobs = (source?: 'indeed' | 'careerjunction') => {
+  const getJobs = (source?: 'indeed' | 'pnet' | 'careerjunction') => {
+    if (!Array.isArray(jobs)) return [];
     if (source) {
-      return jobs[source] || [];
+      return jobs.filter(job => job.source === source);
     }
-    return Object.values(jobs).flat();
+    return jobs;
   };
 
   // Get loading state for a specific source or any source
-  const getIsLoading = (source?: 'indeed' | 'careerjunction') => {
+  const getIsLoading = (source?: 'indeed' | 'pnet' | 'careerjunction') => {
     if (source) {
       return !!isLoading[source];
     }
@@ -234,7 +276,7 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
   };
 
   // Get error for a specific source or any source
-  const getError = (source?: 'indeed' | 'careerjunction') => {
+  const getError = (source?: 'indeed' | 'pnet' | 'careerjunction') => {
     if (source) {
       return errors[source] || null;
     }
@@ -250,7 +292,6 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
     getIsLoading,
     error: getError(),
     getError,
-    jobs: getJobs(),
-    jobsBySource: jobs,
+    jobs: Array.isArray(jobs) ? jobs : [],
   };
 };

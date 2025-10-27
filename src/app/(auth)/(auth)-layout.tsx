@@ -1,7 +1,9 @@
-import { Geist } from "next/font/google";
+// Temporarily disable Google Fonts to fix Turbopack issue
+// import { Geist } from "next/font/google";
 import "../globals.css";
 
-const geist = Geist({ subsets: ["latin"] });
+// Use system fonts as fallback
+const geist = { className: "font-sans" };
 
 export default function AuthLayout({
   children,

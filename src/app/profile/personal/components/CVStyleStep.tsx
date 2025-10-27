@@ -1,234 +1,386 @@
 'use client';
 
+import React, { useState } from 'react';
+import CustomizableCVTemplate, { CVCustomizationOptions } from './CustomizableCVTemplate';
+import CVCustomizationPanel from './CVCustomizationPanel';
 import { useFormContextData, useMultiStepForm } from './FormContext';
-import { useFormContext as useHookFormContext } from 'react-hook-form';
 import { ProfileFormData } from '../profile.schema';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, Check, Palette, Type, Image as ImageIcon, LayoutGrid } from 'lucide-react';
-import { Label } from '@/components/ui/label';
-
-const templates = [
-  { id: 'modern', name: 'Modern', thumbnail: '/templates/modern.png' },
-  { id: 'professional', name: 'Professional', thumbnail: '/templates/professional.png' },
-  { id: 'creative', name: 'Creative', thumbnail: '/templates/creative.png' },
-  { id: 'minimalist', name: 'Minimalist', thumbnail: '/templates/minimalist.png' },
-  { id: 'executive', name: 'Executive', thumbnail: '/templates/executive.png' },
-];
-
-const colorSchemes = [
-  { name: 'Blue', value: '#2563eb', class: 'bg-blue-600' },
-  { name: 'Emerald', value: '#10b981', class: 'bg-emerald-500' },
-  { name: 'Violet', value: '#7c3aed', class: 'bg-violet-600' },
-  { name: 'Rose', value: '#e11d48', class: 'bg-rose-600' },
-  { name: 'Amber', value: '#f59e0b', class: 'bg-amber-500' },
-];
-
-const fontFamilies = [
-  { name: 'Arial', value: 'Arial, sans-serif' },
-  { name: 'Helvetica', value: 'Helvetica, Arial, sans-serif' },
-  { name: 'Times New Roman', value: 'Times New Roman, serif' },
-  { name: 'Georgia', value: 'Georgia, serif' },
-  { name: 'Courier New', value: 'Courier New, monospace' },
-];
+import { ChevronLeft, Check, FileText, Loader2, Eye, EyeOff, Save } from 'lucide-react';
+import { exportToWord } from '../utils/cvExport';
+import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 
 export function CVStyleStep() {
   const { prevStep, isLastStep, isSubmitting } = useMultiStepForm();
-  const { register, formState: { errors }, watch, setValue } = useFormContextData();
+  const { watch, getValues } = useFormContextData();
+  const formData = watch();
+  const router = useRouter();
+  
+  const [isExporting, setIsExporting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  
+  // Initialize customization options
+  const [customization, setCustomization] = useState<CVCustomizationOptions>({
+    layout: 'single-column',
+    sidebarPosition: 'left',
+    fontFamily: 'Arial, sans-serif',
+    fontSize: 'medium',
+    lineHeight: 'normal',
+    primaryColor: '#2563eb',
+    secondaryColor: '#64748b',
+    textColor: '#1f2937',
+    backgroundColor: '#ffffff',
+    accentColor: '#3b82f6',
+    sectionOrder: ['summary', 'experience', 'education', 'skills'],
+    visibleSections: {
+      photo: false,
+      summary: true,
+      experience: true,
+      education: true,
+      skills: true,
+      languages: false,
+      certifications: false,
+      projects: false,
+      references: false
+    },
+    sectionStyle: {
+      headerStyle: 'underline',
+      headerAlignment: 'left',
+      headerCase: 'capitalize',
+      spacing: 'normal'
+    },
+    dateFormat: 'Month YYYY',
+    bulletStyle: 'disc',
+    skillDisplay: 'tags',
+    borderRadius: 'medium',
+    shadow: 'medium',
+    margins: 'normal'
+  });
 
-  const selectedTemplate = watch('template');
-  const selectedColor = watch('colorScheme');
-  const selectedFont = watch('fontFamily');
-  const showPhoto = watch('showPhoto');
-  const customSections = watch('customSections') || [];
+  const handleExportWord = async () => {
+    setIsExporting(true);
 
-  const toggleCustomSection = (section: string) => {
-    const newSections = customSections.includes(section)
-      ? customSections.filter(s => s !== section)
-      : [...customSections, section];
-    setValue('customSections', newSections);
+    try {
+      const filename = `${formData.firstName || 'CV'}_${formData.lastName || 'Resume'}_${Date.now()}`;
+      
+      const exportOptions = {
+        filename: `${filename}.docx`,
+        format: 'docx' as const,
+        template: 'Professional' as const,
+        colorScheme: customization.primaryColor,
+        fontFamily: customization.fontFamily,
+        showPhoto: customization.visibleSections.photo
+      };
+
+      await exportToWord(formData, exportOptions);
+      toast.success('CV exported as Word document successfully!');
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Failed to export CV as Word document. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const saveProfile = async () => {
+    setIsSaving(true);
+    setSaveMessage('');
+    
+    try {
+      const completeFormData = getValues();
+      
+      // Save to localStorage for persistence
+      localStorage.setItem('profileFormData', JSON.stringify(completeFormData));
+      
+      // Save CV customization preferences separately
+      localStorage.setItem('cvCustomization', JSON.stringify(customization));
+      
+      // Save skills to API first
+      const skillsToSave: Array<{
+        name: string;
+        category: string;
+        proficiency: string;
+        level: number;
+      }> = [];
+
+      // Add technical skills
+      if (completeFormData.technicalSkills) {
+        completeFormData.technicalSkills.forEach(skill => {
+          if (skill.name?.trim()) {
+            skillsToSave.push({
+              name: skill.name.trim(),
+              category: 'technical',
+              proficiency: skill.level === 'Beginner' ? 'beginner' :
+                          skill.level === 'Intermediate' ? 'intermediate' :
+                          skill.level === 'Advanced' ? 'advanced' : 'expert',
+              level: skill.level === 'Beginner' ? 1 :
+                     skill.level === 'Intermediate' ? 2 :
+                     skill.level === 'Advanced' ? 3 : 4
+            });
+          }
+        });
+      }
+
+      // Add soft skills
+      if (completeFormData.softSkills) {
+        completeFormData.softSkills.forEach((skillName: string) => {
+          if (skillName?.trim()) {
+            skillsToSave.push({
+              name: skillName.trim(),
+              category: 'soft',
+              proficiency: 'intermediate',
+              level: 2
+            });
+          }
+        });
+      }
+
+      // Add languages
+      if (completeFormData.languages) {
+        completeFormData.languages.forEach(lang => {
+          if (lang.name?.trim()) {
+            skillsToSave.push({
+              name: lang.name.trim(),
+              category: 'language',
+              proficiency: lang.proficiency === 'Basic' ? 'beginner' :
+                          lang.proficiency === 'Conversational' ? 'intermediate' :
+                          lang.proficiency === 'Fluent' ? 'advanced' :
+                          lang.proficiency === 'Native' ? 'expert' : 'intermediate',
+              level: lang.proficiency === 'Basic' ? 1 :
+                     lang.proficiency === 'Conversational' ? 2 :
+                     lang.proficiency === 'Fluent' ? 3 :
+                     lang.proficiency === 'Native' ? 4 : 2
+            });
+          }
+        });
+      }
+
+      // Save skills to API if any exist
+      if (skillsToSave.length > 0) {
+        const skillPromises = skillsToSave.map(skill =>
+          fetch('/api/skills', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(skill),
+          })
+        );
+
+        await Promise.allSettled(skillPromises);
+      }
+      
+      // Save complete profile data to API
+      
+      const profileResponse = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          profile: {
+            firstName: completeFormData.firstName || '',
+            lastName: completeFormData.lastName || '',
+            phone: completeFormData.phone || '',
+            location: completeFormData.location || '',
+            bio: completeFormData.bio || ''
+            // Note: CV customization will be saved to localStorage for now
+            // since the UserProfile schema doesn't include these fields yet
+          },
+          jobPreferences: {
+            desiredRoles: completeFormData.jobTypes || completeFormData.jobTitle ? [completeFormData.jobTitle].filter(Boolean) : [],
+            industries: completeFormData.industries || [],
+            remoteWork: completeFormData.remotePreference === 'Remote',
+            skills: [
+              ...(completeFormData.technicalSkills?.map(s => s.name) || []),
+              ...(completeFormData.softSkills || []),
+              ...(completeFormData.languages?.map(l => l.name) || [])
+            ].filter(Boolean)
+          }
+        }),
+      });
+
+      const responseData = await profileResponse.json();
+      
+      if (profileResponse.ok && responseData.success) {
+        setSaveMessage('Profile saved successfully! Redirecting to dashboard...');
+        toast.success('Your profile has been saved successfully!');
+        
+        // Trigger profile update event for other components
+        const profileUpdateEvent = new CustomEvent('profileDataUpdated');
+        window.dispatchEvent(profileUpdateEvent);
+        
+        // Clear localStorage after successful save
+        localStorage.removeItem('profileFormData');
+        
+        // Redirect to dashboard after a short delay
+        setTimeout(() => {
+          router.push('/dashboard');
+        }, 1500);
+      } else {
+        const errorMessage = responseData.details || responseData.error || `HTTP ${profileResponse.status}: Failed to save profile`;
+        console.error('Profile save error:', errorMessage, responseData);
+        throw new Error(errorMessage);
+      }
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      setSaveMessage('Failed to save profile. Please try again.');
+      toast.error('Failed to save profile. Please try again.');
+      setTimeout(() => setSaveMessage(''), 3000);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-white">CV Style & Layout</h2>
-        <p className="text-slate-400">Customize the look and feel of your CV</p>
+        <h2 className="text-2xl font-bold text-white">CV Design & Export</h2>
+        <p className="text-slate-400">Customize your CV design and export when ready</p>
       </div>
 
-      <div className="space-y-8">
-        {/* Template Selection */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <Label className="flex items-center gap-2">
-              <LayoutGrid className="h-5 w-5 text-blue-400" />
-              Select a Template
-            </Label>
-            <span className="text-sm text-slate-400">
-              {templates.find(t => t.id === selectedTemplate)?.name || 'Not selected'}
-            </span>
-          </div>
-          
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {templates.map((template) => (
-              <div
-                key={template.id}
-                onClick={() => setValue('template', template.id as any)}
-                className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
-                  selectedTemplate === template.id
-                    ? 'border-blue-500 ring-2 ring-blue-500/30'
-                    : 'border-slate-700 hover:border-slate-600'
-                }`}
-              >
-                <div className="aspect-[1/1.414] bg-slate-800 flex items-center justify-center">
-                  <div className="text-slate-600 text-sm">{template.name}</div>
-                </div>
-                {selectedTemplate === template.id && (
-                  <div className="absolute inset-0 bg-blue-500/20 flex items-center justify-center">
-                    <div className="bg-blue-500 rounded-full p-1">
-                      <Check className="h-4 w-4 text-white" />
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-          {errors.template && (
-            <p className="mt-1 text-sm text-red-500">{errors.template.message}</p>
-          )}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Panel - Customization */}
+        <div className="lg:col-span-1">
+          <CVCustomizationPanel
+            customization={customization}
+            onCustomizationChange={setCustomization}
+          />
         </div>
 
-        {/* Color Scheme */}
-        <div>
-          <Label className="flex items-center gap-2 mb-4">
-            <Palette className="h-5 w-5 text-blue-400" />
-            Color Scheme
-          </Label>
-          <div className="flex flex-wrap gap-3">
-            {colorSchemes.map((color) => (
-              <button
-                key={color.value}
-                type="button"
-                onClick={() => setValue('colorScheme', color.value)}
-                className={`w-10 h-10 rounded-full ${color.class} flex items-center justify-center transition-transform hover:scale-110`}
-                aria-label={`Select ${color.name} color`}
+        {/* Right Panel - Preview */}
+        <div className="lg:col-span-2">
+          {/* Export and View Controls */}
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-4 p-4 bg-slate-800/50 rounded-lg border border-slate-700">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-300">Export:</span>
+              <Button
+                onClick={handleExportWord}
+                disabled={isExporting}
+                variant="outline"
+                size="sm"
+                className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
               >
-                {selectedColor === color.value && (
-                  <Check className="h-5 w-5 text-white" />
+                {isExporting ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <FileText className="h-4 w-4 mr-2" />
                 )}
-              </button>
-            ))}
-            <div className="relative">
-              <input
-                type="color"
-                value={selectedColor}
-                onChange={(e) => setValue('colorScheme', e.target.value)}
-                className="w-10 h-10 rounded-full overflow-hidden border border-slate-600 cursor-pointer"
-              />
-              {!colorSchemes.some(c => c.value === selectedColor) && (
-                <div className="absolute -bottom-1 -right-1 bg-blue-500 rounded-full p-0.5">
-                  <Check className="h-3 w-3 text-white" />
-                </div>
+                Export as Word
+              </Button>
+            </div>
+            
+            <Button
+              onClick={() => setIsFullScreen(!isFullScreen)}
+              variant="outline"
+              size="sm"
+              className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+            >
+              {isFullScreen ? (
+                <EyeOff className="h-4 w-4 mr-2" />
+              ) : (
+                <Eye className="h-4 w-4 mr-2" />
               )}
-            </div>
+              {isFullScreen ? 'Exit Full Screen' : 'Full Screen'}
+            </Button>
           </div>
-        </div>
 
-        {/* Font Family */}
-        <div>
-          <Label className="flex items-center gap-2 mb-3">
-            <Type className="h-5 w-5 text-blue-400" />
-            Font Family
-          </Label>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {fontFamilies.map((font) => (
-              <div
-                key={font.value}
-                onClick={() => setValue('fontFamily', font.value as any)}
-                className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                  selectedFont === font.value
-                    ? 'border-blue-500 bg-blue-500/10 text-white'
-                    : 'border-slate-700 hover:border-slate-600 bg-slate-800/50 hover:bg-slate-800/70'
-                }`}
-                style={{ fontFamily: font.value }}
-              >
-                <div className="text-sm font-medium">{font.name}</div>
-                <div className="text-xs text-slate-400">Aa Bb Cc</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Additional Options */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <Label className="flex items-center gap-2">
-              <ImageIcon className="h-5 w-5 text-blue-400" />
-              Profile Photo
-            </Label>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                className="sr-only peer"
-                checked={showPhoto}
-                onChange={(e) => setValue('showPhoto', e.target.checked)}
+          {/* CV Preview */}
+          <div className={`${isFullScreen ? 'fixed inset-0 z-50 bg-slate-900 p-8 overflow-auto' : 'border border-slate-700 rounded-lg overflow-hidden bg-slate-900 p-4'}`}>
+            <div 
+              id="cv-preview-element"
+              className={`bg-white rounded shadow-sm overflow-auto ${isFullScreen ? 'max-w-4xl mx-auto' : 'max-h-[800px]'}`}
+              style={{
+                transform: isFullScreen ? 'scale(1)' : 'scale(0.8)',
+                transformOrigin: 'top center'
+              }}
+            >
+              <CustomizableCVTemplate
+                data={formData}
+                customization={customization}
               />
-              <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-            </label>
-          </div>
-
-          <div>
-            <Label className="block mb-3">Custom Sections</Label>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {['Certifications', 'Projects', 'Publications', 'Volunteer Work', 'Awards', 'Languages'].map((section) => (
-                <div
-                  key={section}
-                  onClick={() => toggleCustomSection(section)}
-                  className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                    customSections.includes(section)
-                      ? 'border-blue-500 bg-blue-500/10 text-white'
-                      : 'border-slate-700 hover:border-slate-600 bg-slate-800/50 hover:bg-slate-800/70'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{section}</span>
-                    {customSections.includes(section) && (
-                      <Check className="h-4 w-4 text-blue-400" />
-                    )}
-                  </div>
-                </div>
-              ))}
+            </div>
+            
+            {/* Real-time Update Indicator */}
+            <div className="mt-4 text-center">
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs bg-green-100 text-green-800">
+                <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
+                Live Preview - Updates in Real Time
+              </span>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="flex justify-between pt-4">
-        <Button 
-          type="button" 
-          variant="outline"
+      {/* Save Message */}
+      {saveMessage && (
+        <div className={`p-4 rounded-lg text-center ${
+          saveMessage.includes('success')
+            ? 'bg-green-500/20 text-green-300 border border-green-500/30'
+            : 'bg-red-500/20 text-red-300 border border-red-500/30'
+        }`}>
+          {saveMessage}
+        </div>
+      )}
+
+      {/* Navigation */}
+      <div className="flex justify-between pt-6 border-t border-slate-700">
+        <Button
+          type="button"
           onClick={prevStep}
-          className="border-slate-600 text-slate-300 hover:bg-slate-800/50 hover:text-white"
+          variant="outline"
+          className="border-slate-700 hover:bg-slate-800"
         >
-          <ChevronLeft className="mr-2 h-4 w-4" />
-          Back
+          <ChevronLeft className="h-4 w-4 mr-2" />
+          Previous
         </Button>
-        <Button 
-          type="submit"
-          disabled={isSubmitting}
-          className="bg-blue-600 hover:bg-blue-700 text-white"
-        >
-          {isSubmitting ? (
-            <>
-              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              Saving...
-            </>
-          ) : (
-            'Save Profile'
+        
+        <div className="flex gap-3">
+          {/* Save Profile Button (separate from form submission) */}
+          <Button
+            type="button"
+            onClick={saveProfile}
+            disabled={isSaving}
+            variant="outline"
+            className="border-green-600/30 text-green-400 hover:bg-green-500/10 hover:text-green-300"
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4 mr-2" />
+                Save Profile
+              </>
+            )}
+          </Button>
+          
+          {/* Complete Profile Button (triggers form submission) */}
+          {isLastStep && (
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Completing...
+                </>
+              ) : (
+                <>
+                  Complete Profile
+                  <Check className="h-4 w-4 ml-2" />
+                </>
+              )}
+            </Button>
           )}
-        </Button>
+        </div>
       </div>
     </div>
   );

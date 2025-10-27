@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import { Send, User, Bot, Briefcase, TrendingUp, Users, BookOpen, Mic, BarChart3, HandHeart, Sparkles, MessageSquare } from 'lucide-react';
-import { useAfrigter } from '@/hooks/useAfrigter';
+import { useState, useEffect } from 'react';
+import { Send, User, Bot, Briefcase, TrendingUp, Users, BookOpen, Mic, BarChart3, HandHeart, Sparkles, MessageSquare, History } from 'lucide-react';
 import DashboardNavigation from '@/components/dashboard/DashboardNavigation';
+import ChatHistorySidebar from '@/components/chat/ChatHistorySidebar';
+import { useChatHistory, ChatSession } from '@/hooks/useChatHistory';
 
 export default function CareerAdvicePage() {
   const [messages, setMessages] = useState([
@@ -14,21 +15,38 @@ export default function CareerAdvicePage() {
     }
   ]);
   const [inputValue, setInputValue] = useState('');
-  const [experienceLevel, setExperienceLevel] = useState('');
+  const [experienceLevel, setExperienceLevel] = useState<'entry' | 'mid' | 'senior' | 'executive'>('mid');
+  const [currentRole, setCurrentRole] = useState('');
+  const [industry, setIndustry] = useState('');
+  const [goals, setGoals] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const { callAfrigter } = useAfrigter();
+  const [showHistory, setShowHistory] = useState(false);
+  const { currentSession, createSession, loadSession, addMessage, setCurrentSession } = useChatHistory();
+
+  // Initialize or load session
+  useEffect(() => {
+    if (currentSession && currentSession.type === 'career-advice') {
+      // Convert session messages to local format
+      const sessionMessages = currentSession.messages?.map((msg, index) => ({
+        id: index + 1,
+        type: msg.role as 'user' | 'assistant',
+        content: msg.content
+      })) || [];
+      
+      if (sessionMessages.length > 0) {
+        setMessages(sessionMessages);
+      }
+    }
+  }, [currentSession]);
 
   const handleSendMessage = async () => {
     if (!inputValue.trim()) return;
-    if (!experienceLevel) {
-      alert('Please select your experience level first');
-      return;
-    }
 
+    const userMessage = inputValue;
     const newMessage = {
       id: messages.length + 1,
       type: 'user' as const,
-      content: inputValue
+      content: userMessage
     };
 
     setMessages(prev => [...prev, newMessage]);
@@ -36,20 +54,61 @@ export default function CareerAdvicePage() {
     setIsTyping(true);
 
     try {
-      const response = await callAfrigter({
-        type: 'career-advice',
-        question: inputValue,
-        experienceLevel
-      });
-
-      if (response) {
-        const aiMessage = {
-          id: messages.length + 2,
-          type: 'assistant' as const,
-          content: response as string
-        };
-        setMessages(prev => [...prev, aiMessage]);
+      // Create session if none exists
+      let session = currentSession;
+      if (!session || session.type !== 'career-advice') {
+        session = await createSession('career-advice', 'Career Advice Chat', {
+          experienceLevel,
+          currentRole,
+          industry,
+          goals
+        });
+        // Ensure the current session is set immediately
+        setCurrentSession(session);
       }
+
+      // Ensure we have a valid session before adding messages
+      if (!session) {
+        throw new Error('Failed to create or load session');
+      }
+
+      // Add user message to session
+      await addMessage('user', userMessage, undefined, undefined, session);
+
+      // Get AI response
+      const response = await fetch('/api/afrigter', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'career-advice',
+          question: userMessage,
+          experienceLevel,
+          currentRole: currentRole || undefined,
+          industry: industry || undefined,
+          goals: goals || undefined,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to get career advice');
+      }
+
+      const aiResponse = data.response;
+      const aiMessage = {
+        id: messages.length + 2,
+        type: 'assistant' as const,
+        content: aiResponse
+      };
+      
+      setMessages(prev => [...prev, aiMessage]);
+      
+      // Add AI message to session
+      await addMessage('assistant', aiResponse, undefined, 'gpt-4o-mini', session);
+      
     } catch (error) {
       console.error('Error getting career advice:', error);
       const errorMessage = {
@@ -61,6 +120,24 @@ export default function CareerAdvicePage() {
     } finally {
       setIsTyping(false);
     }
+  };
+
+  const handleSessionSelect = async (session: ChatSession) => {
+    try {
+      await loadSession(session.id);
+      setShowHistory(false);
+    } catch (error) {
+      console.error('Failed to load session:', error);
+    }
+  };
+
+  const handleNewChat = () => {
+    setMessages([{
+      id: 1,
+      type: 'assistant',
+      content: "Hello! I'm your AI career advisor. I'm here to help you navigate your professional journey, whether you're just starting out, looking to make a career change, or aiming for that next promotion. What career challenge can I help you with today?"
+    }]);
+    setShowHistory(false);
   };
 
   const quickTopics = [
@@ -128,27 +205,104 @@ export default function CareerAdvicePage() {
           </div>
 
           <div className="px-4 py-8">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className={`grid gap-8 ${showHistory ? 'grid-cols-1 lg:grid-cols-4' : 'grid-cols-1 lg:grid-cols-3'}`}>
+              
+              {/* Chat History Sidebar */}
+              {showHistory && (
+                <div className="lg:col-span-1">
+                  <ChatHistorySidebar 
+                    type="career-advice"
+                    onSessionSelect={handleSessionSelect}
+                    onNewChat={handleNewChat}
+                    currentSessionId={currentSession?.id}
+                    className="h-[600px]"
+                  />
+                </div>
+              )}
               {/* Main Chat Interface */}
-              <div className="lg:col-span-2">
+              <div className={showHistory ? 'lg:col-span-2' : 'lg:col-span-2'}>
                 <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700 overflow-hidden">
-                  {/* Experience Level Selector */}
-                  <div className="p-4 bg-slate-800/80 border-b border-slate-700">
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
-                      Your Experience Level
-                    </label>
-                    <select 
-                      value={experienceLevel}
-                      onChange={(e) => setExperienceLevel(e.target.value)}
-                      className="w-full p-3 bg-slate-700 rounded-lg text-white border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors"
+                  {/* Chat Header with History Toggle */}
+                  <div className="p-4 bg-slate-800/80 border-b border-slate-700 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Bot className="w-5 h-5 text-purple-400" />
+                      <span className="text-white font-medium">Career Advisor</span>
+                      {currentSession && (
+                        <span className="text-xs text-slate-400">• {currentSession.title}</span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setShowHistory(!showHistory)}
+                      className={`p-2 rounded-lg transition-colors ${
+                        showHistory 
+                          ? 'bg-blue-600 text-white' 
+                          : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                      }`}
+                      title="Toggle chat history"
                     >
-                      <option value="">Select your experience level</option>
-                      <option value="student">Student/Entry-level</option>
-                      <option value="early">Early Career (1-3 years)</option>
-                      <option value="mid">Mid-Career (4-9 years)</option>
-                      <option value="experienced">Experienced (10+ years)</option>
-                      <option value="executive">Executive</option>
-                    </select>
+                      <History className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {/* Profile Setup */}
+                  <div className="p-4 bg-slate-800/80 border-b border-slate-700">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                          Experience Level
+                        </label>
+                        <select 
+                          value={experienceLevel}
+                          onChange={(e) => setExperienceLevel(e.target.value as any)}
+                          className="w-full p-3 bg-slate-700 rounded-lg text-white border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors"
+                        >
+                          <option value="entry">Entry Level (0-2 years)</option>
+                          <option value="mid">Mid Level (3-7 years)</option>
+                          <option value="senior">Senior Level (8-15 years)</option>
+                          <option value="executive">Executive (15+ years)</option>
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                          Current Role (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={currentRole}
+                          onChange={(e) => setCurrentRole(e.target.value)}
+                          placeholder="e.g., Software Engineer"
+                          className="w-full p-3 bg-slate-700 rounded-lg text-white border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors placeholder-slate-400"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                          Industry (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={industry}
+                          onChange={(e) => setIndustry(e.target.value)}
+                          placeholder="e.g., Technology, Finance"
+                          className="w-full p-3 bg-slate-700 rounded-lg text-white border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors placeholder-slate-400"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                          Career Goals (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={goals}
+                          onChange={(e) => setGoals(e.target.value)}
+                          placeholder="e.g., Leadership role, Career change"
+                          className="w-full p-3 bg-slate-700 rounded-lg text-white border border-slate-600 focus:border-blue-500 focus:outline-none transition-colors placeholder-slate-400"
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   {/* Chat Messages */}
@@ -218,7 +372,7 @@ export default function CareerAdvicePage() {
               </div>
 
               {/* Sidebar */}
-              <div className="space-y-6">
+              <div className={`space-y-6 ${showHistory ? 'lg:col-span-1' : 'lg:col-span-1'}`}>
                 {/* Quick Topics */}
                 <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700 p-6">
                   <div className="flex items-center gap-2 mb-4">

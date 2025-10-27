@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Job, useJobScraper } from '@/hooks/useJobScraper';
 // Custom Button component
 const Button = ({ 
@@ -17,10 +17,10 @@ const Button = ({
   const baseStyles = 'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none';
   
   const variantStyles = {
-    default: 'bg-blue-600 text-white hover:bg-blue-700',
-    outline: 'border border-input bg-transparent hover:bg-gray-100',
-    ghost: 'hover:bg-gray-100',
-    link: 'underline-offset-4 hover:underline text-blue-600 hover:text-blue-800',
+    default: 'bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:shadow-lg hover:shadow-purple-500/30',
+    outline: 'border border-slate-600 bg-slate-700/50 text-slate-300 hover:bg-slate-700 hover:border-purple-500/30',
+    ghost: 'hover:bg-slate-700/50 text-slate-300',
+    link: 'underline-offset-4 hover:underline text-purple-400 hover:text-purple-300',
   };
   
   const sizeStyles = {
@@ -43,7 +43,7 @@ const Button = ({
 // Custom Input component
 const Input = ({ className = '', ...props }: { className?: string; [key: string]: any }) => (
   <input
-    className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+    className={`flex h-10 w-full rounded-md border border-slate-600 bg-slate-700/50 text-white px-3 py-2 text-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:border-transparent disabled:cursor-not-allowed disabled:opacity-50 transition-all ${className}`}
     {...props}
   />
 );
@@ -57,7 +57,7 @@ const Select = ({ children, ...props }: { children: React.ReactNode; [key: strin
 
 const SelectTrigger = ({ className = '', children, ...props }: { className?: string; children: React.ReactNode; [key: string]: any }) => (
   <div
-    className={`flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+    className={`flex h-10 w-full items-center justify-between rounded-md border border-slate-600 bg-slate-700/50 text-white px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:cursor-not-allowed disabled:opacity-50 transition-all ${className}`}
     {...props}
   >
     {children}
@@ -83,14 +83,14 @@ const SelectValue = ({ children }: { children: React.ReactNode }) => (
 );
 
 const SelectContent = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
-  <div className={`absolute z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md ${className}`}>
+  <div className={`absolute z-50 min-w-[8rem] overflow-hidden rounded-md border border-slate-600 bg-slate-800 text-white shadow-xl ${className}`}>
     <div className="p-1">{children}</div>
   </div>
 );
 
 const SelectItem = ({ children, className = '', ...props }: { children: React.ReactNode; className?: string; [key: string]: any }) => (
   <div
-    className={`relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-gray-100 focus:text-gray-900 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 ${className}`}
+    className={`relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-slate-700 focus:text-white hover:bg-slate-700 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 ${className}`}
     {...props}
   >
     {children}
@@ -100,7 +100,7 @@ const SelectItem = ({ children, className = '', ...props }: { children: React.Re
 // Custom Skeleton component
 const Skeleton = ({ className = '', ...props }: { className?: string; [key: string]: any }) => (
   <div 
-    className={`animate-pulse rounded-md bg-gray-200 ${className}`}
+    className={`animate-pulse rounded-md bg-slate-700/50 ${className}`}
     {...props}
   />
 );
@@ -108,7 +108,7 @@ const Skeleton = ({ className = '', ...props }: { className?: string; [key: stri
 // Custom Card components since shadcn/ui Card is not installed
 const Card = ({ className = '', ...props }: { className?: string; [key: string]: any }) => (
   <div 
-    className={`rounded-lg border bg-white shadow-sm transition-shadow hover:shadow-md ${className}`}
+    className={`rounded-xl border border-slate-700/50 bg-slate-800/50 backdrop-blur-sm shadow-xl transition-all hover:shadow-2xl hover:border-purple-500/30 ${className}`}
     {...props}
   />
 );
@@ -122,14 +122,14 @@ const CardHeader = ({ className = '', ...props }: { className?: string; [key: st
 
 const CardTitle = ({ className = '', ...props }: { className?: string; [key: string]: any }) => (
   <h3 
-    className={`text-2xl font-semibold leading-none tracking-tight ${className}`}
+    className={`text-2xl font-semibold leading-none tracking-tight text-white ${className}`}
     {...props}
   />
 );
 
 const CardDescription = ({ className = '', ...props }: { className?: string; [key: string]: any }) => (
   <p 
-    className={`text-sm text-gray-500 ${className}`}
+    className={`text-sm text-slate-400 ${className}`}
     {...props}
   />
 );
@@ -142,10 +142,10 @@ const CardContent = ({ className = '', ...props }: { className?: string; [key: s
 );
 // Custom Badge component since shadcn/ui Badge is not installed
 const Badge = ({ variant = 'outline', className = '', children, ...props }: { variant?: 'default' | 'outline'; className?: string; children: React.ReactNode; [key: string]: any }) => {
-  const baseStyles = 'inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2';
+  const baseStyles = 'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium transition-all focus:outline-none focus:ring-2 focus:ring-offset-2';
   const variantStyles = {
-    default: 'bg-blue-100 text-blue-800 hover:bg-blue-200',
-    outline: 'border border-gray-300 bg-transparent hover:bg-gray-100 text-gray-700',
+    default: 'bg-purple-500/20 text-purple-300 border border-purple-500/30 hover:bg-purple-500/30',
+    outline: 'border border-slate-600 bg-slate-700/50 hover:bg-slate-700 text-slate-300',
   };
   
   return (
@@ -163,32 +163,36 @@ interface JobSearchResultsProps {
   initialQuery?: string;
   initialLocation?: string;
   onJobSelect?: (job: Job) => void;
+  sharedJobs?: Job[];
+  sharedIsLoading?: boolean;
+  sharedScrapeAll?: (options: { query: string; location: string; maxPages?: number }) => Promise<any>;
 }
 
 export function JobSearchResults({ 
   initialQuery = 'software engineer', 
   initialLocation = 'South Africa',
-  onJobSelect 
+  onJobSelect,
+  sharedJobs,
+  sharedIsLoading,
+  sharedScrapeAll
 }: JobSearchResultsProps) {
   const [query, setQuery] = useState(initialQuery);
   const [location, setLocation] = useState(initialLocation);
   
-  const { 
-    scrapeAll, 
-    jobs, 
-    isLoading, 
-    error,
-    getIsLoading,
-    getError
-  } = useJobScraper({
+  const localScraper = useJobScraper({
     onScrapeStart: () => console.log('Starting job search...'),
     onScrapeComplete: (jobs, source) => {
       console.log(`Found ${jobs.length} jobs from ${source}`);
     },
-    onError: (error, source) => {
-      console.error(`Error from ${source}:`, error);
+    onError: (error) => {
+      console.error(`Error:`, error);
     },
   });
+  
+  const scrapeAll = sharedScrapeAll || localScraper.scrapeAll;
+  const jobs = sharedJobs !== undefined ? sharedJobs : localScraper.jobs;
+  const isLoading = sharedIsLoading !== undefined ? sharedIsLoading : localScraper.isLoading;
+  const error = localScraper.error;
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -197,12 +201,14 @@ export function JobSearchResults({
     }
   };
 
-  // Initial search on component mount
+  // Only run initial search if we're using local scraper (not shared)
+  const hasSearched = useRef(false);
   useEffect(() => {
-    if (initialQuery && initialLocation) {
+    if (!sharedScrapeAll && !hasSearched.current && initialQuery && initialLocation) {
+      hasSearched.current = true;
       scrapeAll({ query: initialQuery, location: initialLocation, maxPages: 2 });
     }
-  }, []);
+  }, [sharedScrapeAll, initialQuery, initialLocation, scrapeAll]);
 
   // Use all jobs since we're not filtering by source anymore
   const filteredJobs = jobs;
@@ -215,11 +221,11 @@ export function JobSearchResults({
           <form onSubmit={handleSearch} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <label htmlFor="job-title" className="text-sm font-medium">
+                <label htmlFor="job-title" className="text-sm font-medium text-slate-300">
                   Job Title
                 </label>
                 <div className="relative">
-                  <Briefcase className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                  <Briefcase className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <Input
                     id="job-title"
                     placeholder="e.g. Software Engineer"
@@ -231,11 +237,11 @@ export function JobSearchResults({
               </div>
               
               <div className="space-y-2">
-                <label htmlFor="location" className="text-sm font-medium">
+                <label htmlFor="location" className="text-sm font-medium text-slate-300">
                   Location
                 </label>
                 <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                  <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <Input
                     id="location"
                     placeholder="e.g. Cape Town"
@@ -249,7 +255,7 @@ export function JobSearchResults({
               <div className="flex items-end">
                 <Button 
                   type="submit" 
-                  className="w-full h-10 bg-blue-600 hover:bg-blue-700 text-white"
+                  className="w-full h-10"
                   disabled={isLoading}
                 >
                   {isLoading ? (
@@ -275,7 +281,7 @@ export function JobSearchResults({
 
       {/* Error Message */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
+        <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl backdrop-blur-sm">
           <p>{error}</p>
         </div>
       )}
@@ -300,11 +306,11 @@ export function JobSearchResults({
       {/* No Results */}
       {!isLoading && filteredJobs.length === 0 && !error && (
         <div className="text-center py-12">
-          <div className="mx-auto w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-            <Search className="h-8 w-8 text-gray-400" />
+          <div className="mx-auto w-16 h-16 rounded-full bg-slate-700/50 flex items-center justify-center mb-4">
+            <Search className="h-8 w-8 text-slate-400" />
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-1">No jobs found</h3>
-          <p className="text-gray-500">Try adjusting your search or filter criteria</p>
+          <h3 className="text-lg font-medium text-white mb-1">No jobs found</h3>
+          <p className="text-slate-400">Try adjusting your search or filter criteria</p>
         </div>
       )}
 
@@ -313,33 +319,33 @@ export function JobSearchResults({
         {filteredJobs.map((job, index) => (
           <Card 
             key={`${job.source}-${index}`} 
-            className="hover:shadow-md transition-shadow cursor-pointer"
+            className="group cursor-pointer"
             onClick={() => onJobSelect?.(job)}
           >
             <CardContent className="pt-6">
               <div className="flex justify-between items-start">
                 <div>
-                  <h3 className="text-lg font-medium text-gray-900 hover:text-blue-600">
+                  <h3 className="text-lg font-semibold text-white group-hover:text-purple-400 transition-colors">
                     {job.title}
                   </h3>
-                  <p className="text-gray-600 mt-1">{job.company}</p>
+                  <p className="text-purple-200 mt-1">{job.company}</p>
                   
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="mt-3 flex flex-wrap gap-3">
                     {job.location && (
-                      <span className="inline-flex items-center text-sm text-gray-500">
-                        <MapPin className="h-4 w-4 mr-1" />
+                      <span className="inline-flex items-center text-sm text-slate-300">
+                        <MapPin className="h-4 w-4 mr-1 text-purple-400" />
                         {job.location}
                       </span>
                     )}
                     {job.salary && !job.salary.includes('not specified') && (
-                      <span className="inline-flex items-center text-sm text-gray-500">
-                        <DollarSign className="h-4 w-4 mr-1" />
+                      <span className="inline-flex items-center text-sm text-slate-300">
+                        <DollarSign className="h-4 w-4 mr-1 text-green-400" />
                         {job.salary}
                       </span>
                     )}
                     {job.postedDate && (
-                      <span className="inline-flex items-center text-sm text-gray-500">
-                        <Calendar className="h-4 w-4 mr-1" />
+                      <span className="inline-flex items-center text-sm text-slate-300">
+                        <Calendar className="h-4 w-4 mr-1 text-blue-400" />
                         {job.postedDate}
                       </span>
                     )}
@@ -355,23 +361,23 @@ export function JobSearchResults({
                 </div>
                 
                 <div className="flex items-center space-x-2">
-                  <Badge variant="outline" className="text-xs">
+                  <Badge variant="default" className="text-xs capitalize">
                     {job.source}
                   </Badge>
                   <a 
                     href={job.url} 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="text-blue-600 hover:text-blue-800"
+                    className="text-purple-400 hover:text-purple-300 transition-colors p-2 rounded-lg hover:bg-purple-500/10"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <ExternalLink className="h-4 w-4" />
+                    <ExternalLink className="h-5 w-5" />
                   </a>
                 </div>
               </div>
               
               {job.description && (
-                <div className="mt-3 text-sm text-gray-600 line-clamp-2">
+                <div className="mt-3 text-sm text-slate-300 line-clamp-2">
                   {job.description}
                 </div>
               )}
@@ -380,19 +386,15 @@ export function JobSearchResults({
         ))}
       </div>
       
-      {/* Load More Button */}
+      {/* Results Summary */}
       {filteredJobs.length > 0 && (
         <div className="flex justify-center mt-6">
-          <Button 
-            variant="outline" 
-            onClick={() => {
-              const currentSource = selectedSource === 'all' ? 'careerjunction' : selectedSource;
-              // Implement pagination logic here if needed
-            }}
-            disabled={isLoading}
-          >
-            {isLoading ? 'Loading...' : 'Load More Jobs'}
-          </Button>
+          <div className="text-center text-slate-400">
+            <p className="text-sm">
+              Showing <span className="font-semibold text-white">{filteredJobs.length}</span> job{filteredJobs.length !== 1 ? 's' : ''}
+            </p>
+            <p className="text-xs mt-1">Search for more jobs using the form above</p>
+          </div>
         </div>
       )}
     </div>

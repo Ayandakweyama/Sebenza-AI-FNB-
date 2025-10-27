@@ -49,7 +49,7 @@ const DashboardProviderContent: React.FC<{
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [chatbotOpen, setChatbotOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    { type: 'bot', message: 'Hello! I\'m Afrigter, your AI career mentor. How can I help you today? 🚀' }
+    { type: 'bot', message: 'Hello! I\'m Afrigter, your AI career mentor. How can I help you today?' }
   ]);
   const [currentMessage, setCurrentMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);

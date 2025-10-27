@@ -1,80 +1,64 @@
+import { auth, clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 // List of public paths that don't require authentication
-const publicPaths = ['/', '/about', '/pricing'];
+const publicPaths = [
+  '/',
+  '/about',
+  '/pricing',
+  '/api/webhooks/clerk',
+  '/sign-in(.*)',
+  '/sign-up(.*)',
+  '/sso-callback(.*)'
+];
 
-// Auth paths that should be handled by Next.js routing
-const authPaths = ['/sign-in', 'sign-up'];
-
-// List of AI/MongoDB dependent routes to disable
+// List of AI dependent routes to disable
 const disabledRoutes = [
-  '/api/afrigter',
   '/api/ai',
   '/api/analyze-job-post',
-  '/api/scrape-jobs',
-  // Temporarily enabling CareerJunction scraper for testing
-  // '/api/scrape-careerjunction',
-  '/api/tasks',
-  '/afrigter',
   '/career-roadmap',
   '/resume-analyzer',
   '/applications'
 ];
 
-// Function to check if a path should be disabled
-function isDisabledRoute(pathname: string): boolean {
-  return disabledRoutes.some(route => 
-    pathname === route || pathname.startsWith(`${route}/`)
-  );
-}
+// Create route matchers
+const isPublicRoute = createRouteMatcher(publicPaths);
+const isDisabledRoute = createRouteMatcher(disabledRoutes);
 
-export default function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-  
-  // Log the request for debugging
-  console.log(`[Middleware] Request to: ${pathname}`);
-  
-  // TEMPORARILY DISABLED FOR TESTING - Allow all requests
-  console.log(`[Middleware] Allowing all requests for testing`);
-  return NextResponse.next();
-  
-  /* Original middleware logic - Commented out for testing
-  // Block disabled routes
-  if (isDisabledRoute(pathname)) {
-    console.log(`Blocking disabled route: ${pathname}`);
-    return new NextResponse(
-      JSON.stringify({ 
-        error: 'This feature is temporarily disabled for deployment' 
-      }), 
-      { 
-        status: 503, 
-        headers: { 'Content-Type': 'application/json' } 
-      }
+export default clerkMiddleware(async (auth, req) => {
+  const session = await auth();
+  const { pathname } = req.nextUrl;
+
+  // Handle disabled routes
+  if (isDisabledRoute(req)) {
+    return NextResponse.json(
+      { error: 'This feature is currently disabled due to high demand. Please check back later.' },
+      { status: 503 }
     );
   }
-  
-  // Allow all public paths
-  if (publicPaths.some(path => pathname === path || pathname.startsWith(`${path}/`))) {
-    console.log(`Allowing access to public path: ${pathname}`);
-    return NextResponse.next();
-  }
-  
-  // Handle auth paths - let Next.js routing handle these
-  if (authPaths.some(path => pathname === path || pathname.startsWith(`${path}/`))) {
-    console.log(`Allowing access to auth path: ${pathname}`);
-    return NextResponse.next();
-  }
-  
-  // For all other paths, just continue
-  console.log(`Proceeding with request to: ${pathname}`);
-  return NextResponse.next();
-  */
-}
 
-// Match all routes except static files
+  // Allow public routes
+  if (isPublicRoute(req)) {
+    return NextResponse.next();
+  }
+
+  // If user is not signed in and the route is not public, redirect to sign-in
+  if (!session.userId) {
+    const signInUrl = new URL('/sign-in', req.url);
+    signInUrl.searchParams.set('redirect_url', pathname);
+    return NextResponse.redirect(signInUrl);
+  }
+
+  return NextResponse.next();
+});
+
+// Configure which routes to protect
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
-  ],
+    // Match all routes except static files and _next
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    // Include API routes
+    '/api/:path*'
+  ]
 };

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Upload, FileText, Sparkles, CheckCircle, Loader2, X } from 'lucide-react';
+import { Upload, FileText, Sparkles, CheckCircle, Loader2, X, AlertCircle } from 'lucide-react';
 import DashboardNavigation from '@/components/dashboard/DashboardNavigation';
 
 export default function ResumeTipsPage() {
@@ -10,19 +10,62 @@ export default function ResumeTipsPage() {
   const [analysisComplete, setAnalysisComplete] = useState(false);
   const [activeTab, setActiveTab] = useState<'upload' | 'text'>('text');
   const [file, setFile] = useState<File | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<string>('');
+  const [error, setError] = useState<string>('');
+  const [experienceLevel, setExperienceLevel] = useState<'entry' | 'mid' | 'senior' | 'executive'>('mid');
+  const [targetRole, setTargetRole] = useState('');
+  const [industry, setIndustry] = useState('');
 
-  const analyzeResume = () => {
+  const analyzeResume = async () => {
     if ((activeTab === 'text' && !resumeText.trim()) || (activeTab === 'upload' && !file)) {
       return;
     }
     
     setIsAnalyzing(true);
+    setError('');
     
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      let textToAnalyze = resumeText;
+      
+      // If file is uploaded, extract text (simplified - in production you'd use a proper PDF parser)
+      if (activeTab === 'upload' && file) {
+        if (file.type === 'text/plain') {
+          textToAnalyze = await file.text();
+        } else {
+          // For PDF/DOCX files, we'll use the filename as a placeholder
+          // In production, you'd integrate with a file parsing service
+          textToAnalyze = `Resume file: ${file.name}\n\nPlease note: File parsing is not implemented in this demo. Please use the 'Paste Text' option for full functionality.`;
+        }
+      }
+      
+      const response = await fetch('/api/afrigter', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'resume-tips',
+          resumeText: textToAnalyze,
+          experienceLevel,
+          targetRole: targetRole || undefined,
+          industry: industry || undefined,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to analyze resume');
+      }
+      
+      setAnalysisResult(data.response);
       setAnalysisComplete(true);
+    } catch (err) {
+      console.error('Resume analysis error:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred while analyzing your resume');
+    } finally {
       setIsAnalyzing(false);
-    }, 2000);
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -116,6 +159,61 @@ export default function ResumeTipsPage() {
                   </div>
                 )}
                 
+                {/* Additional Options */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                      Experience Level
+                    </label>
+                    <select
+                      value={experienceLevel}
+                      onChange={(e) => setExperienceLevel(e.target.value as any)}
+                      className="w-full p-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="entry">Entry Level (0-2 years)</option>
+                      <option value="mid">Mid Level (3-7 years)</option>
+                      <option value="senior">Senior Level (8-15 years)</option>
+                      <option value="executive">Executive (15+ years)</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                      Target Role (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={targetRole}
+                      onChange={(e) => setTargetRole(e.target.value)}
+                      className="w-full p-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="e.g., Software Engineer"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                      Industry (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={industry}
+                      onChange={(e) => setIndustry(e.target.value)}
+                      className="w-full p-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="e.g., Technology"
+                    />
+                  </div>
+                </div>
+                
+                {error && (
+                  <div className="mb-4 p-4 bg-red-900/20 border border-red-500/30 rounded-lg flex items-start">
+                    <AlertCircle className="w-5 h-5 text-red-400 mr-3 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <h4 className="text-red-400 font-medium mb-1">Analysis Failed</h4>
+                      <p className="text-red-300 text-sm">{error}</p>
+                    </div>
+                  </div>
+                )}
+                
                 <button
                   onClick={analyzeResume}
                   disabled={isAnalyzing || (activeTab === 'text' ? !resumeText.trim() : !file)}
@@ -138,78 +236,51 @@ export default function ResumeTipsPage() {
               <div className="p-6">
                 <div className="flex items-center justify-between mb-6">
                   <div>
-                    <h2 className="text-xl font-semibold text-white">Resume Analysis</h2>
-                    <p className="text-slate-400 text-sm mt-1">Based on our AI analysis</p>
+                    <h2 className="text-xl font-semibold text-white">Resume Analysis Results</h2>
+                    <p className="text-slate-400 text-sm mt-1">AI-powered feedback from GPT-4o-mini</p>
                   </div>
                   <div className="flex items-center">
-                    <div className="relative">
-                      <div className="w-16 h-16 rounded-full flex items-center justify-center bg-gradient-to-br from-blue-600 to-purple-600">
-                        <span className="text-2xl font-bold text-white">78</span>
-                      </div>
-                      <div className="absolute -bottom-1 -right-1 bg-slate-900 rounded-full p-1">
-                        <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center">
-                          <CheckCircle className="w-4 h-4 text-white" />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="ml-4">
-                      <p className="text-sm text-slate-400">Overall Score</p>
-                      <p className="text-white font-medium">Good</p>
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center bg-gradient-to-br from-blue-600 to-purple-600">
+                      <Sparkles className="w-6 h-6 text-white" />
                     </div>
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-                  <div className="bg-slate-800/30 p-5 rounded-xl border border-slate-700/50">
-                    <h3 className="font-medium text-white mb-3 flex items-center">
-                      <CheckCircle className="w-4 h-4 text-green-400 mr-2" />
-                      What's Working Well
-                    </h3>
-                    <ul className="space-y-2">
-                      <li className="flex items-start">
-                        <div className="flex-shrink-0 mt-1">
-                          <div className="w-1.5 h-1.5 rounded-full bg-green-400"></div>
-                        </div>
-                        <span className="ml-2 text-sm text-slate-300">Clear work experience section</span>
-                      </li>
-                      <li className="flex items-start">
-                        <div className="flex-shrink-0 mt-1">
-                          <div className="w-1.5 h-1.5 rounded-full bg-green-400"></div>
-                        </div>
-                        <span className="ml-2 text-sm text-slate-300">Good use of action verbs</span>
-                      </li>
-                    </ul>
+                {/* Analysis Results */}
+                <div className="bg-slate-800/30 p-6 rounded-xl border border-slate-700/50 mb-6">
+                  <div className="prose prose-invert max-w-none">
+                    <div 
+                      className="text-slate-300 leading-relaxed whitespace-pre-wrap"
+                      style={{ fontSize: '14px', lineHeight: '1.6' }}
+                    >
+                      {analysisResult}
+                    </div>
                   </div>
+                </div>
+                
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <button
+                    onClick={() => {
+                      setAnalysisComplete(false);
+                      setAnalysisResult('');
+                      setError('');
+                    }}
+                    className="px-6 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors flex items-center justify-center"
+                  >
+                    <FileText className="w-4 h-4 mr-2" />
+                    Analyze Another Resume
+                  </button>
                   
-                  <div className="bg-slate-800/30 p-5 rounded-xl border border-slate-700/50">
-                    <h3 className="font-medium text-white mb-3 flex items-center">
-                      <Sparkles className="w-4 h-4 text-yellow-400 mr-2" />
-                      Areas for Improvement
-                    </h3>
-                    <ul className="space-y-2">
-                      <li className="flex items-start">
-                        <div className="flex-shrink-0 mt-1">
-                          <div className="w-1.5 h-1.5 rounded-full bg-yellow-400"></div>
-                        </div>
-                        <span className="ml-2 text-sm text-slate-300">Add more measurable achievements</span>
-                      </li>
-                      <li className="flex items-start">
-                        <div className="flex-shrink-0 mt-1">
-                          <div className="w-1.5 h-1.5 rounded-full bg-yellow-400"></div>
-                        </div>
-                        <span className="ml-2 text-sm text-slate-300">Include more relevant skills</span>
-                      </li>
-                    </ul>
-                  </div>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(analysisResult);
+                    }}
+                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center justify-center"
+                  >
+                    <FileText className="w-4 h-4 mr-2" />
+                    Copy Analysis
+                  </button>
                 </div>
-                
-                <button
-                  onClick={() => setAnalysisComplete(false)}
-                  className="mt-6 px-6 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors flex items-center"
-                >
-                  <FileText className="w-4 h-4 mr-2" />
-                  Analyze Another Resume
-                </button>
               </div>
             )}
           </div>

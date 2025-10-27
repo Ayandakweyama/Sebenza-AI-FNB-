@@ -18,6 +18,17 @@ export default function DashboardPage() {
     }
   }, [isLoaded, isSignedIn, router]);
 
+  // Sync user with database (temporarily disabled due to auth issues)
+  // useEffect(() => {
+  //   if (isSignedIn && user) {
+  //     fetch('/api/auth/sync-user', {
+  //       method: 'POST',
+  //     }).catch(error => {
+  //       console.error('Failed to sync user:', error);
+  //     });
+  //   }
+  // }, [isSignedIn, user]);
+
   // Show loading state while checking auth
   if (!isLoaded) {
     return (

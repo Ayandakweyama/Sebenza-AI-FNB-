@@ -105,7 +105,7 @@ export const DashboardContent: React.FC = () => {
               <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               <RecentActivity
                 title="Recent Applications"
-                icon="📋"
+                icon="FileText"
                 items={recentApplications}
                 showStatus
               />
@@ -117,7 +117,7 @@ export const DashboardContent: React.FC = () => {
               <div className="absolute inset-0 bg-gradient-to-br from-pink-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               <RecentActivity
                 title="Upcoming Interviews"
-                icon="🎯"
+                icon="Target"
                 items={upcomingInterviews}
                 showType
               />

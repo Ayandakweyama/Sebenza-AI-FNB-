@@ -3,6 +3,7 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 import { DashboardProvider } from "./components/dashboard/context/DashboardContext";
+import { JobProvider } from "@/contexts/JobContext";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -13,7 +14,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       }}
     >
       <DashboardProvider>
-        {children}
+        <JobProvider>
+          {children}
+        </JobProvider>
       </DashboardProvider>
     </ClerkProvider>
   );

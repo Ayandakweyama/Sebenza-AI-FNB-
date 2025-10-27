@@ -1,22 +1,23 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import Navbar from "./components/navbar/Navbar";
 import RemoveExtensionAttributes from "./components/RemoveExtensionAttributes";
+import { UserSync } from "@/components/auth/UserSync";
 
-// Font loading should be outside component
-const geistSans = Geist({
+// Temporarily disable Google Fonts to fix Turbopack issue
+// import { Geist, Geist_Mono } from "next/font/google";
+
+// Use system fonts as fallback
+const geistSans = {
   variable: "--font-geist-sans",
-  subsets: ["latin"],
-  display: 'swap',
-});
+  className: "font-sans"
+};
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-  display: 'swap',
-});
+const geistMono = {
+  variable: "--font-geist-mono", 
+  className: "font-mono"
+};
 
 export const metadata: Metadata = {
   title: {
@@ -55,12 +56,14 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <Providers>
-          <div className="min-h-screen flex flex-col">
-            <Navbar />
-            <main className="flex-1">
-              {children}
-            </main>
-          </div>
+          <UserSync>
+            <div className="min-h-screen flex flex-col">
+              <Navbar />
+              <main className="flex-1">
+                {children}
+              </main>
+            </div>
+          </UserSync>
         </Providers>
         <RemoveExtensionAttributes />
       </body>

@@ -93,8 +93,8 @@ export function FilterPanel() {
               className="mb-4"
             />
             <div className="flex justify-between text-sm text-gray-600">
-              <span>${salaryRange[0]}K</span>
-              <span>${salaryRange[1]}+K</span>
+              <span>R{salaryRange[0]}K</span>
+              <span>R{salaryRange[1]}+K</span>
             </div>
           </div>
         </div>

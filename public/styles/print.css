@@ -1,0 +1,222 @@
+/* Print-friendly styles for CV export */
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+
+  .cv-template {
+    width: 210mm !important;
+    min-height: 297mm !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 20mm !important;
+    box-shadow: none !important;
+    border: none !important;
+    background-color: white !important;
+    font-size: 12pt !important;
+    line-height: 1.4 !important;
+  }
+
+  .cv-template * {
+    box-shadow: none !important;
+  }
+
+  /* Remove rounded corners for print */
+  .cv-template .rounded-lg,
+  .cv-template .rounded-full,
+  .cv-template .rounded {
+    border-radius: 0 !important;
+  }
+
+  /* Ensure text is readable */
+  .cv-template .text-white {
+    color: white !important;
+  }
+
+  .cv-template .text-gray-900 {
+    color: #111827 !important;
+  }
+
+  .cv-template .text-gray-700 {
+    color: #374151 !important;
+  }
+
+  .cv-template .text-gray-600 {
+    color: #4b5563 !important;
+  }
+
+  /* Ensure backgrounds print correctly */
+  .cv-template .bg-white {
+    background-color: white !important;
+  }
+
+  .cv-template .bg-blue-600 {
+    background-color: #2563eb !important;
+  }
+
+  .cv-template .bg-purple-600 {
+    background-color: #9333ea !important;
+  }
+
+  .cv-template .bg-gray-100 {
+    background-color: #f3f4f6 !important;
+  }
+
+  /* Ensure borders print */
+  .cv-template .border-gray-300 {
+    border-color: #d1d5db !important;
+  }
+
+  .cv-template .border-gray-800 {
+    border-color: #1f2937 !important;
+  }
+
+  .cv-template .border-blue-600 {
+    border-color: #2563eb !important;
+  }
+
+  /* Page breaks */
+  .cv-template .page-break-before {
+    page-break-before: always !important;
+  }
+
+  .cv-template .page-break-after {
+    page-break-after: always !important;
+  }
+
+  .cv-template .page-break-inside-avoid {
+    page-break-inside: avoid !important;
+  }
+
+  /* Hide elements that shouldn't print */
+  .no-print,
+  .cv-preview-controls,
+  .export-buttons {
+    display: none !important;
+  }
+
+  /* Adjust spacing for print */
+  .cv-template .space-y-8 > * + * {
+    margin-top: 1.5rem !important;
+  }
+
+  .cv-template .space-y-6 > * + * {
+    margin-top: 1rem !important;
+  }
+
+  .cv-template .space-y-4 > * + * {
+    margin-top: 0.75rem !important;
+  }
+
+  /* Ensure proper font sizes */
+  .cv-template h1 {
+    font-size: 24pt !important;
+    line-height: 1.2 !important;
+  }
+
+  .cv-template h2 {
+    font-size: 18pt !important;
+    line-height: 1.3 !important;
+  }
+
+  .cv-template h3 {
+    font-size: 14pt !important;
+    line-height: 1.3 !important;
+  }
+
+  .cv-template p,
+  .cv-template li {
+    font-size: 11pt !important;
+    line-height: 1.4 !important;
+  }
+
+  /* Ensure proper margins and padding */
+  .cv-template .mb-8 {
+    margin-bottom: 1.5rem !important;
+  }
+
+  .cv-template .mb-6 {
+    margin-bottom: 1rem !important;
+  }
+
+  .cv-template .mb-4 {
+    margin-bottom: 0.75rem !important;
+  }
+
+  .cv-template .mb-3 {
+    margin-bottom: 0.5rem !important;
+  }
+
+  .cv-template .mb-2 {
+    margin-bottom: 0.25rem !important;
+  }
+
+  /* Grid layouts for print */
+  .cv-template .grid {
+    display: block !important;
+  }
+
+  .cv-template .grid-cols-2 > *,
+  .cv-template .grid-cols-3 > * {
+    display: inline-block !important;
+    width: 48% !important;
+    vertical-align: top !important;
+    margin-right: 2% !important;
+  }
+
+  .cv-template .grid-cols-3 > * {
+    width: 31% !important;
+  }
+
+  /* Flex layouts for print */
+  .cv-template .flex {
+    display: block !important;
+  }
+
+  .cv-template .flex.justify-between > * {
+    display: inline-block !important;
+  }
+
+  .cv-template .flex.justify-between > *:last-child {
+    float: right !important;
+  }
+}
+
+/* PDF-specific optimizations */
+@page {
+  size: A4;
+  margin: 0.5in;
+}
+
+/* Ensure consistent rendering across browsers */
+.cv-export-ready {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .cv-template {
+    background: white !important;
+    color: black !important;
+  }
+
+  .cv-template .text-gray-600,
+  .cv-template .text-gray-700 {
+    color: black !important;
+  }
+
+  .cv-template .bg-gray-100 {
+    background-color: #f0f0f0 !important;
+    border: 1px solid #ccc !important;
+  }
+}

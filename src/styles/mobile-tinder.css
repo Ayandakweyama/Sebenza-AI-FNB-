@@ -1,0 +1,144 @@
+/* Mobile-specific optimizations for Tinder-style job cards */
+
+/* Prevent text selection and improve touch handling */
+.tinder-card {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  
+  /* Optimize for touch - only allow horizontal panning */
+  touch-action: pan-x;
+  
+  /* Prevent scrolling interference */
+  overscroll-behavior: contain;
+  
+  /* Improve performance on mobile */
+  will-change: transform;
+  transform: translateZ(0); /* Force hardware acceleration */
+  backface-visibility: hidden;
+  
+  /* Prevent iOS bounce effect */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Improve button touch targets on mobile */
+@media (max-width: 768px) {
+  .tinder-action-button {
+    min-width: 44px;
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+  
+  /* Prevent zoom on double tap */
+  .tinder-card * {
+    touch-action: manipulation;
+  }
+  
+  /* Optimize viewport for mobile */
+  .tinder-container {
+    height: calc(100vh - 200px);
+    height: calc(100dvh - 200px); /* Dynamic viewport height for mobile browsers */
+  }
+  
+  /* Prevent bounce scrolling on iOS */
+  .tinder-stack {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+}
+
+/* Improve performance on mobile */
+.tinder-card-animated {
+  will-change: transform, opacity;
+  transform: translateZ(0); /* Force hardware acceleration */
+  backface-visibility: hidden;
+  
+  /* Optimize rendering for mobile */
+  -webkit-transform: translateZ(0);
+  -moz-transform: translateZ(0);
+  -ms-transform: translateZ(0);
+  -o-transform: translateZ(0);
+  
+  /* Prevent flickering on mobile */
+  perspective: 1000px;
+  -webkit-perspective: 1000px;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Better visual feedback for touch interactions */
+.tinder-button-touch {
+  transition: transform 0.1s ease-out;
+}
+
+.tinder-button-touch:active {
+  transform: scale(0.95);
+}
+
+/* Prevent text selection during drag */
+.tinder-dragging {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  
+  /* Prevent context menu on long press during drag */
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  
+  /* Ensure smooth dragging */
+  pointer-events: auto;
+  cursor: grabbing;
+  cursor: -webkit-grabbing;
+}
+
+/* Optimize for different mobile orientations */
+@media (orientation: landscape) and (max-height: 500px) {
+  .tinder-container {
+    height: calc(100vh - 120px);
+    height: calc(100dvh - 120px);
+  }
+}
+
+/* Improve swipe indicators visibility on mobile */
+@media (max-width: 480px) {
+  .tinder-swipe-indicator {
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* Add smooth transitions for mobile interactions */
+@media (max-width: 768px) {
+  .tinder-card {
+    transition: transform 0.1s ease-out;
+  }
+  
+  /* Optimize button sizes for touch */
+  .tinder-action-button {
+    min-width: 48px;
+    min-height: 48px;
+    border-radius: 50%;
+    transition: all 0.15s ease-out;
+  }
+  
+  /* Improve visual feedback */
+  .tinder-button-touch:active {
+    transform: scale(0.92);
+    transition: transform 0.1s ease-out;
+  }
+  
+  /* Prevent zoom on double tap for all interactive elements */
+  .tinder-card button,
+  .tinder-card a,
+  .tinder-card [role="button"] {
+    touch-action: manipulation;
+  }
+}

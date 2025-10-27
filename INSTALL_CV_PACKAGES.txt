@@ -1,0 +1,12 @@
+📦 INSTALL THESE PACKAGES FOR CV BUILDER TO WORK
+
+Run this command in your terminal:
+
+npm install html2pdf.js docx file-saver
+
+That's it! After installing, the CV Builder will be able to:
+✅ Download CVs as PDF
+✅ Download CVs as Word (.docx)
+✅ Generate 4 different template styles
+
+Navigate to: http://localhost:3000/cvbuilder

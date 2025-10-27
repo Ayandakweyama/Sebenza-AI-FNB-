@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useRef } from 'react';
 import { Upload, FileText, CheckCircle, XCircle, AlertTriangle, Download, Zap, Target, Award, TrendingUp, Link, Sparkles } from 'lucide-react';
-import { generateAtsReport } from '@/lib/generateAtsReport';
+import { generateAtsReport, generateWordReport } from '@/lib/generateAtsReport';
 // Define types for our analysis results
 interface KeywordAnalysis {
   found: string[];
@@ -36,7 +36,7 @@ interface JobAnalysisResult {
   qualifications?: string[];
 }
 
-import { extractTextFromFile } from '@/lib/cvAnalyzer';
+import { analyzeCVWithAI, extractTextFromFile } from '@/lib/cvAnalyzer';
 
 // Generate keywords for ATS analysis
 const generateKeywordsForATS = (text: string): string[] => {
@@ -62,21 +62,56 @@ const ATSAnalyzer = () => {
   
 
 
-  // Function to analyze CV using simple keyword extraction
+  // Function to analyze CV using AI-powered analysis
   const analyzeCV = async (file: File) => {
     try {
       // Extract text from the uploaded file
       const cvText = await extractTextFromFile(file);
       
-      // Extract keywords from the CV text
-      const cvKeywords = extractKeywords(cvText);
-      
-      // Get job keywords for matching
+      // Get job keywords for comparison
       const jobKeywords = jobAnalysis ? 
         [...(jobAnalysis.keywords || []), ...(jobAnalysis.skills || [])] : 
         qualificationKeywords || [];
       
-      // Find matching keywords between CV and job
+      console.log('Starting AI-powered ATS analysis...');
+      
+      // Use AI-powered analysis with GLM
+      const aiAnalysis = await analyzeCVWithAI(cvText, 'glm', jobKeywords);
+      
+      console.log('AI analysis completed:', aiAnalysis);
+      
+      // Transform AI response to our expected format
+      const result = {
+        score: aiAnalysis.overallScore || aiAnalysis.score || 0,
+        overallScore: aiAnalysis.overallScore || aiAnalysis.score || 0,
+        breakdown: aiAnalysis.breakdown || {},
+        strengths: aiAnalysis.strengths || [],
+        improvements: aiAnalysis.improvements || [],
+        keywordAnalysis: {
+          found: aiAnalysis.keywordAnalysis?.foundKeywords || aiAnalysis.keywordAnalysis?.found || [],
+          missing: aiAnalysis.keywordAnalysis?.missingKeywords || aiAnalysis.keywordAnalysis?.missing || []
+        },
+        atsCompatibility: aiAnalysis.atsCompatibility || { score: 0, issues: [] },
+        skills: aiAnalysis.keywordAnalysis?.foundKeywords || [],
+        experience: [],
+        education: []
+      };
+
+      console.log('Transformed analysis result:', result);
+      return result;
+      
+    } catch (error) {
+      console.error('Error in AI-powered CV analysis:', error);
+      
+      // Fallback to basic keyword analysis if AI fails
+      console.log('Falling back to basic keyword analysis...');
+      const cvText = await extractTextFromFile(file);
+      const cvKeywords = extractKeywords(cvText);
+      
+      const jobKeywords = jobAnalysis ? 
+        [...(jobAnalysis.keywords || []), ...(jobAnalysis.skills || [])] : 
+        qualificationKeywords || [];
+      
       const matchedKeywords = cvKeywords.filter(keyword => 
         jobKeywords.some(jobKeyword => 
           jobKeyword.toLowerCase().includes(keyword.toLowerCase()) ||
@@ -84,7 +119,6 @@ const ATSAnalyzer = () => {
         )
       );
       
-      // Calculate ATS score based on keyword matches
       const score = jobKeywords.length > 0 
         ? Math.min(100, Math.round((matchedKeywords.length / jobKeywords.length) * 100))
         : 0;
@@ -102,11 +136,11 @@ const ATSAnalyzer = () => {
         },
         skills: Array.from(new Set(cvKeywords)),
         experience: [],
-        education: []
+        education: [],
+        strengths: ['Basic keyword matching completed'],
+        improvements: ['Consider using AI-powered analysis for detailed insights'],
+        atsCompatibility: { score: score, issues: [] }
       };
-    } catch (error) {
-      console.error('Error analyzing CV:', error);
-      throw new Error('Failed to analyze CV. Please try again with a different file.');
     }
   };
 
@@ -242,13 +276,14 @@ const ATSAnalyzer = () => {
       }
     } catch (error) {
       console.error('Error analyzing CV:', error);
-      alert('Failed to analyze CV. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to analyze CV. Please try again.';
+      alert(errorMessage);
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  // Generate PDF report
+  // Generate enhanced PDF report
   const handleDownloadReport = () => {
     if (!analysisResult) return;
 
@@ -256,24 +291,66 @@ const ATSAnalyzer = () => {
       score: analysisResult.score,
       matchedKeywords: analysisResult.keywordAnalysis?.found || [],
       missingKeywords: analysisResult.keywordAnalysis?.missing || [],
-      jobTitle: jobAnalysis?.jobTitle || '',
+      jobTitle: jobAnalysis?.jobTitle || 'Job Position',
       jobCompany: jobAnalysis?.company || '',
       analysisDate: new Date().toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'long',
         day: 'numeric'
       }),
-      recommendations: [
+      strengths: analysisResult.strengths || [],
+      improvements: analysisResult.improvements || [],
+      breakdown: analysisResult.breakdown || {},
+      atsCompatibility: analysisResult.atsCompatibility || { score: analysisResult.score, issues: [] },
+      recommendations: (analysisResult.improvements && analysisResult.improvements.length > 0) ? analysisResult.improvements : [
         'Review the missing keywords and consider adding relevant ones to your resume.',
         'Use action verbs to describe your experiences and achievements.',
         'Ensure your resume is well-structured with clear section headings.',
         'Include quantifiable achievements to demonstrate your impact.',
-        'Keep your resume concise and focused on the most relevant experiences.'
+        'Keep your resume concise and focused on the most relevant experiences.',
+        'Use standard fonts and formatting that ATS systems can easily parse.'
       ]
     };
 
-    // This will open a print dialog for the user
+    // Generate the enhanced report
     generateAtsReport(reportData);
+  };
+
+  // Generate Word document report
+  const handleDownloadWordReport = async () => {
+    if (!analysisResult) return;
+
+    try {
+      const reportData = {
+        score: analysisResult.score,
+        matchedKeywords: analysisResult.keywordAnalysis?.found || [],
+        missingKeywords: analysisResult.keywordAnalysis?.missing || [],
+        jobTitle: jobAnalysis?.jobTitle || 'Job Position',
+        jobCompany: jobAnalysis?.company || '',
+        analysisDate: new Date().toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        }),
+        strengths: analysisResult.strengths || [],
+        improvements: analysisResult.improvements || [],
+        breakdown: analysisResult.breakdown || {},
+        atsCompatibility: analysisResult.atsCompatibility || { score: analysisResult.score, issues: [] },
+        recommendations: (analysisResult.improvements && analysisResult.improvements.length > 0) ? analysisResult.improvements : [
+          'Review the missing keywords and consider adding relevant ones to your resume.',
+          'Use action verbs to describe your experiences and achievements.',
+          'Ensure your resume is well-structured with clear section headings.',
+          'Include quantifiable achievements to demonstrate your impact.',
+          'Keep your resume concise and focused on the most relevant experiences.',
+          'Use standard fonts and formatting that ATS systems can easily parse.'
+        ]
+      };
+
+      await generateWordReport(reportData);
+    } catch (error) {
+      console.error('Error downloading Word report:', error);
+      alert('Failed to download Word report. Please try again.');
+    }
   };
 
   // Helper function to get color based on score
@@ -433,11 +510,14 @@ const ATSAnalyzer = () => {
                 <div className="space-y-3">
                   <h4 className="text-sm font-semibold text-gray-300">Matched Keywords:</h4>
                   <div className="flex flex-wrap gap-2">
-                    {analysisResult.keywordAnalysis.found.map((keyword: string, index: number) => (
+                    {analysisResult.keywordAnalysis.found.slice(0, 15).map((keyword: string, index: number) => (
                       <span key={index} className="bg-green-900/50 text-green-300 px-3 py-1 rounded-full text-sm">
                         {keyword}
                       </span>
                     ))}
+                    {analysisResult.keywordAnalysis.found.length > 15 && (
+                      <span className="text-gray-400 text-sm">+{analysisResult.keywordAnalysis.found.length - 15} more</span>
+                    )}
                   </div>
                 </div>
               )}
@@ -446,18 +526,101 @@ const ATSAnalyzer = () => {
                 <div className="space-y-3 mt-6">
                   <h4 className="text-sm font-semibold text-gray-300">Missing Keywords:</h4>
                   <div className="flex flex-wrap gap-2">
-                    {analysisResult.keywordAnalysis.missing.slice(0, 20).map((keyword: string, index: number) => (
+                    {analysisResult.keywordAnalysis.missing.slice(0, 15).map((keyword: string, index: number) => (
                       <span key={index} className="bg-red-900/50 text-red-300 px-3 py-1 rounded-full text-sm">
                         {keyword}
                       </span>
                     ))}
-                    {analysisResult.keywordAnalysis.missing.length > 20 && (
-                      <span className="text-gray-400 text-sm">+{analysisResult.keywordAnalysis.missing.length - 20} more</span>
+                    {analysisResult.keywordAnalysis.missing.length > 15 && (
+                      <span className="text-gray-400 text-sm">+{analysisResult.keywordAnalysis.missing.length - 15} more</span>
                     )}
                   </div>
                 </div>
               )}
             </div>
+
+            {/* Detailed Breakdown */}
+            {analysisResult.breakdown && Object.keys(analysisResult.breakdown).length > 0 && (
+              <div className="bg-slate-750 rounded-xl p-6 mb-8">
+                <h3 className="text-lg font-semibold mb-4 flex items-center">
+                  <TrendingUp className="w-5 h-5 mr-2 text-purple-400" />
+                  Detailed Score Breakdown
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {Object.entries(analysisResult.breakdown).map(([key, value]) => (
+                    <div key={key} className="bg-slate-700 rounded-lg p-4">
+                      <div className="text-sm font-medium text-gray-300 capitalize mb-2">
+                        {key.replace(/([A-Z])/g, ' $1').trim()}
+                      </div>
+                      <div className={`text-2xl font-bold ${getScoreColor(Number(value))}`}>
+                        {Number(value)}%
+                      </div>
+                      <div className="w-full bg-slate-600 rounded-full h-1.5 mt-2">
+                        <div 
+                          className={`h-1.5 rounded-full ${getScoreColor(Number(value)).replace('text-', 'bg-')}`}
+                          style={{ width: `${Number(value)}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Strengths and Improvements */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+              {analysisResult.strengths && analysisResult.strengths.length > 0 && (
+                <div className="bg-slate-750 rounded-xl p-6">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center text-green-400">
+                    <Award className="w-5 h-5 mr-2" />
+                    Strengths
+                  </h3>
+                  <div className="space-y-3">
+                    {analysisResult.strengths.map((strength, index) => (
+                      <div key={index} className="flex items-start">
+                        <CheckCircle className="w-5 h-5 text-green-400 mr-3 mt-0.5 flex-shrink-0" />
+                        <span className="text-gray-300 text-sm">{strength}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {analysisResult.improvements && analysisResult.improvements.length > 0 && (
+                <div className="bg-slate-750 rounded-xl p-6">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center text-yellow-400">
+                    <AlertTriangle className="w-5 h-5 mr-2" />
+                    Areas for Improvement
+                  </h3>
+                  <div className="space-y-3">
+                    {analysisResult.improvements.map((improvement, index) => (
+                      <div key={index} className="flex items-start">
+                        <AlertTriangle className="w-5 h-5 text-yellow-400 mr-3 mt-0.5 flex-shrink-0" />
+                        <span className="text-gray-300 text-sm">{improvement}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ATS Compatibility Issues */}
+            {analysisResult.atsCompatibility && analysisResult.atsCompatibility.issues && analysisResult.atsCompatibility.issues.length > 0 && (
+              <div className="bg-slate-750 rounded-xl p-6 mb-8">
+                <h3 className="text-lg font-semibold mb-4 flex items-center text-red-400">
+                  <XCircle className="w-5 h-5 mr-2" />
+                  ATS Compatibility Issues
+                </h3>
+                <div className="space-y-3">
+                  {analysisResult.atsCompatibility.issues.map((issue, index) => (
+                    <div key={index} className="flex items-start">
+                      <XCircle className="w-5 h-5 text-red-400 mr-3 mt-0.5 flex-shrink-0" />
+                      <span className="text-gray-300 text-sm">{issue}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             
             {/* Action Buttons */}
             <div className="flex justify-center space-x-4 mt-8">
@@ -470,14 +633,23 @@ const ATSAnalyzer = () => {
               >
                 Analyze Another CV
               </button>
-              <button 
+              <button
                 className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg transition-colors flex items-center space-x-2"
                 onClick={handleDownloadReport}
                 disabled={!analysisResult}
                 style={!analysisResult ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
               >
                 <Download className="w-4 h-4" />
-                <span>Download Report</span>
+                <span>Download PDF Report</span>
+              </button>
+              <button
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition-colors flex items-center space-x-2"
+                onClick={handleDownloadWordReport}
+                disabled={!analysisResult}
+                style={!analysisResult ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
+              >
+                <FileText className="w-4 h-4" />
+                <span>Download Word Report</span>
               </button>
             </div>
           </div>

@@ -13,7 +13,7 @@ const personalInfoSchema = z.object({
   phone: z.string().min(10, 'Phone number must be at least 10 digits'),
   location: z.string().min(2, 'Please enter your location'),
   bio: z.string().max(500, 'Bio must be less than 500 characters').optional(),
-  profilePhoto: z.instanceof(FileList).optional(),
+  profilePhoto: z.any().optional(), // FileList validation removed for SSR compatibility
 });
 
 // Step 2: Education

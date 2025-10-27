@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Job } from '@/hooks/useJobScraper';
 import { useState } from 'react';
+import { Sparkles } from 'lucide-react';
 
 interface JobDetailsModalProps {
   job: Job | null;
@@ -26,6 +27,7 @@ interface JobDetailsModalProps {
   onClose: () => void;
   onApply?: (job: Job) => void;
   onSave?: (job: Job) => void;
+  onSkip?: (job: Job) => void;
 }
 
 const JobDetailsModal = memo(function JobDetailsModal({
@@ -65,12 +67,13 @@ const JobDetailsModal = memo(function JobDetailsModal({
     onSave?.(job);
   };
 
-  // Handle apply
+  // Handle apply - disabled for now
   const handleApply = () => {
-    onApply?.(job);
-    if (job.url) {
-      window.open(job.url, '_blank');
-    }
+    // Coming soon - AI agent will handle applications
+    // onApply?.(job);
+    // if (job.url) {
+    //   window.open(job.url, '_blank');
+    // }
   };
 
   // Handle copy link
@@ -124,8 +127,8 @@ const JobDetailsModal = memo(function JobDetailsModal({
   };
 
   // Parse and format description
-  const formatDescription = (description: string) => {
-    if (!description) return 'No description available';
+  const formatDescription = (description: string): string[] => {
+    if (!description) return ['No description available'];
     
     // Split by common separators and create paragraphs
     const paragraphs = description
@@ -133,7 +136,8 @@ const JobDetailsModal = memo(function JobDetailsModal({
       .filter(p => p.trim().length > 10)
       .map(p => p.trim());
 
-    return paragraphs;
+    // Return at least one paragraph
+    return paragraphs.length > 0 ? paragraphs : [description.trim() || 'No description available'];
   };
 
   const descriptionParagraphs = formatDescription(job.description || '');
@@ -261,7 +265,7 @@ const JobDetailsModal = memo(function JobDetailsModal({
                   <h3 className="text-2xl font-bold text-gray-900 mb-6">Job Description</h3>
                   <div className="prose prose-lg max-w-none">
                     {descriptionParagraphs.length > 0 ? (
-                      descriptionParagraphs.map((paragraph, index) => (
+                      descriptionParagraphs.map((paragraph: string, index: number) => (
                         <p key={index} className="text-gray-700 leading-relaxed mb-4">
                           {paragraph}
                         </p>
@@ -278,16 +282,25 @@ const JobDetailsModal = memo(function JobDetailsModal({
                 <h3 className="text-xl font-bold text-gray-900 mb-6">Actions</h3>
                 
                 <div className="space-y-4">
-                  {/* Apply button */}
-                  <motion.button
-                    onClick={handleApply}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-4 px-6 rounded-xl transition-colors flex items-center justify-center gap-3"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <Heart className="w-6 h-6" />
-                    Apply for this job
-                  </motion.button>
+                  {/* Apply button - Coming Soon */}
+                  <div className="relative">
+                    <motion.button
+                      disabled
+                      className="w-full bg-gray-400 cursor-not-allowed text-white font-semibold py-4 px-6 rounded-xl flex items-center justify-center gap-3 opacity-60"
+                    >
+                      <Heart className="w-6 h-6" />
+                      Apply for this job
+                    </motion.button>
+                    <div className="mt-2 p-3 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Sparkles className="w-4 h-4 text-purple-600" />
+                        <span className="text-sm font-semibold text-purple-700">AI Agent Coming Soon!</span>
+                      </div>
+                      <p className="text-xs text-gray-700">
+                        Our self-applying AI agent will automatically apply to jobs for you. Available exclusively for Pro users.
+                      </p>
+                    </div>
+                  </div>
 
                   {/* Save button */}
                   <motion.button

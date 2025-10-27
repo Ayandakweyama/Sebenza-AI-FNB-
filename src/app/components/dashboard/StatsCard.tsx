@@ -1,5 +1,35 @@
 import React from 'react';
 import { StatsCardProps } from './types';
+import { 
+  Send, 
+  Calendar, 
+  Eye, 
+  TrendingUp, 
+  BarChart3, 
+  Users, 
+  Target, 
+  Activity,
+  Briefcase,
+  MessageSquare,
+  Clock,
+  CheckCircle
+} from 'lucide-react';
+
+// Icon mapping for dynamic icon rendering
+const iconMap = {
+  Send,
+  Calendar,
+  Eye,
+  TrendingUp,
+  BarChart3,
+  Users,
+  Target,
+  Activity,
+  Briefcase,
+  MessageSquare,
+  Clock,
+  CheckCircle
+};
 
 const colorClasses = {
   purple: 'border-purple-500 hover:border-purple-500 text-purple-400',
@@ -25,7 +55,12 @@ export const StatsCard: React.FC<StatsCardProps> = ({
             {change}
           </p>
         </div>
-        <div className="text-4xl">{icon}</div>
+        <div className="text-slate-400">
+          {(() => {
+            const IconComponent = iconMap[icon as keyof typeof iconMap];
+            return IconComponent ? <IconComponent className="w-8 h-8" /> : <div className="text-4xl">{icon}</div>;
+          })()}
+        </div>
       </div>
     </div>
   );

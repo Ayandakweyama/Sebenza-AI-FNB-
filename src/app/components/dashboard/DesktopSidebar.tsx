@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { UserButton } from '@clerk/nextjs';
 import { useDashboard } from './context/DashboardContext';
 import type { DesktopSidebarProps, NavigationItem, HoverOption } from './types';
+import { useProfileStrength } from '@/hooks/useProfileStrength';
+import { RefreshCw } from 'lucide-react';
 
 // Enhanced animations and transitions with GPU acceleration
 const ANIMATION_DURATION = 300;
@@ -348,9 +351,10 @@ SubmenuItem.displayName = 'SubmenuItem';
 
 // Enhanced User Profile Component with better performance
 const UserProfile = memo(({ user, isCollapsed }: { user: any; isCollapsed: boolean }) => {
-  const [profileStrength] = useState(75);
+  const { percentage: profileStrength, label: strengthLabel, color: strengthColor, recommendations } = useProfileStrength();
   const [isOnline] = useState(true);
   const [pulseKey, setPulseKey] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
 
   // Refresh pulse animation periodically
@@ -360,6 +364,17 @@ const UserProfile = memo(({ user, isCollapsed }: { user: any; isCollapsed: boole
     }, 3000);
 
     return () => clearInterval(interval);
+  }, []);
+
+  // Manual refresh function
+  const handleRefresh = useCallback(() => {
+    setIsRefreshing(true);
+    const profileUpdateEvent = new CustomEvent('profileDataUpdated');
+    window.dispatchEvent(profileUpdateEvent);
+    
+    setTimeout(() => {
+      setIsRefreshing(false);
+    }, 1000);
   }, []);
 
   const profileStyles = useMemo(() => ({
@@ -398,11 +413,22 @@ const UserProfile = memo(({ user, isCollapsed }: { user: any; isCollapsed: boole
         <div className="mt-4 p-3 bg-slate-700/30 rounded-lg border border-slate-700/50 hover:border-slate-600/50 transition-colors duration-200">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-xs font-medium text-slate-300">Profile Strength</span>
-            <span className="text-xs font-semibold text-purple-400">{profileStrength}%</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                className="p-1 hover:bg-slate-600/50 rounded transition-colors duration-200"
+                title="Refresh profile strength"
+              >
+                <RefreshCw className={`h-3 w-3 text-slate-400 hover:text-slate-300 ${isRefreshing ? 'animate-spin' : ''}`} />
+              </button>
+              <span className="text-xs font-medium text-slate-400">{strengthLabel}</span>
+              <span className="text-xs font-semibold text-purple-400">{profileStrength}%</span>
+            </div>
           </div>
           <div className="w-full bg-slate-700/50 rounded-full h-2 overflow-hidden">
             <div 
-              className="bg-gradient-to-r from-purple-500 to-pink-500 h-full rounded-full transition-all duration-1000 ease-out relative overflow-hidden" 
+              className={`bg-gradient-to-r ${strengthColor} h-full rounded-full transition-all duration-1000 ease-out relative overflow-hidden`}
               style={{ width: `${profileStrength}%` }}
             >
               <div 
@@ -411,6 +437,13 @@ const UserProfile = memo(({ user, isCollapsed }: { user: any; isCollapsed: boole
               ></div>
             </div>
           </div>
+          {profileStrength < 100 && recommendations && recommendations.length > 0 && (
+            <Link href="/profile/personal" className="block mt-2">
+              <p className="text-xs text-slate-400 hover:text-purple-400 transition-colors cursor-pointer">
+                {recommendations[0]}
+              </p>
+            </Link>
+          )}
         </div>
       </div>
     </div>

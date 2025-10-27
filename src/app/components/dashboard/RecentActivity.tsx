@@ -1,5 +1,35 @@
 import React from 'react';
 import { ActivityItem, RecentActivityProps } from './types';
+import { 
+  FileText, 
+  Target, 
+  Calendar, 
+  Send, 
+  Eye, 
+  TrendingUp,
+  Users,
+  Briefcase,
+  MessageSquare,
+  Clock,
+  CheckCircle,
+  Activity
+} from 'lucide-react';
+
+// Icon mapping for dynamic icon rendering
+const iconMap = {
+  FileText,
+  Target,
+  Calendar,
+  Send,
+  Eye,
+  TrendingUp,
+  Users,
+  Briefcase,
+  MessageSquare,
+  Clock,
+  CheckCircle,
+  Activity
+};
 
 export const RecentActivity: React.FC<RecentActivityProps> = ({
   title,
@@ -11,7 +41,12 @@ export const RecentActivity: React.FC<RecentActivityProps> = ({
   return (
     <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
       <h3 className="text-lg font-semibold mb-3 flex items-center">
-        <span className="mr-2">{icon}</span>
+        <span className="mr-3 text-purple-400">
+          {(() => {
+            const IconComponent = iconMap[icon as keyof typeof iconMap];
+            return IconComponent ? <IconComponent className="w-5 h-5" /> : <span className="text-xl">{icon}</span>;
+          })()}
+        </span>
         {title}
       </h3>
       <div className="space-y-2">

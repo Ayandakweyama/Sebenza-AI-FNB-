@@ -57,9 +57,13 @@ export const useMultiStepForm = () => {
   return context;
 };
 
-export const MultiStepFormProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // Initialize form with default values
-  const defaultValues: DefaultValues<ProfileFormData> = {
+export const MultiStepFormProvider: React.FC<{ 
+  children: ReactNode; 
+  defaultValues?: DefaultValues<ProfileFormData>;
+  onSubmit?: (data: ProfileFormData) => Promise<void>;
+}> = ({ children, defaultValues, onSubmit: parentOnSubmit }) => {
+  // Initialize form with provided default values or fall back to defaults
+  const fallbackDefaults: DefaultValues<ProfileFormData> = {
     firstName: '',
     lastName: '',
     email: '',
@@ -78,13 +82,18 @@ export const MultiStepFormProvider: React.FC<{ children: ReactNode }> = ({ child
       position: '',
       startDate: new Date(),
       current: false,
+      description: '',
+      achievements: ['']
     }],
     technicalSkills: [{ name: '', level: 'Intermediate' }],
     softSkills: [],
     languages: [{ name: '', proficiency: 'Conversational' }],
+    jobTitle: '', // Required field
+    industries: [], // Required field with min 1, but we'll provide empty and let validation handle it
     jobTypes: [],
-    industries: [],
+    relocation: false,
     remotePreference: 'Flexible',
+    careerGoals: '',
     template: 'Professional',
     colorScheme: '#2563eb',
     fontFamily: 'Arial',
@@ -93,8 +102,8 @@ export const MultiStepFormProvider: React.FC<{ children: ReactNode }> = ({ child
 
   const formMethods = useForm<ProfileFormData>({
     resolver: zodResolver(profileFormSchema),
-    defaultValues,
-  });
+    defaultValues: defaultValues || fallbackDefaults,
+  } as any);
 
   const [currentStep, setCurrentStep] = useState<FormStep>('personal');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -138,12 +147,19 @@ export const MultiStepFormProvider: React.FC<{ children: ReactNode }> = ({ child
 
     try {
       setIsSubmitting(true);
-      // Handle form submission here
       console.log('Form submitted:', data);
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Call the parent's onSubmit callback if provided
+      if (parentOnSubmit) {
+        await parentOnSubmit(data);
+      } else {
+        // Fallback: simulate API call
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        console.log('Form submitted successfully (no parent callback)');
+      }
     } catch (error) {
       console.error('Error submitting form:', error);
+      throw error; // Re-throw to let react-hook-form handle it
     } finally {
       setIsSubmitting(false);
     }

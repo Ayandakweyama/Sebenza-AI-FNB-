@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import puppeteer from 'puppeteer-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import puppeteer from 'puppeteer';
 import { randomInt } from 'crypto';
 import type { Browser, Page } from 'puppeteer';
 
@@ -12,7 +11,7 @@ interface HTTPResponse {
 }
 
 // Initialize puppeteer with stealth plugin
-puppeteer.use(StealthPlugin());
+// puppeteer.use(StealthPlugin());
 
 // Define types for request and response handlers
 type RequestHandler = (req: any) => void;
@@ -148,13 +147,24 @@ export async function POST(request: Request) {
     log('Starting scraper with parameters:', { query, location, maxPages: validatedMaxPages });
     console.log(`📝 Received request with query: "${query}", location: "${location}", maxPages: ${validatedMaxPages}`);
     
+    // Check if Puppeteer is available
+    try {
+      log('🔍 Checking Puppeteer availability...');
+      // Try to access puppeteer directly
+      if (puppeteer && typeof puppeteer.launch === 'function') {
+        log('✅ Puppeteer is available');
+      } else {
+        throw new Error('Puppeteer launch function not found');
+      }
+    } catch (e) {
+      log('❌ Puppeteer not available:', e instanceof Error ? e.message : e);
+      throw new Error('Puppeteer is not properly installed. Please run: npm install puppeteer');
+    }
+    
     // Initialize browser and page
     let browser: Browser | null = null;
     let page: Page | null = null;
     const jobs: Job[] = [];
-
-    // Launch the browser with configuration
-    console.log('🚀 Launching browser...');
     try {
       // Convert headless to boolean if it's 'new'
       const launchOptions = {
@@ -241,10 +251,35 @@ export async function POST(request: Request) {
       let response: HTTPResponse | null = null;
       
       try {
-        response = await page.goto(searchUrl, { 
-          waitUntil: CONFIG.navigation.waitUntil,
-          timeout: CONFIG.navigation.timeout
-        });
+        // Try navigation with multiple attempts
+        let attempts = 0;
+        const maxAttempts = 3;
+        
+        while (attempts < maxAttempts) {
+          try {
+            attempts++;
+            log(`Navigation attempt ${attempts}/${maxAttempts}`);
+            
+            response = await page.goto(searchUrl, { 
+              waitUntil: CONFIG.navigation.waitUntil,
+              timeout: CONFIG.navigation.timeout
+            });
+            
+            // If we get here, navigation was successful
+            break;
+            
+          } catch (navError) {
+            const errorMessage = navError instanceof Error ? navError.message : 'Unknown navigation error';
+            log(`Navigation attempt ${attempts} failed:`, errorMessage);
+            
+            if (attempts >= maxAttempts) {
+              throw new Error(`Failed to navigate after ${maxAttempts} attempts: ${errorMessage}`);
+            }
+            
+            // Wait a bit before retrying
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.error('Navigation error:', error);
@@ -547,6 +582,35 @@ export async function POST(request: Request) {
             
             if (!jobElements || jobElements.length === 0) {
               console.warn('No job elements found with any selector');
+              
+              // Try a more generic approach - look for any links that might be job links
+              console.log('Trying fallback approach...');
+              const allLinks = Array.from(document.querySelectorAll('a[href*="/job/"], a[href*="/jobs/"]'));
+              console.log(`Found ${allLinks.length} potential job links`);
+              
+              if (allLinks.length > 0) {
+                // Create basic job entries from links
+                const fallbackJobs = allLinks.slice(0, 10).map((link, index) => {
+                  const anchor = link as HTMLAnchorElement;
+                  return {
+                    title: link.textContent?.trim() || `Job ${index + 1}`,
+                    company: 'Company not specified',
+                    location: 'Location not specified',
+                    salary: 'Salary not specified',
+                    postedDate: 'Date not specified',
+                    description: '',
+                    jobType: undefined,
+                    industry: undefined,
+                    reference: undefined,
+                    url: anchor.href.startsWith('http') ? anchor.href : `${baseUrl}${anchor.href}`,
+                    source: 'CareerJunction'
+                  };
+                });
+                
+                console.log(`Created ${fallbackJobs.length} fallback jobs`);
+                return fallbackJobs;
+              }
+              
               return [];
             }
             
@@ -678,7 +742,7 @@ export async function POST(request: Request) {
       // Return the results
       return NextResponse.json({
         success: true,
-        data: jobs,
+        jobs: jobs,
         meta: {
           total: jobs.length,
           pages: Math.ceil(jobs.length / 20), // Assuming 20 jobs per page

@@ -77,18 +77,18 @@ const CVSection = ({ title, icon: Icon, children, collapsible = false }: CVSecti
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
-    <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-sm border border-purple-400/20 rounded-xl p-6 shadow-2xl">
+    <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 hover:border-purple-500/30 rounded-xl p-4 sm:p-6 shadow-xl transition-all">
       <div 
         className={`flex items-center gap-3 mb-6 ${collapsible ? 'cursor-pointer' : ''}`}
         onClick={collapsible ? () => setIsCollapsed(!isCollapsed) : undefined}
       >
-        <div className="p-2 bg-gradient-to-r from-purple-500 to-yellow-400 rounded-lg">
+        <div className="p-2 bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg shadow-lg">
           <Icon className="w-5 h-5 text-white" />
         </div>
-        <h2 className="text-xl font-bold text-white">{title}</h2>
+        <h2 className="text-lg sm:text-xl font-bold text-white">{title}</h2>
         {collapsible && (
           <div className={`ml-auto transform transition-transform ${isCollapsed ? 'rotate-180' : ''}`}>
-            <Plus className="w-4 h-4 text-gray-400" />
+            <Plus className="w-4 h-4 text-slate-400" />
           </div>
         )}
       </div>
@@ -105,7 +105,7 @@ interface SkillBadgeProps {
 
 // Skill Badge Component
 const SkillBadge = ({ skill, onRemove }: SkillBadgeProps) => (
-  <div className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-500/20 to-yellow-400/20 border border-purple-400/30 rounded-full px-3 py-1 text-sm text-white">
+  <div className="inline-flex items-center gap-2 bg-purple-500/20 border border-purple-500/30 rounded-full px-3 py-1.5 text-sm text-purple-300 font-medium">
     <span>{skill}</span>
     <button onClick={onRemove} className="hover:text-red-400 transition-colors">
       <Trash2 className="w-3 h-3" />
@@ -113,23 +113,12 @@ const SkillBadge = ({ skill, onRemove }: SkillBadgeProps) => (
   </div>
 );
 
-const CVForm = () => {
-  const [formData, setFormData] = useState<FormData>({
-    personalInfo: {
-      name: '',
-      email: '',
-      phone: '',
-      location: '',
-      summary: '',
-      website: '',
-      linkedin: '',
-      github: ''
-    },
-    experience: [],
-    education: [],
-    skills: [],
-    projects: []
-  });
+interface CVFormProps {
+  formData: FormData;
+  setFormData: React.Dispatch<React.SetStateAction<FormData>>;
+}
+
+const CVForm = ({ formData, setFormData }: CVFormProps) => {
 
   const [newSkill, setNewSkill] = useState<string>('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -360,56 +349,12 @@ const CVForm = () => {
       updateProject(index, field, e.target.value);
     };
 
-  const inputClass = "bg-slate-700/50 border border-purple-400/30 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent transition-all duration-200 hover:border-purple-400/50 w-full";
-  const buttonClass = "bg-pink-500 hover:bg-pink-400 text-white px-6 py-3 rounded-lg font-medium transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center";
-  const sectionButtonClass = "bg-slate-700/50 hover:bg-slate-600/50 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 border border-purple-400/20";
+  const inputClass = "bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 hover:border-purple-500/50 w-full";
+  const buttonClass = "bg-gradient-to-r from-purple-600 to-blue-600 hover:shadow-lg hover:shadow-purple-500/30 text-white px-6 py-3 rounded-lg font-medium transition-all duration-300 flex items-center";
+  const sectionButtonClass = "bg-slate-700/50 hover:bg-slate-700 text-slate-300 hover:text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 border border-slate-600 hover:border-purple-500/30";
 
   return (
-    <form onSubmit={handleSave} className="min-h-screen bg-slate-900 p-4 sm:p-6">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-purple-400 to-yellow-400 bg-clip-text text-transparent mb-3 sm:mb-4">
-            Professional CV Builder
-          </h1>
-          <p className="text-gray-300 text-base sm:text-lg">Create a stunning resume that stands out</p>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex flex-wrap gap-3 sm:gap-4 justify-center mb-8">
-          <button 
-            onClick={handleSave} 
-            className={`${buttonClass} ${saveStatus === 'saving' ? 'opacity-75 cursor-not-allowed' : ''}`} 
-            disabled={saveStatus === 'saving'}
-          >
-            <Save className="w-4 h-4 mr-2" />
-            {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved!' : 'Save Progress'}
-          </button>
-          <button 
-            className="bg-slate-700 hover:bg-slate-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-medium transition-all duration-300 shadow-lg flex items-center"
-            onClick={(e) => {
-              e.preventDefault();
-              // Handle preview logic here
-            }}
-          >
-            <Eye className="w-4 h-4 mr-2" />
-            <span className="hidden sm:inline">Preview CV</span>
-            <span className="sm:hidden">Preview</span>
-          </button>
-          <button 
-            className="bg-slate-700 hover:bg-slate-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-medium transition-all duration-300 shadow-lg flex items-center"
-            onClick={(e) => {
-              e.preventDefault();
-              // Handle export logic here
-            }}
-          >
-            <Download className="w-4 h-4 mr-2" />
-            <span className="hidden sm:inline">Export PDF</span>
-            <span className="sm:hidden">Export</span>
-          </button>
-        </div>
-
-        <div className="space-y-6">
+    <div className="space-y-6">
           {/* Personal Information */}
           <CVSection title="Personal Information" icon={User}>
             {/* Name - Full Width for Prominence */}
@@ -795,12 +740,6 @@ const CVForm = () => {
           </CVSection>
         </div>
 
-        {/* Footer */}
-        <div className="text-center mt-12 text-gray-400">
-          <p>Your CV data is stored locally and never sent to external servers.</p>
-        </div>
-      </div>
-    </form>
   );
 };
 

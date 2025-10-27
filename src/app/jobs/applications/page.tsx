@@ -1,3 +1,5 @@
+'use client';
+
 import { JobCard } from '@/components/Jobs/JobCard';
 import { Button } from '@/components/ui/button';
 import DashboardNavigation from '@/components/dashboard/DashboardNavigation';

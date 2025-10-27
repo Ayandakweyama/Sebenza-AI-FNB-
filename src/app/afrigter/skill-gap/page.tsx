@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useAfrigter } from '@/hooks/useAfrigter';
 import DashboardNavigation from '@/components/dashboard/DashboardNavigation';
 
 export default function SkillGapPage() {
@@ -9,11 +8,12 @@ export default function SkillGapPage() {
   const [targetRole, setTargetRole] = useState('');
   const [currentSkills, setCurrentSkills] = useState('');
   const [jobDescription, setJobDescription] = useState('');
-  const [experienceLevel, setExperienceLevel] = useState('mid-level');
+  const [experienceLevel, setExperienceLevel] = useState<'entry' | 'mid' | 'senior' | 'executive'>('mid');
   const [industry, setIndustry] = useState('');
   const [showExample, setShowExample] = useState(false);
-  
-  const { response, loading, callAfrigter } = useAfrigter();
+  const [response, setResponse] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,16 +23,38 @@ export default function SkillGapPage() {
       return;
     }
     
-    const data = {
-      type: 'skill-gap' as const,
-      currentSkills: currentSkills.split(',').map(skill => skill.trim()).filter(Boolean),
-      targetRole,
-      experienceLevel,
-      industry: industry || undefined,
-      jobDescription: jobDescription || undefined
-    };
+    setLoading(true);
+    setError('');
     
-    await callAfrigter(data);
+    try {
+      const response = await fetch('/api/afrigter', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'skill-gap',
+          currentSkills: currentSkills.split(',').map(skill => skill.trim()).filter(Boolean),
+          targetRole,
+          experienceLevel,
+          industry: industry || undefined,
+          timeline: '6'
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to analyze skill gap');
+      }
+      
+      setResponse(data.response);
+    } catch (err) {
+      console.error('Skill gap analysis error:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred while analyzing your skills');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const loadExample = () => {
@@ -49,6 +71,8 @@ export default function SkillGapPage() {
     setCurrentSkills('');
     setJobDescription('');
     setShowExample(false);
+    setResponse('');
+    setError('');
   };
 
   return (
@@ -129,10 +153,10 @@ export default function SkillGapPage() {
                   className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
                   required
                 >
-                  <option value="entry-level">Entry Level</option>
-                  <option value="mid-level">Mid Level</option>
+                  <option value="entry">Entry Level</option>
+                  <option value="mid">Mid Level</option>
                   <option value="senior">Senior</option>
-                  <option value="lead">Lead/Manager</option>
+                  <option value="executive">Executive/Lead</option>
                 </select>
               </div>
 
@@ -194,6 +218,12 @@ export default function SkillGapPage() {
           
           <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
             <h2 className="text-xl font-semibold mb-6 text-white">Your Skill Gap Analysis</h2>
+            
+            {error && (
+              <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+                <p className="text-red-400 text-sm">{error}</p>
+              </div>
+            )}
             
             {response ? (
               <div className="space-y-6">

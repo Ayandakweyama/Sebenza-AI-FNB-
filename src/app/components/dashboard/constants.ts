@@ -36,28 +36,28 @@ export const statsCards = [
     title: 'Applications Sent',
     value: '24',
     change: '+12% this week',
-    icon: '📊',
+    icon: 'Send',
     color: 'purple'
   },
   {
     title: 'Interviews',
     value: '5',
     change: '+2 scheduled',
-    icon: '🎯',
+    icon: 'Calendar',
     color: 'green'
   },
   {
     title: 'Profile Views',
     value: '87',
     change: '+23% this month',
-    icon: '👀',
+    icon: 'Eye',
     color: 'blue'
   },
   {
     title: 'Response Rate',
     value: '21%',
     change: 'Above average',
-    icon: '📈',
+    icon: 'TrendingUp',
     color: 'yellow'
   }
 ];
@@ -102,10 +102,10 @@ export const upcomingInterviews = [
 ];
 
 export const aiResponses = [
-  "Based on your profile, I see you have strong technical skills. Have you considered exploring roles in AI/ML or cloud architecture? These fields are growing rapidly! 🚀",
-  "I'd recommend focusing on building your personal brand through LinkedIn and contributing to open-source projects. This can significantly boost your visibility to recruiters! 💡",
-  "Your experience suggests you might thrive in a startup environment. Would you like me to suggest some strategies for finding and applying to innovative startups? 🌟",
-  "Consider developing skills in emerging technologies like blockchain, cybersecurity, or data science. These areas have high demand and competitive salaries! 📈",
-  "Networking is crucial! I suggest attending virtual tech meetups, joining professional communities, and engaging with industry leaders on social media. 🤝",
-  "Have you thought about freelancing or consulting? Your skillset could be perfect for project-based work while you search for your ideal full-time role! 💼"
+  "Based on your profile, I see you have strong technical skills. Have you considered exploring roles in AI/ML or cloud architecture? These fields are growing rapidly!",
+  "I'd recommend focusing on building your personal brand through LinkedIn and contributing to open-source projects. This can significantly boost your visibility to recruiters!",
+  "Your experience suggests you might thrive in a startup environment. Would you like me to suggest some strategies for finding and applying to innovative startups?",
+  "Consider developing skills in emerging technologies like blockchain, cybersecurity, or data science. These areas have high demand and competitive salaries!",
+  "Networking is crucial! I suggest attending virtual tech meetups, joining professional communities, and engaging with industry leaders on social media.",
+  "Have you thought about freelancing or consulting? Your skillset could be perfect for project-based work while you search for your ideal full-time role!"
 ];

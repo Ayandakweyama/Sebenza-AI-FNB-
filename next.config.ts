@@ -42,14 +42,9 @@ const nextConfig: NextConfig = {
     return config;
   },
   
-  // Disable type checking during build (can help with some module resolution issues)
+  // Enable type checking during build for production safety
   typescript: {
-    ignoreBuildErrors: true,
-  },
-  
-  // Disable ESLint during build
-  eslint: {
-    ignoreDuringBuilds: true,
+    ignoreBuildErrors: false,
   },
   
   // Enable React Strict Mode

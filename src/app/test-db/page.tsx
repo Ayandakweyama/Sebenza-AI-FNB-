@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 
 interface Task {
-  _id: string;
+  id: string;
   title: string;
   description: string;
   completed: boolean;
@@ -123,7 +123,7 @@ export default function TestDBPage() {
     if (!editingTask || !newTask.title.trim()) return;
 
     try {
-      const response = await fetch(`/api/tasks?id=${editingTask._id}`, {
+      const response = await fetch(`/api/tasks?id=${editingTask.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -153,7 +153,7 @@ export default function TestDBPage() {
       <div className="max-w-4xl mx-auto">
         {/* Connection Test Section */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h1 className="text-2xl font-bold mb-4">MongoDB Connection Test</h1>
+          <h1 className="text-2xl font-bold mb-4">Database Connection Test</h1>
           
           <button
             onClick={testConnection}
@@ -176,7 +176,7 @@ export default function TestDBPage() {
             <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded">
               <h2 className="text-lg font-semibold">Connection Successful! 🎉</h2>
               <p className="text-sm text-gray-600 mt-2">
-                Connected to MongoDB Atlas. You can now manage tasks below.
+                Connected to SQLite database via Prisma. You can now manage tasks below.
               </p>
             </div>
           )}
@@ -251,7 +251,7 @@ export default function TestDBPage() {
               <ul className="space-y-3">
                 {tasks.map((task) => (
                   <li 
-                    key={task._id}
+                    key={task.id}
                     className={`p-4 border rounded-md ${
                       task.completed ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-300'
                     }`}
@@ -260,7 +260,7 @@ export default function TestDBPage() {
                       <input
                         type="checkbox"
                         checked={task.completed}
-                        onChange={(e) => toggleTask(task._id, e.target.checked)}
+                        onChange={(e) => toggleTask(task.id, e.target.checked)}
                         className="mt-1 mr-3"
                       />
                       
@@ -292,7 +292,7 @@ export default function TestDBPage() {
                         </button>
                         
                         <button
-                          onClick={() => deleteTask(task._id)}
+                          onClick={() => deleteTask(task.id)}
                           className="px-2 py-1 text-sm text-red-600 hover:text-red-800"
                         >
                           Delete

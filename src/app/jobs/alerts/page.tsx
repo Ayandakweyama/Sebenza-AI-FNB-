@@ -1,7 +1,12 @@
+'use client';
+
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import DashboardNavigation from '@/components/dashboard/DashboardNavigation';
 import { Plus, Bell, Search, X, Mail, Settings, Clock, MapPin, Briefcase } from 'lucide-react';
 import Link from 'next/link';
+import { useJobContext } from '@/contexts/JobContext';
+import JobAlertModal from '@/components/Jobs/JobAlertModal';
 
 // Mock data - in a real app, this would come from your data fetching logic
 const jobAlerts = [
@@ -38,19 +43,32 @@ const jobAlerts = [
 ];
 
 export default function JobAlertsPage() {
-  const handleCreateAlert = () => {
-    // Handle create new alert
-    console.log('Create new job alert');
+  const { jobAlerts, deleteJobAlert, toggleJobAlert, createJobAlert, updateJobAlert } = useJobContext();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingAlert, setEditingAlert] = useState<any>(null);
+
+  const handleCreateAlert = async (alertData: any) => {
+    await createJobAlert(alertData);
+    setIsModalOpen(false);
   };
 
-  const toggleAlertStatus = (alertId: string, currentStatus: boolean) => {
-    // Handle toggle alert status
-    console.log(`Toggle alert ${alertId} status to ${!currentStatus}`);
+  const handleUpdateAlert = async (alertId: string, alertData: any) => {
+    await updateJobAlert(alertId, alertData);
+    setEditingAlert(null);
+    setIsModalOpen(false);
   };
 
-  const deleteAlert = (alertId: string) => {
-    // Handle delete alert
-    console.log('Delete alert:', alertId);
+  const handleEditAlert = (alert: any) => {
+    setEditingAlert(alert);
+    setIsModalOpen(true);
+  };
+
+  const toggleAlertStatus = async (alertId: string, currentStatus: boolean) => {
+    await toggleJobAlert(alertId);
+  };
+
+  const handleDeleteAlert = async (alertId: string) => {
+    await deleteJobAlert(alertId);
   };
   
   return (
@@ -64,7 +82,7 @@ export default function JobAlertsPage() {
         <div className="space-y-6 mt-6">
           <div className="flex justify-end">
         <Button 
-          onClick={handleCreateAlert}
+          onClick={() => setIsModalOpen(true)}
           className="bg-purple-600 hover:bg-purple-700"
         >
           <Plus className="mr-2 h-4 w-4" />
@@ -141,6 +159,7 @@ export default function JobAlertsPage() {
                     variant="outline" 
                     size="sm" 
                     className="text-slate-300 border-slate-600 hover:bg-slate-700/50 hover:border-purple-500/30 hover:text-purple-400"
+                    onClick={() => handleEditAlert(alert)}
                   >
                     <Settings className="h-4 w-4 mr-1.5" />
                     Edit
@@ -149,7 +168,7 @@ export default function JobAlertsPage() {
                     variant="ghost" 
                     size="sm" 
                     className="text-red-400 hover:bg-red-500/10 hover:text-red-400"
-                    onClick={() => deleteAlert(alert.id)}
+                    onClick={() => handleDeleteAlert(alert.id)}
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -168,7 +187,7 @@ export default function JobAlertsPage() {
             </p>
             <div className="mt-4">
               <Button 
-                onClick={handleCreateAlert}
+                onClick={() => setIsModalOpen(true)}
                 className="bg-purple-600 hover:bg-purple-700"
               >
                 <Plus className="mr-2 h-4 w-4" />
@@ -188,7 +207,7 @@ export default function JobAlertsPage() {
           </p>
           <div className="mt-6">
             <Button 
-              onClick={handleCreateAlert}
+              onClick={() => setIsModalOpen(true)}
               className="bg-purple-600 hover:bg-purple-700"
             >
               <Plus className="mr-2 h-4 w-4" />
@@ -199,6 +218,18 @@ export default function JobAlertsPage() {
           )}
         </div>
       </div>
+
+      {/* Job Alert Modal */}
+      <JobAlertModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingAlert(null);
+        }}
+        onCreateAlert={handleCreateAlert}
+        onUpdateAlert={handleUpdateAlert}
+        editAlert={editingAlert}
+      />
     </div>
   );
 }

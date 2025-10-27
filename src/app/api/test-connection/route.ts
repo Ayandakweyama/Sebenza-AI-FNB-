@@ -1,20 +1,19 @@
 import { NextResponse } from 'next/server';
-import clientPromise from '@/lib/mongodb';
+import { prisma } from '@/lib/prisma';
 
 export async function GET() {
   try {
-    const client = await clientPromise;
-    const adminDb = client.db().admin();
-    const dbs = await adminDb.listDatabases();
-    
+    // Test the database connection by running a simple query
+    await prisma.$queryRaw`SELECT 1`;
+
     return NextResponse.json({
       status: 'success',
-      databases: dbs.databases.map(db => db.name)
+      message: 'Database connection successful'
     });
   } catch (error) {
-    console.error('MongoDB connection error:', error);
+    console.error('Database connection error:', error);
     return NextResponse.json(
-      { status: 'error', message: 'Failed to connect to MongoDB', error: error.message },
+      { status: 'error', message: 'Failed to connect to database', error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

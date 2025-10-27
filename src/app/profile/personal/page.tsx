@@ -6,21 +6,130 @@ import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { useFormContext } from 'react-hook-form';
 import DashboardNavigation from '@/components/dashboard/DashboardNavigation';
-import { MultiStepFormProvider, useFormContextData as useMultiStepFormContext } from './components/FormContext';
+import { MultiStepFormProvider, useMultiStepFormContext } from './components/FormContext';
 import { PersonalInfoStep } from './components/PersonalInfoStep';
 import { EducationStep } from './components/EducationStep';
 import { ExperienceStep } from './components/ExperienceStep';
 import { SkillsStep } from './components/SkillsStep';
+import { SkillsStepEnhanced } from './components/SkillsStepEnhanced';
+import { SkillsStepResponsive } from './components/SkillsStepResponsive';
 import { GoalsStep } from './components/GoalsStep';
 import { CVStyleStep } from './components/CVStyleStep';
 import { profileFormSchema, ProfileFormData } from './profile.schema';
 
-// Mock function to simulate API call
+// Function to save profile data to the API
 const saveProfileData = async (data: ProfileFormData) => {
   console.log('Saving profile data:', data);
-  // Simulate API call delay
-  await new Promise(resolve => setTimeout(resolve, 1500));
-  return { success: true };
+
+  // Save profile and job preferences
+  const profileResponse = await fetch('/api/profile', {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      profile: {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        phone: data.phone,
+        location: data.location,
+        bio: data.bio,
+      },
+      jobPreferences: {
+        desiredRoles: data.jobTypes || [],
+        industries: data.industries || [],
+        remoteWork: data.remotePreference === 'Remote',
+        skills: data.technicalSkills?.map(skill => skill.name).filter(Boolean) || [],
+        languages: data.languages?.map(lang => lang.name).filter(Boolean) || [],
+      }
+    }),
+  });
+
+  if (!profileResponse.ok) {
+    const errorData = await profileResponse.json();
+    throw new Error(errorData.error || 'Failed to save profile');
+  }
+
+  // Save skills
+  if (data.technicalSkills?.length || data.softSkills?.length || data.languages?.length) {
+    const skillsToSave: Array<{
+      name: string;
+      category: string;
+      proficiency: string;
+      level: number;
+    }> = [];
+
+    // Add technical skills
+    if (data.technicalSkills) {
+      data.technicalSkills.forEach(skill => {
+        if (skill.name.trim()) {
+          skillsToSave.push({
+            name: skill.name.trim(),
+            category: 'technical',
+            proficiency: skill.level === 'Beginner' ? 'beginner' :
+                        skill.level === 'Intermediate' ? 'intermediate' :
+                        skill.level === 'Advanced' ? 'advanced' : 'expert',
+            level: skill.level === 'Beginner' ? 1 :
+                   skill.level === 'Intermediate' ? 2 :
+                   skill.level === 'Advanced' ? 3 : 4
+          });
+        }
+      });
+    }
+
+    // Add soft skills
+    if (data.softSkills) {
+      data.softSkills.forEach(skillName => {
+        if (skillName.trim()) {
+          skillsToSave.push({
+            name: skillName.trim(),
+            category: 'soft',
+            proficiency: 'intermediate',
+            level: 2
+          });
+        }
+      });
+    }
+
+    // Add languages
+    if (data.languages) {
+      data.languages.forEach(lang => {
+        if (lang.name.trim()) {
+          skillsToSave.push({
+            name: lang.name.trim(),
+            category: 'language',
+            proficiency: lang.proficiency === 'Conversational' ? 'beginner' :
+                        lang.proficiency === 'Fluent' ? 'intermediate' :
+                        lang.proficiency === 'Native' ? 'expert' : 'intermediate',
+            level: lang.proficiency === 'Conversational' ? 1 :
+                   lang.proficiency === 'Fluent' ? 2 :
+                   lang.proficiency === 'Native' ? 4 : 2
+          });
+        }
+      });
+    }
+
+    // Save skills in parallel
+    const skillPromises = skillsToSave.map(skill =>
+      fetch('/api/skills', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(skill),
+      })
+    );
+
+    const skillResults = await Promise.allSettled(skillPromises);
+    const failedSkills = skillResults.filter(result => result.status === 'rejected');
+
+    if (failedSkills.length > 0) {
+      console.warn(`${failedSkills.length} skills failed to save`);
+    }
+  }
+
+  const result = await profileResponse.json();
+  return { success: true, data: result };
 };
 
 export default function PersonalProfilePage() {
@@ -90,9 +199,9 @@ export default function PersonalProfilePage() {
       jobTypes: [],
       industries: [],
       remotePreference: 'Flexible',
-      template: 'professional',
+      template: 'Professional',
       colorScheme: '#2563eb',
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: 'Arial',
       showPhoto: true,
     };
   };
@@ -106,8 +215,8 @@ export default function PersonalProfilePage() {
         />
         
         <div className="mt-8 bg-slate-900/50 border border-slate-800 rounded-2xl p-6 sm:p-8">
-          <MultiStepFormProvider defaultValues={getDefaultValues()}>
-            <FormSteps onSubmit={handleSubmit} />
+          <MultiStepFormProvider defaultValues={getDefaultValues()} onSubmit={handleSubmit}>
+            <FormSteps />
           </MultiStepFormProvider>
         </div>
       </div>
@@ -116,9 +225,8 @@ export default function PersonalProfilePage() {
 }
 
 // Component to handle form steps rendering
-function FormSteps({ onSubmit }: { onSubmit: (data: ProfileFormData) => Promise<void> }) {
+function FormSteps() {
   const { currentStep, isSubmitting, form } = useMultiStepFormContext();
-  const { handleSubmit } = form;
 
   // Save form data to localStorage on step change
   useEffect(() => {
@@ -155,11 +263,11 @@ function FormSteps({ onSubmit }: { onSubmit: (data: ProfileFormData) => Promise<
       case 'experience':
         return <ExperienceStep />;
       case 'skills':
-        return <SkillsStep />;
+        return <SkillsStepResponsive />;
       case 'goals':
         return <GoalsStep />;
       case 'cv':
-        return <CVStyleStep onSubmit={handleSubmit(onSubmit)} />;
+        return <CVStyleStep />;
       default:
         return <PersonalInfoStep />;
     }

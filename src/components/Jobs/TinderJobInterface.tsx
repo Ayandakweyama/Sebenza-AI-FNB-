@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import '@/styles/mobile-tinder.css';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, 
@@ -13,15 +14,21 @@ import {
   Settings,
   RotateCcw,
   TrendingUp,
-  Zap
+  Zap,
+  Sparkles,
+  Lock
 } from 'lucide-react';
 import { Job, useJobScraper } from '@/hooks/useJobScraper';
 import { EnhancedTinderCard } from './EnhancedTinderCard';
 import { JobDetailsModal } from './JobDetailsModal';
+import { useJobContext } from '@/contexts/JobContext';
 
 interface TinderJobInterfaceProps {
   initialQuery?: string;
   initialLocation?: string;
+  sharedJobs?: Job[];
+  sharedIsLoading?: boolean;
+  sharedScrapeAll?: (options: { query: string; location: string; maxPages?: number }) => Promise<any>;
 }
 
 interface SwipeAction {
@@ -39,50 +46,57 @@ interface SearchFilters {
 
 export function TinderJobInterface({ 
   initialQuery = 'software engineer', 
-  initialLocation = 'South Africa' 
+  initialLocation = 'South Africa',
+  sharedJobs,
+  sharedIsLoading,
+  sharedScrapeAll
 }: TinderJobInterfaceProps) {
-  // Search state
+  const { saveJob, applyToJob, isSaved, hasApplied } = useJobContext();
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [query, setQuery] = useState(initialQuery);
   const [location, setLocation] = useState(initialLocation);
-  const [filters, setFilters] = useState<SearchFilters>({});
   const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState<SearchFilters>({});
+  const [swipeHistory, setSwipeHistory] = useState<SwipeAction[]>([]);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [showJobDetails, setShowJobDetails] = useState(false);
+  const hasInitialSearchRun = useRef(false);
 
   // Job state
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [swipeHistory, setSwipeHistory] = useState<SwipeAction[]>([]);
   const [savedJobs, setSavedJobs] = useState<Job[]>([]);
   const [appliedJobs, setAppliedJobs] = useState<Job[]>([]);
 
-  // Modal state
-  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
-  const [showJobDetails, setShowJobDetails] = useState(false);
-
-  // Job scraper hook
-  const { 
-    scrapeAll, 
-    jobs, 
-    isLoading, 
-    getIsLoading,
-    getError
-  } = useJobScraper({
+  // Job scraper hook - use shared if available, otherwise use own instance
+  const localScraper = useJobScraper({
     onScrapeStart: () => console.log('🔍 Starting job search...'),
     onScrapeComplete: (jobs, source) => {
       console.log(`✅ Found ${jobs.length} jobs from ${source}`);
       setCurrentIndex(0); // Reset to first job when new results come in
     },
-    onError: (error, source) => {
-      console.error(`❌ Error from ${source}:`, error);
+    onError: (error) => {
+      console.error(`❌ Error:`, error);
     },
   });
+  
+  const scrapeAll = sharedScrapeAll || localScraper.scrapeAll;
+  const jobs = sharedJobs !== undefined ? sharedJobs : localScraper.jobs;
+  const isLoading = sharedIsLoading !== undefined ? sharedIsLoading : localScraper.isLoading;
 
   // Get all jobs combined
   const allJobs = useMemo(() => {
-    const combinedJobs: Job[] = [];
-    Object.values(jobs).forEach(sourceJobs => {
-      combinedJobs.push(...sourceJobs);
+    console.log('🔍 TinderJobInterface - Processing jobs:', { 
+      jobs, 
+      isArray: Array.isArray(jobs), 
+      type: typeof jobs,
+      length: Array.isArray(jobs) ? jobs.length : 'N/A'
     });
-    // Shuffle jobs for variety
-    return combinedJobs.sort(() => Math.random() - 0.5);
+    if (!jobs || !Array.isArray(jobs)) {
+      console.log('⚠️ TinderJobInterface - No jobs or jobs is not an array');
+      return [];
+    }
+    console.log('✅ TinderJobInterface - Jobs received:', jobs.length, 'First job:', jobs[0]);
+    // Don't shuffle to maintain consistency
+    return [...jobs];
   }, [jobs]);
 
   // Filter jobs based on current filters
@@ -106,20 +120,22 @@ export function TinderJobInterface({
 
   // Get visible jobs (current + next few for smooth animations)
   const visibleJobs = useMemo(() => {
-    return filteredJobs.slice(currentIndex, currentIndex + 3);
+    const visible = filteredJobs.slice(currentIndex, currentIndex + 3);
+    console.log(`📊 TinderJobInterface - Visible jobs: ${visible.length}, Current index: ${currentIndex}, Total filtered: ${filteredJobs.length}`);
+    return visible;
   }, [filteredJobs, currentIndex]);
 
   // Current job
   const currentJob = visibleJobs[0];
 
   // Check if loading any source
-  const isSearching = getIsLoading('indeed') || getIsLoading('careerjunction');
+  const isSearching = isLoading;
 
   // Handle search
   const handleSearch = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim() && location.trim()) {
-      scrapeAll({ query, location, maxPages: 3 });
+      scrapeAll({ query, location, maxPages: 1 }); // 1 page for faster results
     }
   }, [query, location, scrapeAll]);
 
@@ -136,50 +152,36 @@ export function TinderJobInterface({
     }
   }, [currentJob]);
 
-  // Handle swipe right (apply)
+  // Handle swipe right (apply) - DISABLED for AI Agent feature
   const handleSwipeRight = useCallback(() => {
+    // AI Agent feature coming soon - just skip to next job for now
     if (currentJob) {
-      const action: SwipeAction = {
-        type: 'apply',
-        job: currentJob,
-        timestamp: Date.now()
-      };
-      setSwipeHistory(prev => [...prev, action]);
-      setAppliedJobs(prev => [...prev, currentJob]);
       setCurrentIndex(prev => prev + 1);
-      
-      // Optional: Open job URL
-      if (currentJob.url) {
-        window.open(currentJob.url, '_blank');
-      }
     }
   }, [currentJob]);
 
   // Handle save job
-  const handleSaveJob = useCallback((jobId: string) => {
-    if (currentJob) {
-      setSavedJobs(prev => {
-        const exists = prev.some(job => (job.url || `${job.company}-${job.title}`) === jobId);
-        if (exists) {
-          return prev.filter(job => (job.url || `${job.company}-${job.title}`) !== jobId);
-        } else {
-          const action: SwipeAction = {
-            type: 'save',
-            job: currentJob,
-            timestamp: Date.now()
-          };
-          setSwipeHistory(prevHistory => [...prevHistory, action]);
-          return [...prev, currentJob];
-        }
-      });
+  const handleSaveJob = useCallback(async (jobId: string) => {
+    const job = jobs.find(j => (j.id || `${j.company}-${j.title}`) === jobId);
+    if (job) {
+      try {
+        await saveJob(job);
+        console.log('💾 Job saved successfully:', job.title);
+      } catch (error) {
+        console.error('Failed to save job:', error);
+      }
     }
-  }, [currentJob]);
+  }, [jobs, saveJob]);
 
-  // Handle show job details
-  const handleShowJobDetails = useCallback((job: Job) => {
-    setSelectedJob(job);
-    setShowJobDetails(true);
-  }, []);
+  // Handle apply to job
+  const handleApplyJob = useCallback(async (job: Job) => {
+    try {
+      await applyToJob(job);
+      console.log('📝 Applied to job successfully:', job.title);
+    } catch (error) {
+      console.error('Failed to apply to job:', error);
+    }
+  }, [applyToJob]);
 
   // Handle undo last action
   const handleUndo = useCallback(() => {
@@ -197,76 +199,87 @@ export function TinderJobInterface({
     }
   }, [swipeHistory, currentIndex]);
 
+  // Handle show job details
+  const handleShowJobDetails = useCallback((job: Job) => {
+    setSelectedJob(job);
+    setShowJobDetails(true);
+  }, []);
+
   // Handle refresh jobs
   const handleRefresh = useCallback(() => {
     setCurrentIndex(0);
     setSwipeHistory([]);
     if (query.trim() && location.trim()) {
-      scrapeAll({ query, location, maxPages: 3 });
+      scrapeAll({ query, location, maxPages: 1 }); // 1 page for faster results
     }
   }, [query, location, scrapeAll]);
 
-  // Initial search
+  // Only run initial search if we're using local scraper (not shared)
+  const hasSearched = useRef(false);
   useEffect(() => {
-    handleRefresh();
-  }, []);
+    if (!sharedScrapeAll && !hasSearched.current) {
+      console.log('🔄 TinderJobInterface - Initial mount, triggering search...');
+      hasSearched.current = true;
+      handleRefresh();
+    }
+  }, [sharedScrapeAll, handleRefresh]);
 
   // Calculate progress
   const progress = filteredJobs.length > 0 ? (currentIndex / filteredJobs.length) * 100 : 0;
   const remaining = Math.max(0, filteredJobs.length - currentIndex);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+    <div className="min-h-screen bg-slate-900">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <div className="bg-slate-800/50 backdrop-blur-xl shadow-xl border-b border-slate-700/50">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-3 sm:py-4">
           {/* Search form */}
-          <form onSubmit={handleSearch} className="flex flex-col lg:flex-row gap-4 items-center">
-            <div className="flex-1 flex gap-4 w-full lg:w-auto">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <form onSubmit={handleSearch} className="flex flex-col lg:flex-row gap-3 sm:gap-4 items-center w-full">
+            <div className="flex-1 flex flex-col sm:flex-row gap-3 sm:gap-4 w-full lg:w-auto">
+              <div className="relative flex-1 w-full">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4 sm:w-5 sm:h-5" />
                 <input
                   type="text"
                   placeholder="Search jobs..."
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full pl-9 sm:pl-10 pr-4 py-2.5 sm:py-3 text-sm sm:text-base bg-slate-700/50 border border-slate-600 text-white placeholder-slate-400 rounded-lg sm:rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                 />
               </div>
               
-              <div className="relative flex-1">
-                <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <div className="relative flex-1 w-full">
+                <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4 sm:w-5 sm:h-5" />
                 <input
                   type="text"
                   placeholder="Location..."
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full pl-9 sm:pl-10 pr-4 py-2.5 sm:py-3 text-sm sm:text-base bg-slate-700/50 border border-slate-600 text-white placeholder-slate-400 rounded-lg sm:rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                 />
               </div>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
               {/* Filter button */}
               <button
                 type="button"
                 onClick={() => setShowFilters(!showFilters)}
-                className={`px-4 py-3 rounded-xl border transition-colors flex items-center gap-2 ${
+                className={`px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border transition-all flex items-center gap-2 text-sm sm:text-base ${
                   showFilters 
-                    ? 'bg-blue-100 border-blue-300 text-blue-700' 
-                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                    ? 'bg-purple-500/20 border-purple-500/50 text-purple-400' 
+                    : 'bg-slate-700/50 border-slate-600 text-slate-300 hover:bg-slate-700 hover:border-purple-500/30'
                 }`}
               >
-                <Filter className="w-5 h-5" />
-                Filters
+                <Filter className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span className="hidden sm:inline">Filters</span>
               </button>
 
               {/* Search button */}
               <motion.button
                 type="submit"
                 disabled={isSearching}
-                className={`px-6 py-3 bg-blue-600 text-white rounded-xl font-medium transition-colors flex items-center gap-2 ${
-                  isSearching ? 'opacity-75 cursor-not-allowed' : 'hover:bg-blue-700'
+                className={`flex-1 sm:flex-none px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg sm:rounded-xl font-medium transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-500/20 ${
+                  isSearching ? 'opacity-75 cursor-not-allowed' : 'hover:shadow-purple-500/40 hover:scale-105'
                 }`}
                 whileHover={{ scale: isSearching ? 1 : 1.02 }}
                 whileTap={{ scale: isSearching ? 1 : 0.98 }}
@@ -294,15 +307,15 @@ export function TinderJobInterface({
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.3 }}
-                className="overflow-hidden border-t border-gray-200 mt-4 pt-4"
+                className="overflow-hidden border-t border-slate-700/50 mt-4 pt-4"
               >
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Salary</label>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">Salary</label>
                     <select
                       value={filters.salary || ''}
                       onChange={(e) => setFilters(prev => ({ ...prev, salary: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
                     >
                       <option value="">Any</option>
                       <option value="R20,000">R20,000+</option>
@@ -313,11 +326,11 @@ export function TinderJobInterface({
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Job Type</label>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">Job Type</label>
                     <select
                       value={filters.jobType || ''}
                       onChange={(e) => setFilters(prev => ({ ...prev, jobType: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
                     >
                       <option value="">Any</option>
                       <option value="full-time">Full-time</option>
@@ -328,24 +341,24 @@ export function TinderJobInterface({
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Company</label>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">Company</label>
                     <input
                       type="text"
                       placeholder="Company name..."
                       value={filters.company || ''}
                       onChange={(e) => setFilters(prev => ({ ...prev, company: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 text-white placeholder-slate-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Industry</label>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">Industry</label>
                     <input
                       type="text"
                       placeholder="Industry..."
                       value={filters.industry || ''}
                       onChange={(e) => setFilters(prev => ({ ...prev, industry: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 text-white placeholder-slate-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
                     />
                   </div>
                 </div>
@@ -356,17 +369,17 @@ export function TinderJobInterface({
       </div>
 
       {/* Stats and controls */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
+      <div className="bg-slate-800/30 backdrop-blur-sm border-b border-slate-700/50">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-3 sm:py-4">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
             {/* Progress */}
-            <div className="flex items-center gap-4">
-              <div className="text-sm text-gray-600">
-                <span className="font-semibold text-gray-900">{remaining}</span> jobs remaining
+            <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto">
+              <div className="text-xs sm:text-sm text-slate-300">
+                <span className="font-semibold text-white">{remaining}</span> jobs remaining
               </div>
-              <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div className="flex-1 sm:flex-none sm:w-32 h-2 bg-slate-700 rounded-full overflow-hidden">
                 <motion.div
-                  className="h-full bg-blue-600"
+                  className="h-full bg-gradient-to-r from-purple-500 to-blue-500"
                   style={{ width: `${progress}%` }}
                   transition={{ duration: 0.3 }}
                 />
@@ -374,41 +387,41 @@ export function TinderJobInterface({
             </div>
 
             {/* Action stats */}
-            <div className="flex items-center gap-6 text-sm">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                <span>{appliedJobs.length} applied</span>
+            <div className="flex items-center gap-3 sm:gap-4 md:gap-6 text-xs sm:text-sm text-slate-300 w-full sm:w-auto justify-center sm:justify-start">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-green-500 rounded-full shadow-lg shadow-green-500/50"></div>
+                <span className="whitespace-nowrap">{appliedJobs.length} applied</span>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                <span>{savedJobs.length} saved</span>
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-yellow-500 rounded-full shadow-lg shadow-yellow-500/50"></div>
+                <span className="whitespace-nowrap">{savedJobs.length} saved</span>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                <span>{swipeHistory.filter(a => a.type === 'skip').length} skipped</span>
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-red-500 rounded-full shadow-lg shadow-red-500/50"></div>
+                <span className="whitespace-nowrap">{swipeHistory.filter(a => a.type === 'skip').length} skipped</span>
               </div>
             </div>
 
             {/* Controls */}
-            <div className="flex gap-2">
+            <div className="flex gap-2 justify-center sm:justify-end">
               <motion.button
                 onClick={handleUndo}
                 disabled={swipeHistory.length === 0 || currentIndex === 0}
-                className="p-2 text-gray-600 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-2 text-slate-400 hover:text-purple-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded-lg hover:bg-slate-700/50"
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
               >
-                <RotateCcw className="w-5 h-5" />
+                <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
               </motion.button>
 
               <motion.button
                 onClick={handleRefresh}
                 disabled={isSearching}
-                className="p-2 text-gray-600 hover:text-gray-900 disabled:opacity-50"
+                className="p-2 text-slate-400 hover:text-purple-400 disabled:opacity-50 transition-colors rounded-lg hover:bg-slate-700/50"
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
               >
-                <RefreshCw className={`w-5 h-5 ${isSearching ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-4 h-4 sm:w-5 sm:h-5 ${isSearching ? 'animate-spin' : ''}`} />
               </motion.button>
             </div>
           </div>
@@ -416,18 +429,22 @@ export function TinderJobInterface({
       </div>
 
       {/* Main content */}
-      <div className="flex-1 flex items-center justify-center p-4">
-        <div className="w-full max-w-md h-[600px] relative">
+      <div className="flex-1 flex items-center justify-center px-4 py-4 sm:px-6 sm:py-8 md:px-8 md:py-10 overflow-hidden">
+        <div className="w-full max-w-[340px] sm:max-w-[440px] md:max-w-[500px] lg:max-w-[540px] h-[calc(100vh-280px)] sm:h-[620px] md:h-[650px] relative touch-none tinder-container tinder-stack">
+          
           {/* Loading state */}
           {isSearching && visibleJobs.length === 0 && (
             <motion.div
-              className="absolute inset-0 flex flex-col items-center justify-center bg-white rounded-3xl shadow-lg border border-gray-200"
+              className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl shadow-2xl border border-purple-500/30"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
             >
-              <RefreshCw className="w-12 h-12 text-blue-600 animate-spin mb-4" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Finding great jobs...</h3>
-              <p className="text-gray-600 text-center">
+              <div className="relative">
+                <RefreshCw className="w-12 h-12 text-purple-500 animate-spin mb-4" />
+                <div className="absolute inset-0 w-12 h-12 bg-purple-500/20 rounded-full animate-ping"></div>
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-2">Finding great jobs...</h3>
+              <p className="text-slate-400 text-center">
                 Searching {query} positions in {location}
               </p>
             </motion.div>
@@ -436,20 +453,20 @@ export function TinderJobInterface({
           {/* No jobs state */}
           {!isSearching && filteredJobs.length === 0 && (
             <motion.div
-              className="absolute inset-0 flex flex-col items-center justify-center bg-white rounded-3xl shadow-lg border border-gray-200 p-8"
+              className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl shadow-2xl border border-slate-700/50 p-8"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
             >
-              <Search className="w-16 h-16 text-gray-400 mb-4" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">No jobs found</h3>
-              <p className="text-gray-600 text-center mb-6">
+              <Search className="w-16 h-16 text-slate-600 mb-4" />
+              <h3 className="text-xl font-semibold text-white mb-2">No jobs found</h3>
+              <p className="text-slate-400 text-center mb-6">
                 Try adjusting your search terms or filters
               </p>
               <motion.button
                 onClick={handleRefresh}
-                className="px-6 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 transition-all"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
                 Try again
               </motion.button>
@@ -459,20 +476,20 @@ export function TinderJobInterface({
           {/* All jobs viewed state */}
           {!isSearching && currentIndex >= filteredJobs.length && filteredJobs.length > 0 && (
             <motion.div
-              className="absolute inset-0 flex flex-col items-center justify-center bg-white rounded-3xl shadow-lg border border-gray-200 p-8"
+              className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl shadow-2xl border border-green-500/30 p-8"
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
             >
-              <TrendingUp className="w-16 h-16 text-green-600 mb-4" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">All caught up!</h3>
-              <p className="text-gray-600 text-center mb-6">
+              <TrendingUp className="w-16 h-16 text-green-500 mb-4" />
+              <h3 className="text-xl font-semibold text-white mb-2">All caught up!</h3>
+              <p className="text-slate-400 text-center mb-6">
                 You've viewed all {filteredJobs.length} jobs. Search for more or adjust your filters.
               </p>
               <motion.button
                 onClick={handleRefresh}
-                className="px-6 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 transition-all flex items-center gap-2"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
                 <Zap className="w-5 h-5" />
                 Search again
@@ -482,7 +499,7 @@ export function TinderJobInterface({
 
           {/* Job cards */}
           <AnimatePresence>
-            {visibleJobs.map((job, index) => (
+            {visibleJobs.length > 0 && visibleJobs.map((job, index) => (
               <EnhancedTinderCard
                 key={`${job.url || job.company}-${job.title}-${index}`}
                 job={job}
@@ -505,14 +522,20 @@ export function TinderJobInterface({
         isOpen={showJobDetails}
         onClose={() => setShowJobDetails(false)}
         onApply={(job) => {
-          if (job.url) {
-            window.open(job.url, '_blank');
-          }
-          setShowJobDetails(false);
+          // AI Agent feature coming soon - disabled for now
+          // handleSwipeRight();
         }}
         onSave={(job) => {
+          // Save job and advance to next card
           const jobId = job.url || `${job.company}-${job.title}`;
           handleSaveJob(jobId);
+          handleSwipeLeft(); // Advance to next card (skip current one)
+          setShowJobDetails(false);
+        }}
+        onSkip={(job) => {
+          // Skip job and advance to next card
+          handleSwipeLeft();
+          setShowJobDetails(false);
         }}
       />
     </div>

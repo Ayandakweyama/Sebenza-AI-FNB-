@@ -1,7 +1,7 @@
 import React from 'react';
 import { MobileDashboard } from './MobileDashboard';
 import { DesktopSidebar } from './DesktopSidebar';
-import { DashboardContent } from './DashboardContent';
+import { DashboardContent } from './DashboardContentReal';
 import { useDashboard } from './context/DashboardContext';
 
 export const DashboardLayout: React.FC = () => {

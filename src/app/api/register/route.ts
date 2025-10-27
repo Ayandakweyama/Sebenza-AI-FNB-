@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { Webhook } from 'svix';
 import { WebhookEvent } from '@clerk/nextjs/server';
-import clientPromise from '@/lib/mongodb';
+import { prisma } from '@/lib/prisma';
 
 export async function POST(request: Request) {
   try {
@@ -21,23 +21,17 @@ export async function POST(request: Request) {
       const email = email_addresses[0]?.email_address;
       const name = `${first_name} ${last_name}`.trim();
 
-      const client = await clientPromise;
-      const db = client.db(process.env.MONGODB_DB);
-
       // Store additional user data in your database
-      await db.collection('users').updateOne(
-        { clerkId: id },
-        {
-          $setOnInsert: {
-            name,
-            email,
-            clerkId: id,
-            createdAt: new Date(created_at * 1000),
-            updatedAt: new Date(),
-          },
+      await prisma.user.upsert({
+        where: { clerkId: id },
+        update: {},
+        create: {
+          name,
+          email,
+          clerkId: id,
+          createdAt: new Date(created_at * 1000),
         },
-        { upsert: true }
-      );
+      });
     }
 
     return NextResponse.json({ received: true });

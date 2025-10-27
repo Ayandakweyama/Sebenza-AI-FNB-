@@ -3,44 +3,21 @@
 import { JobCard } from '@/components/Jobs/JobCard';
 import { Button } from '@/components/ui/button';
 import DashboardNavigation from '@/components/dashboard/DashboardNavigation';
-import { Bookmark, Briefcase, Clock, MapPin } from 'lucide-react';
+import { Bookmark, Briefcase, Clock, MapPin, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useJobContext } from '@/contexts/JobContext';
+import { useEffect } from 'react';
 
-// Mock data - in a real app, this would come from your data fetching logic
-const savedJobs = [
-  {
-    id: '1',
-    title: 'Senior Frontend Developer',
-    company: 'TechCorp',
-    location: 'Cape Town, South Africa',
-    type: 'Full-time',
-    salary: 'R80,000 - R100,000',
-    posted: '2 days ago',
-    description: 'We are looking for an experienced Frontend Developer to join our growing team. You will be responsible for building user interfaces and implementing features using modern web technologies.',
-    skills: ['React', 'TypeScript', 'Next.js', 'Tailwind CSS'],
-    match: 92,
-    isSaved: true
-  },
-  {
-    id: '2',
-    title: 'UI/UX Designer',
-    company: 'DesignHub',
-    location: 'Remote',
-    type: 'Contract',
-    salary: 'R600 - R800 per hour',
-    posted: '1 week ago',
-    description: 'Join our design team to create beautiful and intuitive user experiences for our clients. You will work closely with product managers and developers to bring designs to life.',
-    skills: ['Figma', 'UI/UX', 'Prototyping', 'User Research'],
-    match: 87,
-    isSaved: true
-  },
-];
 
 export default function SavedJobsPage() {
-  const handleSaveJob = (jobId: string) => {
-    // Handle save/unsave job logic
-    console.log('Toggle save for job:', jobId);
+  const { savedJobs, unsaveJob, isLoading } = useJobContext();
+
+  const handleUnsaveJob = async (jobId: string) => {
+    try {
+      await unsaveJob(jobId);
+    } catch (error) {
+      console.error('Failed to unsave job:', error);
+    }
   };
 
   const handleViewJob = (jobId: string) => {
@@ -66,18 +43,25 @@ export default function SavedJobsPage() {
         </Button>
           </div>
           
-          {savedJobs.length > 0 ? (
-        <div className="grid grid-cols-1 gap-6">
-          {savedJobs.map((job) => (
-            <JobCard 
-              key={job.id} 
-              job={job} 
-              variant="saved"
-              onSave={handleSaveJob}
-              onView={handleViewJob}
-            />
-          ))}
-        </div>
+          {isLoading.savedJobs ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="flex items-center gap-3 text-purple-400">
+                <Loader2 className="w-6 h-6 animate-spin" />
+                <span>Loading saved jobs...</span>
+              </div>
+            </div>
+          ) : savedJobs.length > 0 ? (
+            <div className="grid grid-cols-1 gap-6">
+              {savedJobs.map((job) => (
+                <JobCard 
+                  key={job.id} 
+                  job={job} 
+                  variant="saved"
+                  onSave={handleUnsaveJob}
+                  onView={handleViewJob}
+                />
+              ))}
+            </div>
           ) : (
             <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-12 text-center border border-slate-700/50">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-purple-500/10">
