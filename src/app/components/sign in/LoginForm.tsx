@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, Suspense, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSignIn } from '@clerk/nextjs';
@@ -15,12 +15,12 @@ interface FormData {
   rememberMe: boolean;
 }
 
-export default function LoginForm() {
+function LoginFormContent() {
   const { isLoaded, signIn, setActive } = useSignIn();
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get('callbackUrl') || '/dashboard';
-  
+
   const [formData, setFormData] = useState<FormData>({
     email: '',
     password: '',
@@ -28,7 +28,7 @@ export default function LoginForm() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  
+
   // Check for error in URL (e.g., from auth failure redirect)
   useEffect(() => {
     const error = searchParams.get('error');
@@ -48,16 +48,16 @@ export default function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isLoaded) return;
-    
+
     setIsLoading(true);
     setError('');
-    
+
     try {
       const result = await signIn.create({
         identifier: formData.email,
         password: formData.password,
       });
-      
+
       if (result.status === 'complete') {
         await setActive({ session: result.createdSessionId });
         router.push(callbackUrl);
@@ -180,5 +180,26 @@ export default function LoginForm() {
 
       <TermsAndPrivacy className="mt-6" />
     </div>
+  );
+}
+
+export default function LoginForm() {
+  return (
+    <Suspense fallback={
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-white mb-2">Welcome back</h1>
+          <p className="text-white/80">Sign in to your Sebenza AI account</p>
+        </div>
+        <div className="animate-pulse bg-slate-800 rounded-lg p-6">
+          <div className="h-4 bg-slate-700 rounded w-3/4 mx-auto mb-4"></div>
+          <div className="h-10 bg-slate-700 rounded mb-4"></div>
+          <div className="h-10 bg-slate-700 rounded mb-4"></div>
+          <div className="h-10 bg-slate-700 rounded"></div>
+        </div>
+      </div>
+    }>
+      <LoginFormContent />
+    </Suspense>
   );
 }
