@@ -57,6 +57,14 @@ export interface SkillGapParams {
   timeline?: string;
 }
 
+export interface CoverLetterParams {
+  jobDescription: string;
+  resumeText: string;
+  companyName?: string;
+  jobTitle?: string;
+  experienceLevel?: 'entry' | 'mid' | 'senior' | 'executive';
+}
+
 class OpenAIService {
   private apiKey: string;
   private baseUrl: string = 'https://api.openai.com/v1/chat/completions';
@@ -480,7 +488,70 @@ Prioritize recommendations for ${params.experienceLevel}-level professionals tar
     const response = await this.callOpenAI(prompt, systemPrompt);
     return response.content;
   }
+
+  async generateCoverLetter(params: CoverLetterParams): Promise<string> {
+    const systemPrompt = `You are Afrigter, an expert career mentor and professional writer specializing in creating compelling, ATS-optimized cover letters. You have 15+ years of experience helping professionals craft personalized cover letters that stand out and get interviews.
+
+Your expertise includes:
+- ATS-optimized cover letter writing techniques
+- Industry-specific language and terminology
+- Achievement quantification and impact statements
+- Company research and customization strategies
+- Modern cover letter formats and best practices
+- Psychology of hiring managers and recruiters
+
+Create professional, compelling cover letters that highlight the candidate's unique value proposition and create genuine interest from hiring managers.`;
+
+    const prompt = `Generate a personalized cover letter with the following information:
+
+**Job Description:**
+${params.jobDescription}
+
+**Candidate's Resume/Background:**
+${params.resumeText}
+
+**Job Title:** ${params.jobTitle || 'Not specified'}
+**Company Name:** ${params.companyName || 'Not specified'}
+**Experience Level:** ${params.experienceLevel || 'mid'}
+
+**Please generate a professional cover letter that includes:**
+
+## 📧 Professional Cover Letter
+
+[Write a compelling 3-4 paragraph cover letter that:]
+
+### Paragraph 1: Introduction & Hook
+- Grab attention with a strong opening
+- Mention the specific role and how you found it
+- Include a brief value proposition
+
+### Paragraph 2: Body & Qualifications
+- Connect your experience to the job requirements
+- Highlight 2-3 key achievements with quantifiable results
+- Show enthusiasm for the company/role
+
+### Paragraph 3: Call to Action & Closing
+- Reiterate your interest and fit
+- Include a specific call to action
+- Professional sign-off
+
+**Key Requirements:**
+- Keep the cover letter to 300-400 words
+- Use professional, industry-appropriate language
+- Include specific examples and metrics where possible
+- Tailor content to the job description provided
+- Make it ATS-friendly with relevant keywords
+- Show genuine interest in the company/role
+
+${params.companyName ? `Research and incorporate specific details about ${params.companyName} if appropriate.` : ''}
+${params.experienceLevel ? `Write at a level appropriate for ${params.experienceLevel}-level professionals.` : ''}
+
+Make this cover letter stand out and demonstrate why this candidate is the perfect fit for the role!`;
+
+    const response = await this.callOpenAI(prompt, systemPrompt);
+    return response.content;
+  }
 }
 
 export const mistralService = new OpenAIService();
-export type ServiceType = 'resume-tips' | 'interview-prep' | 'job-search' | 'career-advice' | 'career-roadmap' | 'skill-gap';
+export type ServiceType = 'resume-tips' | 'interview-prep' | 'job-search' | 'career-advice' | 'career-roadmap' | 'skill-gap' | 'cover-letter';
