@@ -13,10 +13,9 @@ const publicPaths = [
   '/sso-callback(.*)'
 ];
 
-// List of AI dependent routes to disable
+// List of routes to disable (removed afrigter and analyze-job-post as they should work)
 const disabledRoutes = [
   '/api/ai',
-  '/api/analyze-job-post',
   '/career-roadmap',
   '/resume-analyzer',
   '/applications'

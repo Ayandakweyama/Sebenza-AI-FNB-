@@ -7,11 +7,11 @@
   },
   "routes": [
     {
-      "src": "/api/(afrigter|ai|analyze-job-post|scrape-jobs|scrape-careerjunction|tasks)(/.*)?",
+      "src": "/api/(ai|scrape-jobs|scrape-careerjunction|tasks)(/.*)?",
       "dest": "/api/disabled"
     },
     {
-      "src": "/(afrigter|career-roadmap|resume-analyzer)(/.*)?",
+      "src": "/(career-roadmap|resume-analyzer)(/.*)?",
       "dest": "/api/disabled"
     },
     {
