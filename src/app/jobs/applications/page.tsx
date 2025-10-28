@@ -6,54 +6,23 @@ import DashboardNavigation from '@/components/dashboard/DashboardNavigation';
 import { Briefcase, Clock, CheckCircle, Clock as ClockIcon, XCircle, AlertCircle, DollarSign, Bookmark } from 'lucide-react';
 import Link from 'next/link';
 
+// Define types for application data
+interface Application {
+  id: string;
+  title: string;
+  company: string;
+  location: string;
+  type: string;
+  salary: string;
+  appliedDate: string;
+  status: 'applied' | 'interview' | 'rejected' | 'offer' | 'other';
+  description: string;
+  skills?: string[];
+  isSaved?: boolean;
+}
+
 // Mock data - in a real app, this would come from your data fetching logic
-const applications = [
-  {
-    id: '1',
-    title: 'Senior Frontend Developer',
-    company: 'TechCorp',
-    location: 'Cape Town, South Africa',
-    type: 'Full-time',
-    salary: 'R80,000 - R100,000',
-    posted: '2 days ago',
-    appliedDate: '2023-06-15',
-    status: 'applied',
-    description: 'Application submitted and under review by the hiring team.',
-    skills: ['React', 'TypeScript', 'Next.js'],
-    match: 92,
-    isSaved: true
-  },
-  {
-    id: '2',
-    title: 'UI/UX Designer',
-    company: 'DesignHub',
-    location: 'Remote',
-    type: 'Contract',
-    salary: 'R600 - R800 per hour',
-    posted: '1 week ago',
-    appliedDate: '2023-06-10',
-    status: 'interview',
-    description: 'Interview scheduled for next week. Prepare your portfolio and case studies.',
-    skills: ['Figma', 'UI/UX', 'Prototyping'],
-    match: 87,
-    isSaved: true
-  },
-  {
-    id: '3',
-    title: 'Product Manager',
-    company: 'InnoTech',
-    location: 'Johannesburg, South Africa',
-    type: 'Full-time',
-    salary: 'R90,000 - R120,000',
-    posted: '3 weeks ago',
-    appliedDate: '2023-06-01',
-    status: 'rejected',
-    description: 'Position has been filled. Keep an eye on our careers page for future opportunities.',
-    skills: ['Product Management', 'Agile', 'JIRA'],
-    match: 78,
-    isSaved: false
-  },
-];
+const applications: Application[] = [];
 
 const statusIcons = {
   applied: <ClockIcon className="h-4 w-4 text-blue-400" />,
@@ -93,6 +62,14 @@ export default function ApplicationsPage() {
         <div className="space-y-6 mt-6">
           <div className="flex justify-end">
         <div className="flex gap-3">
+          <Button 
+            variant="outline" 
+            className="border-slate-600 text-slate-500 cursor-not-allowed opacity-60"
+            disabled
+            title="Self-applying AI agent is still under construction"
+          >
+            🤖 Auto Apply
+          </Button>
           <Button asChild variant="outline" className="border-purple-500/30 text-purple-400 hover:bg-purple-500/10">
             <Link href="/jobs/all">
               <Briefcase className="h-4 w-4 mr-2" />
@@ -108,9 +85,15 @@ export default function ApplicationsPage() {
         </div>
           </div>
           
+          <div className="text-center">
+            <p className="text-sm text-slate-400">
+              💡 <span className="text-purple-400 font-medium">Coming Soon:</span> AI-powered auto-application feature will be available soon!
+            </p>
+          </div>
+          
           {applications.length > 0 ? (
         <div className="space-y-4">
-          {applications.map((application) => (
+          {applications.map((application: Application) => (
             <div 
               key={application.id} 
               className="relative group bg-slate-800/50 hover:bg-slate-800/70 backdrop-blur-sm rounded-xl p-6 border border-slate-700/50 hover:border-purple-500/30 transition-all duration-200"
@@ -154,7 +137,7 @@ export default function ApplicationsPage() {
                   
                   {application.skills && application.skills.length > 0 && (
                     <div className="mt-4 flex flex-wrap gap-2">
-                      {application.skills.map((skill, index) => (
+                      {application.skills.map((skill: string, index: number) => (
                         <span
                           key={index}
                           className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-700/50 text-slate-300"

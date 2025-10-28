@@ -332,48 +332,7 @@ export const DashboardContent: React.FC = () => {
           </div>
         </div>
 
-        {/* Quick Actions Floating Button */}
-        <div className="fixed bottom-8 right-8 z-20">
-          <div className="relative group">
-            <button 
-              className="w-14 h-14 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full shadow-lg hover:shadow-xl transform hover:scale-110 transition-all duration-300 flex items-center justify-center text-white animate-bounce"
-              onClick={() => setChatbotOpen(true)}
-            >
-              💬
-            </button>
-            <div className="absolute bottom-16 right-0 bg-slate-800 text-white px-3 py-1 rounded-lg text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">
-              Ask AI Assistant
-            </div>
-          </div>
-        </div>
       </div>
-
-      <style jsx>{`
-        @keyframes slideInUp {
-          from {
-            transform: translateY(30px);
-            opacity: 0;
-          }
-          to {
-            transform: translateY(0);
-            opacity: 1;
-          }
-        }
-
-        @keyframes gradient {
-          0%, 100% {
-            background-position: 0% 50%;
-          }
-          50% {
-            background-position: 100% 50%;
-          }
-        }
-
-        .animate-gradient {
-          background-size: 200% 200%;
-          animation: gradient 3s ease infinite;
-        }
-      `}</style>
     </div>
   );
 };

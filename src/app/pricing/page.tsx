@@ -4,7 +4,7 @@ export default function PricingPage() {
   return (
     <div className="min-h-screen pt-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
       <div className="text-center py-12">
-        <h1 className="text-4xl font-bold text-white mb-6">Pricing Plans</h1>
+        <h1 className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-pink-500 to-pink-600 bg-clip-text text-transparent mb-3">Pricing Plans</h1>
         <p className="text-xl text-gray-300 max-w-3xl mx-auto">
           Choose the perfect plan for your job search needs
         </p>

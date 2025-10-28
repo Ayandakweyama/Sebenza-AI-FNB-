@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { sessionManager } from '@/lib/sessionManager';
 
 export interface ChatMessage {
   id: string;
@@ -21,223 +22,343 @@ export interface ChatSession {
   updatedAt: string;
 }
 
-export function useChatHistory() {
+export interface ChatHistoryOptions {
+  autoSave?: boolean;
+  enableAnalytics?: boolean;
+  persistenceEnabled?: boolean;
+  sessionTimeout?: number; // minutes
+}
+
+export function useChatHistory(options: ChatHistoryOptions = {}) {
+  const {
+    autoSave = true,
+    enableAnalytics = true,
+    persistenceEnabled = true,
+    sessionTimeout = 60,
+  } = options;
+
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const initializedRef = useRef(false);
+  const userIdRef = useRef<string | null>(null);
 
-  // Fetch user's chat sessions
-  const fetchSessions = async (type?: string) => {
+  // Initialize session manager config
+  useEffect(() => {
+    if (enableAnalytics) {
+      sessionManager.updateConfig({
+        enableAnalytics: true,
+        chatSessionTimeout: sessionTimeout,
+      });
+    }
+  }, [enableAnalytics, sessionTimeout]);
+
+  // Get current user ID (this would need to be implemented based on your auth system)
+  const getCurrentUserId = useCallback(async (): Promise<string | null> => {
+    try {
+      // This should be replaced with your actual auth logic
+      // For example, using Clerk auth() or similar
+      const response = await fetch('/api/auth/user');
+      if (response.ok) {
+        const data = await response.json();
+        // Handle the actual response format from /api/auth/user
+        if (data.success && data.user && data.user.id) {
+          userIdRef.current = data.user.id;
+          return data.user.id;
+        } else if (data.userId) {
+          // Fallback for simple format
+          userIdRef.current = data.userId;
+          return data.userId;
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to get current user ID:', error);
+    }
+    return null;
+  }, []);
+
+  // Enhanced session fetching with caching
+  const fetchSessions = useCallback(async (type?: string) => {
     setLoading(true);
     setError(null);
-    
+
     try {
-      const params = new URLSearchParams();
-      if (type) params.append('type', type);
-      
-      const response = await fetch(`/api/chat/sessions?${params}`);
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch sessions');
+      const userId = await getCurrentUserId();
+      if (!userId) {
+        throw new Error('User not authenticated');
       }
-      
-      setSessions(data.sessions);
+
+      const sessions = await sessionManager.getUserSessions(userId, {
+        type,
+        limit: 50,
+        includeMessages: false,
+      });
+
+      setSessions(sessions);
+      return sessions;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch sessions');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch sessions';
+      setError(errorMessage);
+      console.error('Error fetching sessions:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [getCurrentUserId]);
 
-  // Create new chat session
-  const createSession = async (type: string, title?: string, context?: any) => {
+  // Enhanced session creation with analytics
+  const createSession = useCallback(async (
+    type: string,
+    title?: string,
+    context?: any
+  ): Promise<ChatSession> => {
     setLoading(true);
     setError(null);
-    
+
     try {
-      const response = await fetch('/api/chat/sessions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      const userId = await getCurrentUserId();
+      if (!userId) {
+        throw new Error('User not authenticated');
+      }
+
+      const session = await sessionManager.createChatSession(
+        userId,
+        type,
+        title,
+        context
+      );
+
+      // Update local state
+      setSessions(prev => [session, ...prev]);
+      setCurrentSession(session);
+
+      // Persist session data if enabled
+      if (persistenceEnabled) {
+        sessionManager.saveSessionToStorage(session.id, {
           type,
           title,
           context,
-        }),
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to create session');
+          createdAt: session.createdAt,
+        });
       }
-      
-      const newSession = { ...data.session, messages: [] };
-      setSessions(prev => [newSession, ...prev]);
-      setCurrentSession(newSession);
-      
-      return newSession;
+
+      return session;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create session');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create session';
+      setError(errorMessage);
       throw err;
     } finally {
       setLoading(false);
     }
-  };
+  }, [getCurrentUserId, persistenceEnabled]);
 
-  // Load specific session with messages
-  const loadSession = async (sessionId: string) => {
+  // Enhanced session loading with persistence
+  const loadSession = useCallback(async (sessionId: string): Promise<ChatSession> => {
     setLoading(true);
     setError(null);
-    
+
     try {
-      const response = await fetch(`/api/chat/sessions/${sessionId}`);
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to load session');
+      const userId = await getCurrentUserId();
+      if (!userId) {
+        throw new Error('User not authenticated');
       }
-      
-      setCurrentSession(data.session);
-      return data.session;
+
+      // Try to load from local storage first
+      let session: ChatSession | null = null;
+      if (persistenceEnabled) {
+        const cachedSession = sessionManager.loadSessionFromStorage(sessionId);
+        if (cachedSession) {
+          // Validate cached session is still valid
+          const age = sessionManager.getSessionAge(cachedSession as any);
+          if (age < 7) { // Use cache if less than 7 days old
+            session = cachedSession as ChatSession;
+          }
+        }
+      }
+
+      // Load from API if not cached or cache is stale
+      if (!session) {
+        session = await sessionManager.getChatSession(sessionId, userId);
+      }
+
+      if (!session) {
+        throw new Error('Session not found');
+      }
+
+      setCurrentSession(session);
+      return session;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load session');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load session';
+      setError(errorMessage);
       throw err;
     } finally {
       setLoading(false);
     }
-  };
+  }, [getCurrentUserId, persistenceEnabled]);
 
-  // Add message to current session
-  const addMessage = async (role: 'user' | 'assistant', content: string, tokens?: number, model?: string, session?: ChatSession) => {
+  // Enhanced message adding with better error handling
+  const addMessage = useCallback(async (
+    role: 'user' | 'assistant',
+    content: string,
+    tokens?: number,
+    model?: string,
+    session?: ChatSession
+  ): Promise<ChatMessage> => {
     const targetSession = session || currentSession;
     if (!targetSession) {
       throw new Error('No active session');
     }
 
     setError(null);
-    
+
     try {
-      const response = await fetch('/api/chat/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          sessionId: targetSession.id,
-          role,
-          content,
-          tokens,
-          model,
-        }),
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to add message');
+      const userId = await getCurrentUserId();
+      if (!userId) {
+        throw new Error('User not authenticated');
       }
-      
+
+      const message = await sessionManager.addChatMessage(
+        targetSession.id,
+        role,
+        content,
+        { tokens, model, userId }
+      );
+
       // Update current session with new message
-      const newMessage = data.message;
       setCurrentSession(prev => {
         if (!prev) return prev;
         return {
           ...prev,
-          messages: [...(prev.messages || []), newMessage],
+          messages: [...(prev.messages || []), message],
           messageCount: prev.messageCount + 1,
-          lastMessageAt: newMessage.createdAt,
+          lastMessageAt: message.createdAt,
         };
       });
-      
+
       // Update sessions list
-      setSessions(prev => 
-        prev.map(session => 
-          session.id === targetSession.id 
-            ? { ...session, messageCount: session.messageCount + 1, lastMessageAt: newMessage.createdAt }
+      setSessions(prev =>
+        prev.map(session =>
+          session.id === targetSession.id
+            ? {
+                ...session,
+                messageCount: session.messageCount + 1,
+                lastMessageAt: message.createdAt
+              }
             : session
         )
       );
-      
-      return newMessage;
+
+      // Auto-save to persistence if enabled
+      if (autoSave && persistenceEnabled) {
+        sessionManager.saveSessionToStorage(targetSession.id, {
+          lastMessageAt: message.createdAt,
+          messageCount: targetSession.messageCount + 1,
+        });
+      }
+
+      return message;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add message');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to add message';
+      setError(errorMessage);
       throw err;
     }
-  };
+  }, [currentSession, getCurrentUserId, autoSave, persistenceEnabled]);
 
-  // Update session title
-  const updateSessionTitle = async (sessionId: string, title: string) => {
+  // Enhanced session title update
+  const updateSessionTitle = useCallback(async (sessionId: string, title: string) => {
     setError(null);
-    
+
     try {
-      const response = await fetch(`/api/chat/sessions/${sessionId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ title }),
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to update session');
+      const userId = await getCurrentUserId();
+      if (!userId) {
+        throw new Error('User not authenticated');
       }
-      
-      // Update sessions list
-      setSessions(prev => 
-        prev.map(session => 
+
+      await sessionManager.updateChatSession(sessionId, userId, { title });
+
+      // Update local state
+      setSessions(prev =>
+        prev.map(session =>
           session.id === sessionId ? { ...session, title } : session
         )
       );
-      
-      // Update current session if it's the one being updated
+
       if (currentSession?.id === sessionId) {
         setCurrentSession(prev => prev ? { ...prev, title } : prev);
       }
+
+      // Update persistence
+      if (persistenceEnabled) {
+        sessionManager.saveSessionToStorage(sessionId, { title });
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update session');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update session title';
+      setError(errorMessage);
       throw err;
     }
-  };
+  }, [getCurrentUserId, currentSession, persistenceEnabled]);
 
-  // Delete session
-  const deleteSession = async (sessionId: string) => {
+  // Enhanced session deletion with cleanup
+  const deleteSession = useCallback(async (sessionId: string) => {
     setError(null);
-    
+
     try {
-      const response = await fetch(`/api/chat/sessions/${sessionId}`, {
-        method: 'DELETE',
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to delete session');
+      const userId = await getCurrentUserId();
+      if (!userId) {
+        throw new Error('User not authenticated');
       }
-      
-      // Remove from sessions list
+
+      await sessionManager.deleteChatSession(sessionId, userId);
+
+      // Update local state
       setSessions(prev => prev.filter(session => session.id !== sessionId));
-      
+
       // Clear current session if it's the one being deleted
       if (currentSession?.id === sessionId) {
         setCurrentSession(null);
       }
+
+      // Clear persistence
+      if (persistenceEnabled) {
+        sessionManager.clearSessionStorage(sessionId);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete session');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete session';
+      setError(errorMessage);
       throw err;
     }
-  };
+  }, [getCurrentUserId, currentSession, persistenceEnabled]);
+
+  // Get session statistics
+  const getSessionStats = useCallback(async () => {
+    try {
+      const userId = await getCurrentUserId();
+      if (!userId) return null;
+
+      return await sessionManager.getSessionStats(userId);
+    } catch (err) {
+      console.error('Error fetching session stats:', err);
+      return null;
+    }
+  }, [getCurrentUserId]);
+
+  // Initialize on mount
+  useEffect(() => {
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      // Optionally auto-fetch sessions on mount
+      // fetchSessions();
+    }
+  }, []);
 
   return {
+    // Core session management
     sessions,
     currentSession,
     loading,
     error,
+
+    // Session operations
     fetchSessions,
     createSession,
     loadSession,
@@ -245,5 +366,11 @@ export function useChatHistory() {
     updateSessionTitle,
     deleteSession,
     setCurrentSession,
+
+    // Analytics and stats
+    getSessionStats,
+
+    // Utility functions
+    getCurrentUserId,
   };
 }

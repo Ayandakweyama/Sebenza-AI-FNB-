@@ -52,10 +52,10 @@ export default function JobsLayout({
         <div className="h-16"></div>
         
         <div className="mb-12">
-          <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-yellow-400 via-yellow-400 to-yellow-300 bg-clip-text text-transparent mb-3">
+          <h1 className="text-3xl md:text-4xl font-bold text-white text-center mb-3">
             Job Portal
           </h1>
-          <p className="text-purple-200 text-lg">Find and manage your career opportunities in one place</p>
+          <p className="text-purple-200 text-lg text-center">Find and manage your career opportunities in one place</p>
         </div>
         
         {/* Navigation Cards */}

@@ -1,22 +1,16 @@
-import { deepseekChat } from '../deepseek';
-import { ChatPromptTemplate } from '@langchain/core/prompts';
-import { StringOutputParser } from '@langchain/core/output_parsers';
-import { RunnableSequence } from '@langchain/core/runnables';
-import { DEFAULT_MODEL, TEMPERATURE, MAX_TOKENS } from './config';
+import OpenAI from 'openai';
 
 export class AIService {
-  private deepseekClient: typeof deepseekChat;
+  private openai: OpenAI;
 
   constructor() {
-    if (!process.env.DEEPSEEK_CHAT_API_KEY) {
-      throw new Error('DEEPSEEK_CHAT_API_KEY is not set in environment variables');
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY is not set in environment variables');
     }
 
-    if (!deepseekChat) {
-      throw new Error('DeepSeek client is not properly initialized');
-    }
-
-    this.deepseekClient = deepseekChat;
+    this.openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
   }
 
   /**
@@ -30,10 +24,6 @@ export class AIService {
       maxTokens?: number;
     } = {}
   ): Promise<string> {
-    if (!this.deepseekClient) {
-      throw new Error('DeepSeek client is not properly initialized');
-    }
-
     try {
       // Format the prompt with input variables
       let prompt = template;
@@ -41,28 +31,28 @@ export class AIService {
         prompt = prompt.replace(new RegExp(`\\{${key}\\}`, 'g'), String(value));
       });
 
-      // Call DeepSeek API
-      const response = await this.deepseekClient.chat.completions.create({
-        model: 'deepseek-chat',
+      // Call OpenAI API
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'user' as const,
             content: prompt,
           },
         ],
-        temperature: options.temperature ?? TEMPERATURE.BALANCED,
-        max_tokens: options.maxTokens ?? MAX_TOKENS.MEDIUM,
+        temperature: options.temperature ?? 0.7,
+        max_tokens: options.maxTokens ?? 2000,
       });
 
       // Extract and return the response content
       const content = response.choices[0]?.message?.content;
       if (!content) {
-        throw new Error('Received empty response from DeepSeek API');
+        throw new Error('Received empty response from OpenAI API');
       }
 
       return content;
     } catch (error) {
-      console.error('Error generating text with DeepSeek:', error);
+      console.error('Error generating text with OpenAI:', error);
       throw new Error(
         `Failed to generate text: ${
           error instanceof Error ? error.message : 'Unknown error'
@@ -72,13 +62,20 @@ export class AIService {
   }
 
   /**
-   * Generate embeddings for the given text
-   * Note: DeepSeek doesn't currently support embeddings, so this is a placeholder
+   * Generate embeddings for the given text using OpenAI
    */
   async generateEmbeddings(text: string): Promise<number[]> {
-    console.warn('Embeddings are not supported with DeepSeek. Returning empty array.');
-    // Return a zero vector as a placeholder
-    return new Array(1536).fill(0);
+    try {
+      const response = await this.openai.embeddings.create({
+        model: 'text-embedding-3-small',
+        input: text,
+      });
+
+      return response.data[0]?.embedding || [];
+    } catch (error) {
+      console.error('Error generating embeddings with OpenAI:', error);
+      throw new Error('Failed to generate embeddings');
+    }
   }
 
   /**

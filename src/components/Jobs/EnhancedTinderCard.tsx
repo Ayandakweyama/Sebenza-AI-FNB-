@@ -19,8 +19,17 @@ import {
   Lock,
   Sparkles
 } from 'lucide-react';
-import { Job } from '@/hooks/useJobScraper';
-import { cn } from '@/lib/utils';
+
+interface Job {
+  title: string;
+  company: string;
+  location: string;
+  salary: string;
+  description?: string;
+  jobType?: string;
+  postedDate?: string;
+  url?: string;
+}
 
 interface EnhancedTinderCardProps {
   job: Job;
@@ -62,16 +71,14 @@ const EnhancedTinderCard = memo(function EnhancedTinderCard({
     e.stopPropagation();
     if (!active) return;
     
-    const isMobile = 'ontouchstart' in window || window.innerWidth < 768;
-    
     await controls.start({ 
-      x: -1000, 
+      x: -1200, 
       opacity: 0, 
-      rotate: isMobile ? -15 : -20, // Reduced rotation for desktop too
-      scale: isMobile ? 0.9 : 0.8,  // Less dramatic scale for better performance
+      rotate: -25,
+      scale: 0.85,
       transition: { 
-        duration: isMobile ? 0.2 : 0.25, // Faster on desktop
-        ease: "easeOut" // Consistent easing for smoother feel
+        duration: 0.3,
+        ease: [0.32, 0.72, 0, 1] // Custom bezier for smooth acceleration
       } 
     });
     onSwipeLeft();
@@ -94,27 +101,19 @@ const EnhancedTinderCard = memo(function EnhancedTinderCard({
   const handleDrag = useCallback((event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     if (!active) return;
     
-    // Prevent default touch behavior on mobile to avoid scrolling
-    if (event.type === 'touchmove' && event.cancelable) {
-      event.preventDefault();
-    }
-    
     setIsDragging(true);
     setDragX(info.offset.x);
     
-    // Optimized rotation calculation for smoother experience on both platforms
-    const isMobile = 'ontouchstart' in window || window.innerWidth < 768;
-    const rotationDivisor = isMobile ? 12 : 10; // More responsive on desktop
-    const rotation = Math.min(Math.max(info.offset.x / rotationDivisor, -15), 15); // Reduced max rotation
-    const scale = Math.max(0.96, 1 - Math.abs(info.offset.x) / 1200); // Gentler scale effect
+    // Smooth rotation and scale calculations
+    const rotation = info.offset.x / 15;
+    const clampedRotation = Math.min(Math.max(rotation, -20), 20);
+    const scale = Math.max(0.95, 1 - Math.abs(info.offset.x) / 2000);
     
-    // Use requestAnimationFrame for smoother animations on all platforms
-    requestAnimationFrame(() => {
-      controls.set({
-        x: info.offset.x,
-        rotate: rotation,
-        scale: scale
-      });
+    // Use transform for GPU acceleration
+    controls.set({
+      x: info.offset.x,
+      rotate: clampedRotation,
+      scale: scale
     });
   }, [active, controls]);
 
@@ -124,38 +123,33 @@ const EnhancedTinderCard = memo(function EnhancedTinderCard({
     
     setIsDragging(false);
     
-    // Better mobile detection and thresholds
     const isMobile = 'ontouchstart' in window || window.innerWidth < 768;
     const screenWidth = window.innerWidth;
     
-    // Dynamic thresholds based on screen size
-    const swipeThreshold = isMobile ? Math.min(screenWidth * 0.25, 120) : 150;
-    const velocityThreshold = isMobile ? 300 : 500; // Lower velocity threshold for mobile
+    // Adaptive thresholds
+    const swipeThreshold = isMobile ? screenWidth * 0.3 : 180;
+    const velocityThreshold = 500;
     
-    // Consider both distance and velocity for better mobile UX
-    const distanceRatio = Math.abs(info.offset.x) / screenWidth;
     const shouldSwipe = Math.abs(info.offset.x) > swipeThreshold || 
-                       Math.abs(info.velocity.x) > velocityThreshold ||
-                       distanceRatio > 0.3; // 30% of screen width
+                       Math.abs(info.velocity.x) > velocityThreshold;
     
     if (shouldSwipe) {
       const direction = info.offset.x > 0 ? 'right' : 'left';
-      const exitX = direction === 'right' ? screenWidth + 100 : -(screenWidth + 100);
-      const exitRotate = direction === 'right' ? 25 : -25;
+      const exitX = direction === 'right' ? screenWidth * 1.5 : -(screenWidth * 1.5);
+      const exitRotate = direction === 'right' ? 30 : -30;
       
-      // Optimized animation for both mobile and desktop
       await controls.start({
         x: exitX,
         opacity: 0,
-        rotate: isMobile ? exitRotate * 0.5 : exitRotate * 0.8, // Reduce rotation for smoother feel
-        scale: isMobile ? 0.9 : 0.8, // Less dramatic scale for better performance
+        rotate: exitRotate,
+        scale: 0.8,
         transition: { 
-          duration: isMobile ? 0.15 : 0.2, // Faster on desktop too
-          ease: "easeOut" // Consistent simple easing for both
+          duration: 0.35,
+          ease: [0.32, 0.72, 0, 1]
         }
       });
       
-      // Add haptic feedback on mobile if available
+      // Haptic feedback on mobile
       if (isMobile && 'vibrate' in navigator) {
         navigator.vibrate(50);
       }
@@ -166,16 +160,16 @@ const EnhancedTinderCard = memo(function EnhancedTinderCard({
         onSwipeLeft();
       }
     } else {
-      // Optimized snap back animation for both platforms
+      // Smooth spring back
       await controls.start({
         x: 0,
         rotate: 0,
         scale: 1,
         transition: { 
           type: "spring",
-          stiffness: isMobile ? 500 : 450, // Slightly stiffer on desktop
-          damping: isMobile ? 35 : 32,     // Better damping for desktop
-          mass: 0.7                        // Lighter mass for snappier feel
+          stiffness: 400,
+          damping: 28,
+          mass: 0.8
         }
       });
       setDragX(0);
@@ -224,13 +218,18 @@ const EnhancedTinderCard = memo(function EnhancedTinderCard({
     return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
   };
 
+  const cn = (...classes: (string | boolean | undefined)[]) => {
+    return classes.filter(Boolean).join(' ');
+  };
+
   console.log('🃏 EnhancedTinderCard rendering:', { title: job.title, active, zIndex });
 
   return (
     <motion.div
       className={cn(
-        "absolute inset-0 w-full h-full select-none touch-pan-x tinder-card tinder-card-animated",
-        isDragging && "tinder-dragging",
+        "absolute inset-0 w-full h-full select-none touch-pan-x",
+        isDragging && "cursor-grabbing",
+        !isDragging && active && "cursor-grab",
         className
       )}
       style={{ 
@@ -239,29 +238,24 @@ const EnhancedTinderCard = memo(function EnhancedTinderCard({
         WebkitUserSelect: 'none',
         userSelect: 'none',
         WebkitTouchCallout: 'none',
-        WebkitTapHighlightColor: 'transparent'
+        WebkitTapHighlightColor: 'transparent',
+        willChange: isDragging ? 'transform' : 'auto'
       }}
       animate={controls}
       drag={active ? "x" : false}
-      dragConstraints={{ left: -250, right: 250 }} // Tighter constraints for better control
-      dragElastic={0.15} // Reduced elasticity for snappier feel
-      dragMomentum={false}
-      dragTransition={{ bounceStiffness: 700, bounceDamping: 25 }} // Stiffer bounce for desktop
+      dragConstraints={{ left: 0, right: 0 }}
+      dragElastic={0.2}
+      dragMomentum={true}
       onDrag={handleDrag}
       onDragEnd={handleDragEnd}
-      whileTap={active ? { scale: 0.98 } : undefined}
-      initial={{ scale: 0.9, opacity: 0, x: 0, y: 20 }}
-      whileInView={{ scale: 1, opacity: 1, x: 0, y: 0 }}
-      transition={{ 
-        type: "spring", 
-        stiffness: 400, 
-        damping: 30,
-        mass: 0.8
-      }}
+      whileTap={active ? { scale: 0.98, transition: { duration: 0.1 } } : undefined}
+      initial={{ scale: 0.95, opacity: 0, y: 10 }}
+      animate={{ scale: 1, opacity: 1, y: 0 }}
+      exit={{ scale: 0.9, opacity: 0, transition: { duration: 0.2, ease: "easeIn" } }}
     >
       {/* Swipe Indicators */}
       <motion.div
-        className="absolute top-6 left-6 sm:top-8 sm:left-8 z-20 bg-red-500 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-full font-bold text-sm sm:text-lg rotate-12 tinder-swipe-indicator"
+        className="absolute top-6 left-6 sm:top-8 sm:left-8 z-20 bg-red-500 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-full font-bold text-sm sm:text-lg rotate-12"
         style={{ 
           opacity: getSwipeOpacity('left'),
           pointerEvents: 'none'
@@ -271,7 +265,7 @@ const EnhancedTinderCard = memo(function EnhancedTinderCard({
       </motion.div>
       
       <motion.div
-        className="absolute top-6 right-6 sm:top-8 sm:right-8 z-20 bg-green-500 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-full font-bold text-sm sm:text-lg -rotate-12 tinder-swipe-indicator"
+        className="absolute top-6 right-6 sm:top-8 sm:right-8 z-20 bg-green-500 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-full font-bold text-sm sm:text-lg -rotate-12"
         style={{ 
           opacity: getSwipeOpacity('right'),
           pointerEvents: 'none'
@@ -411,7 +405,7 @@ const EnhancedTinderCard = memo(function EnhancedTinderCard({
             {/* Skip Button */}
             <motion.button
               onClick={handleSwipeLeft}
-              className="relative w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 bg-gradient-to-br from-red-500 to-red-600 hover:from-red-400 hover:to-red-500 active:from-red-600 active:to-red-700 text-white rounded-full shadow-2xl shadow-red-500/30 flex items-center justify-center transition-all duration-200 border-2 border-red-400/50 touch-manipulation tinder-action-button tinder-button-touch"
+              className="relative w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 bg-gradient-to-br from-red-500 to-red-600 hover:from-red-400 hover:to-red-500 active:from-red-600 active:to-red-700 text-white rounded-full shadow-2xl shadow-red-500/30 flex items-center justify-center transition-all duration-200 border-2 border-red-400/50 touch-manipulation"
               whileHover={{ 
                 scale: 1.15,
                 boxShadow: "0 0 30px rgba(239, 68, 68, 0.6)"
@@ -427,7 +421,7 @@ const EnhancedTinderCard = memo(function EnhancedTinderCard({
             <div className="relative">
               <motion.button
                 disabled
-                className="relative w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 bg-gray-400 cursor-not-allowed text-white rounded-full shadow-xl opacity-60 flex items-center justify-center transition-all duration-200 border-2 border-gray-300 touch-manipulation tinder-action-button tinder-button-touch"
+                className="relative w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 bg-gray-400 cursor-not-allowed text-white rounded-full shadow-xl opacity-60 flex items-center justify-center transition-all duration-200 border-2 border-gray-300 touch-manipulation"
               >
                 <Lock className="w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 drop-shadow-lg" />
               </motion.button>
@@ -455,3 +449,94 @@ const EnhancedTinderCard = memo(function EnhancedTinderCard({
 });
 
 export { EnhancedTinderCard };
+
+// Demo wrapper component
+const demoJobs: Job[] = [
+  {
+    title: "Senior Software Engineer",
+    company: "TechCorp",
+    location: "Cape Town, South Africa",
+    salary: "R50,000 - R70,000",
+    url: "https://example.com/job1",
+    postedDate: "2 days ago",
+    description: "We are looking for a senior software engineer to join our dynamic team...",
+    jobType: "Full-time"
+  },
+  {
+    title: "Frontend Developer",
+    company: "StartupXYZ",
+    location: "Johannesburg, South Africa",
+    salary: "R40,000 - R60,000",
+    url: "https://example.com/job2",
+    postedDate: "1 week ago",
+    description: "Join our fast-growing startup as a frontend developer...",
+    jobType: "Full-time"
+  },
+  {
+    title: "Data Scientist",
+    company: "DataCorp",
+    location: "Remote",
+    salary: "R80,000 - R100,000",
+    url: "https://example.com/job3",
+    postedDate: "3 days ago",
+    description: "Exciting opportunity for a data scientist to work on cutting-edge projects...",
+    jobType: "Full-time"
+  }
+];
+
+export default function App() {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  
+ 
+  const handleSwipeLeft = () => {
+    console.log('Swiped left on:', demoJobs[currentIndex].title);
+    setCurrentIndex(prev => prev + 1);
+  };
+
+  const handleSwipeRight = () => {
+    console.log('Swiped right on:', demoJobs[currentIndex].title);
+    setCurrentIndex(prev => prev + 1);
+  };
+
+  const handleSave = (jobId: string) => {
+    console.log('Saved job:', jobId);
+  };
+
+  const handleShowDetails = (job: Job) => {
+    console.log('Show details for:', job.title);
+    alert(`Viewing details for: ${job.title}`);
+  };
+
+  if (currentIndex >= demoJobs.length) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
+        <div className="text-center">
+          <h2 className="text-3xl font-bold text-white mb-4">No more jobs! 🎉</h2>
+          <button
+            onClick={() => setCurrentIndex(0)}
+            className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+          >
+            Start Over
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
+      <div className="w-full max-w-md h-[600px] relative">
+        <EnhancedTinderCard
+          key={currentIndex}
+          job={demoJobs[currentIndex]}
+          onSwipeLeft={handleSwipeLeft}
+          onSwipeRight={handleSwipeRight}
+          onSave={handleSave}
+          onShowDetails={handleShowDetails}
+          active={true}
+          zIndex={1}
+        />
+      </div>
+    </div>
+  );
+}

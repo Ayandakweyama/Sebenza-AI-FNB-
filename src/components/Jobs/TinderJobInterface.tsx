@@ -162,7 +162,7 @@ export function TinderJobInterface({
 
   // Handle save job
   const handleSaveJob = useCallback(async (jobId: string) => {
-    const job = jobs.find(j => (j.id || `${j.company}-${j.title}`) === jobId);
+    const job = jobs.find(j => (j.url || `${j.company}-${j.title}`) === jobId);
     if (job) {
       try {
         await saveJob(job);
@@ -504,7 +504,7 @@ export function TinderJobInterface({
                 key={`${job.url || job.company}-${job.title}-${index}`}
                 job={job}
                 onSwipeLeft={handleSwipeLeft}
-                onSwipeRight={handleSwipeRight}
+                onSwipeRight={() => handleSwipeRight()}
                 onSave={handleSaveJob}
                 onShowDetails={handleShowJobDetails}
                 active={index === 0}

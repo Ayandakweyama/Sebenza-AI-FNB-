@@ -69,8 +69,19 @@ function LoginFormContent() {
     }
   };
 
-  const handleSocialLogin = (provider: string) => {
-    signIn(provider.toLowerCase(), { callbackUrl });
+  const handleSocialLogin = async (provider: string) => {
+    if (!isLoaded) return;
+
+    try {
+      await signIn.authenticateWithRedirect({
+        strategy: `oauth_${provider.toLowerCase()}`,
+        redirectUrl: callbackUrl,
+        redirectUrlComplete: callbackUrl,
+      });
+    } catch (err: any) {
+      console.error('Error with social login:', err);
+      setError('Failed to sign in with social provider');
+    }
   };
 
   return (
@@ -98,7 +109,7 @@ function LoginFormContent() {
             placeholder="Enter your email"
             value={formData.email}
             onChange={handleChange}
-            icon={FiMail}
+            icon={<FiMail />}
             required
             autoComplete="email"
           />
@@ -110,7 +121,7 @@ function LoginFormContent() {
             placeholder="Enter your password"
             value={formData.password}
             onChange={handleChange}
-            icon={FiLock}
+            icon={<FiLock />}
             required
             autoComplete="current-password"
           />

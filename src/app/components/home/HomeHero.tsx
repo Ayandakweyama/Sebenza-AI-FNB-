@@ -11,7 +11,7 @@ const HeroSection = () => {
         <div className="absolute bottom-10 md:bottom-20 left-1/2 -translate-x-1/2 w-48 h-48 md:w-72 md:h-72 bg-purple-400 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse delay-2000"></div>
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center mt-8 md:-mt-8">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center mt-32 md:-mt-8">
         {/* Heading */}
         <h1 className="text-4xl sm:text-6xl md:text-7xl font-bold text-white mb-4 sm:mb-6 leading-tight max-w-4xl mx-auto">
           <span className="bg-gradient-to-r from-white via-purple-200 to-pink-500 bg-clip-text text-transparent">
@@ -27,16 +27,6 @@ const HeroSection = () => {
           and strategic career guidance powered by advanced AI technology.
         </p>
 
-        {/* Buttons */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
-          <button className="bg-gradient-to-r from-pink-500 to-pink-600 text-white px-8 py-4 rounded-full text-lg font-bold hover:from-pink-600 hover:to-pink-700 transition-all duration-300 transform hover:scale-105 shadow-2xl flex items-center space-x-2">
-            <span>Start Your Journey</span>
-            <ChevronRight className="h-5 w-5" />
-          </button>
-          <button className="border-2 border-purple-400 text-purple-300 px-8 py-4 rounded-full text-lg font-semibold hover:bg-purple-400 hover:text-white transition-all duration-300 transform hover:scale-105">
-            Watch Demo
-          </button>
-        </div>
 
         {/* Highlights */}
         <div className="flex flex-wrap justify-center gap-6 text-sm text-gray-400">

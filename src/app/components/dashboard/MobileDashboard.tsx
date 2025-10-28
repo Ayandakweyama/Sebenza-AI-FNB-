@@ -102,21 +102,6 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = (props) => {
             );
           })}
         </ul>
-
-        {/* Mobile Chatbot Button - Only shown when chatbot is closed */}
-        {!chatbotOpen && (
-          <div className="fixed bottom-4 right-4 z-40">
-            <button
-              onClick={() => setChatbotOpen(true)}
-              className="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-4 rounded-full shadow-xl transition-all duration-200 transform hover:scale-110"
-              aria-label="Open chatbot"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.418 8-9 8a9.013 9.013 0 01-5.618-2.033L3 20l1.343-2.382A9.013 9.013 0 013 12c0-4.418 4.418-8 9-8s9 3.582 9 8z" />
-              </svg>
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

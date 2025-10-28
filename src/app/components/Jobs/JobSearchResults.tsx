@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Job, useJobScraper } from '@/hooks/useJobScraper';
+import { useJobContext } from '@/contexts/JobContext';
 // Custom Button component
 const Button = ({ 
   variant = 'default', 
@@ -194,10 +195,28 @@ export function JobSearchResults({
   const isLoading = sharedIsLoading !== undefined ? sharedIsLoading : localScraper.isLoading;
   const error = localScraper.error;
 
+  // Job context for saving functionality
+  const { saveJob, unsaveJob, isSaved } = useJobContext();
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim() && location.trim()) {
       scrapeAll({ query, location, maxPages: 2 });
+    }
+  };
+
+  const handleSave = async (jobId: string) => {
+    const job = filteredJobs.find(j => j.id === jobId);
+    if (!job) return;
+
+    try {
+      if (isSaved(jobId)) {
+        await unsaveJob(jobId);
+      } else {
+        await saveJob(job);
+      }
+    } catch (error) {
+      console.error('Failed to save/unsave job:', error);
     }
   };
 
@@ -364,6 +383,32 @@ export function JobSearchResults({
                   <Badge variant="default" className="text-xs capitalize">
                     {job.source}
                   </Badge>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSave(job.id);
+                    }}
+                    className={`p-2 rounded-lg transition-colors ${
+                      isSaved(job.id)
+                        ? 'text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20'
+                        : 'text-slate-400 hover:text-yellow-400 hover:bg-slate-700/50'
+                    }`}
+                    aria-label={isSaved(job.id) ? 'Unsave job' : 'Save job'}
+                  >
+                    <svg
+                      className={`h-5 w-5 ${isSaved(job.id) ? 'fill-current' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+                      />
+                    </svg>
+                  </button>
                   <a 
                     href={job.url} 
                     target="_blank" 
