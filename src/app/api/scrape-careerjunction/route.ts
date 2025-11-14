@@ -364,7 +364,7 @@ export async function POST(request: Request) {
         console.log(`Found ${jobLinks.length} potential job links`);
         
         // Try to find job titles from various sources
-        const titles = [];
+        const titles: string[] = [];
         
         // Look for h1, h2, h3 tags
         document.querySelectorAll('h1, h2, h3, h4').forEach(el => {

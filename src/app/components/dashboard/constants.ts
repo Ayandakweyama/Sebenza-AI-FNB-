@@ -3,7 +3,7 @@ import { NavigationItem } from './types';
 export const navigationItems: NavigationItem[] = [
   { 
     title: 'Afrigter', 
-    description: 'AI Career Mentor', 
+    description: 'all in one AI powered career Mentor', 
     path: '/afrigter',
     icon: 'Bot'
   },

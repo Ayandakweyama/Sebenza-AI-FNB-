@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { scrapeIndeed, scrapePnet, scrapeCareerJunction, scrapeCareer24, scrapeLinkedIn, scrapeJobMail } from '@/lib/scrapers';
+import { scrapeIndeed, scrapePnet, scrapeCareer24, scrapeLinkedIn, scrapeJobMail } from '@/lib/scrapers';
 import type { ScraperConfig, Job } from '@/lib/scrapers/types';
 import { jobCache } from '@/lib/cache/jobCache';
 
@@ -15,7 +15,7 @@ interface RequestBody {
   query: string;
   location: string;
   maxPages?: number;
-  sources?: ('indeed' | 'pnet' | 'careerjunction' | 'career24' | 'linkedin' | 'jobmail')[];
+  sources?: ('indeed' | 'pnet' | 'career24' | 'linkedin' | 'jobmail')[];
 }
 
 export async function POST(request: Request) {
@@ -86,8 +86,6 @@ export async function POST(request: Request) {
           scraperPromise = scrapeIndeed(config);
         } else if (source === 'pnet') {
           scraperPromise = scrapePnet(config);
-        } else if (source === 'careerjunction') {
-          scraperPromise = scrapeCareerJunction(config);
         } else if (source === 'career24') {
           scraperPromise = scrapeCareer24(config);
         } else if (source === 'linkedin') {
@@ -165,7 +163,6 @@ export async function POST(request: Request) {
         sourceCounts: {
           indeed: 0,
           pnet: 0,
-          careerjunction: 0,
           career24: 0,
           linkedin: 0,
           jobmail: 0
@@ -223,7 +220,6 @@ export async function POST(request: Request) {
       sourceCounts: {
         indeed: 0,
         pnet: 0,
-        careerjunction: 0,
         career24: 0,
         linkedin: 0,
         jobmail: 0

@@ -226,15 +226,15 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
   const scrapeAll = useCallback(async (options: Omit<ScraperOptions, 'sources'>) => {
     console.log('🚀 Starting multi-source job search');
     
-    // Use Indeed, JobMail, and CareerJunction for comprehensive results
+    // Use Indeed and JobMail for comprehensive results
     return scrapeJobs({
       ...options,
-      sources: ['indeed', 'jobmail', 'careerjunction']
+      sources: ['indeed', 'jobmail']
     });
   }, [scrapeJobs]);
 
   // Get jobs from a specific source or all sources
-  const getJobs = (source?: 'indeed' | 'pnet' | 'careerjunction' | 'career24' | 'linkedin' | 'jobmail') => {
+  const getJobs = (source?: 'indeed' | 'pnet' | 'career24' | 'linkedin' | 'jobmail') => {
     if (!Array.isArray(jobs)) return [];
     if (source) {
       return jobs.filter(job => job.source === source);
@@ -243,7 +243,7 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
   };
 
   // Get loading state for a specific source or any source
-  const getIsLoading = (source?: 'indeed' | 'pnet' | 'careerjunction' | 'career24' | 'linkedin' | 'jobmail') => {
+  const getIsLoading = (source?: 'indeed' | 'pnet' | 'career24' | 'linkedin' | 'jobmail') => {
     if (source) {
       return !!isLoading[source];
     }
@@ -251,7 +251,7 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
   };
 
   // Get error for a specific source or any source
-  const getError = (source?: 'indeed' | 'pnet' | 'careerjunction' | 'career24' | 'linkedin' | 'jobmail') => {
+  const getError = (source?: 'indeed' | 'pnet' | 'career24' | 'linkedin' | 'jobmail') => {
     if (source) {
       return errors[source] || null;
     }

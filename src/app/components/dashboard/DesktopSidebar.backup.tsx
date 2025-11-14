@@ -27,7 +27,7 @@ const useDebounce = (value: any, delay: number) => {
 };
 
 // Enhanced intersection observer for better performance
-const useIntersectionObserver = (ref: React.RefObject<Element>, options: IntersectionObserverInit = {}) => {
+const useIntersectionObserver = <T extends HTMLElement>(ref: React.RefObject<T>, options: IntersectionObserverInit = {}) => {
   const [isIntersecting, setIsIntersecting] = useState(false);
 
   useEffect(() => {
@@ -184,10 +184,11 @@ const NavigationItem = memo(({
           isAfrigterItem ? 'hover:shadow-xl hover:shadow-pink-500/25' : ''
         }`}
         onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
+        onMouseLeave={() => {
+          setIsHovered(false);
+          setIsPressed(false);
+        }}
         onMouseDown={() => setIsPressed(true)}
-        onMouseUp={() => setIsPressed(false)}
-        onMouseLeave={() => setIsPressed(false)}
         onClick={handleItemClick}
         role="button"
         tabIndex={0}
