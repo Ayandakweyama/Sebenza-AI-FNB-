@@ -1,6 +1,11 @@
 export { scrapeIndeed } from './indeed';
 export { scrapePnet } from './pnet';
 export { scrapeCareerJunction } from './careerjunction';
+export { scrapeCareer24 } from './career24';
 export { scrapeLinkedIn } from './linkedin';
+export { scrapeJobMail } from './jobmail';
+export { scrapeJobsCoZa } from './jobs-co-za';
+export { scrapeBestJobs } from './bestjobs';
+export { scrapeCareers24 } from './careers24';
 export * from './types';
 export * from './utils';

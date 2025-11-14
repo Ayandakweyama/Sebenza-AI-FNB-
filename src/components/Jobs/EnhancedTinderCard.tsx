@@ -28,7 +28,7 @@ interface Job {
   description?: string;
   jobType?: string;
   postedDate?: string;
-  url?: string;
+  url: string;
 }
 
 interface EnhancedTinderCardProps {
@@ -275,9 +275,11 @@ const EnhancedTinderCard = memo(function EnhancedTinderCard({
       </motion.div>
 
       {/* Main Card */}
-      <div className="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-700/50 overflow-hidden backdrop-blur-xl flex flex-col touch-manipulation">
+      <div className="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-700/50 overflow-hidden backdrop-blur-xl flex flex-col touch-manipulation relative">
+        {/* Pink gradient accent line on hover */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-pink-500 via-pink-400 to-pink-600 opacity-0 hover:opacity-100 transition-opacity duration-300 z-10"></div>
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-600 via-purple-500 to-blue-600 p-4 sm:p-5 md:p-6 text-white relative shadow-lg flex-shrink-0">
+        <div className="bg-gradient-to-r from-pink-600 via-pink-500 to-purple-600 p-4 sm:p-5 md:p-6 text-white relative shadow-lg flex-shrink-0">
           {/* Save button */}
           <motion.button
             onClick={handleSaveClick}
@@ -352,7 +354,7 @@ const EnhancedTinderCard = memo(function EnhancedTinderCard({
             {job.description && job.description.length > 120 && (
               <button
                 onClick={() => setShowPreview(!showPreview)}
-                className="mt-2 text-purple-400 hover:text-purple-300 font-medium text-xs sm:text-sm flex items-center gap-1 transition-colors"
+                className="mt-2 text-pink-400 hover:text-pink-300 font-medium text-xs sm:text-sm flex items-center gap-1 transition-colors"
               >
                 {showPreview ? (
                   <>
@@ -374,7 +376,7 @@ const EnhancedTinderCard = memo(function EnhancedTinderCard({
             {/* View Details */}
             <motion.button
               onClick={handleShowDetails}
-              className="flex-1 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 hover:border-purple-500/30 text-slate-300 hover:text-white font-medium py-2 sm:py-3 px-3 sm:px-4 rounded-xl transition-all flex items-center justify-center gap-2 text-sm sm:text-base"
+              className="flex-1 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 hover:border-pink-500/30 text-slate-300 hover:text-white font-medium py-2 sm:py-3 px-3 sm:px-4 rounded-xl transition-all flex items-center justify-center gap-2 text-sm sm:text-base"
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
@@ -389,7 +391,7 @@ const EnhancedTinderCard = memo(function EnhancedTinderCard({
                   e.stopPropagation();
                   window.open(job.url, '_blank');
                 }}
-                className="bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 text-purple-300 hover:text-purple-200 font-medium py-2 sm:py-3 px-3 sm:px-4 rounded-xl transition-all flex items-center justify-center text-sm sm:text-base"
+                className="bg-pink-500/20 hover:bg-pink-500/30 border border-pink-500/30 text-pink-300 hover:text-pink-200 font-medium py-2 sm:py-3 px-3 sm:px-4 rounded-xl transition-all flex items-center justify-center text-sm sm:text-base"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
@@ -425,7 +427,7 @@ const EnhancedTinderCard = memo(function EnhancedTinderCard({
               >
                 <Lock className="w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 drop-shadow-lg" />
               </motion.button>
-              <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 bg-purple-600 text-white text-xs px-2 py-1 rounded-lg whitespace-nowrap flex items-center gap-1">
+              <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 bg-pink-600 text-white text-xs px-2 py-1 rounded-lg whitespace-nowrap flex items-center gap-1">
                 <Sparkles className="w-3 h-3" />
                 <span>AI Agent Soon</span>
               </div>
@@ -439,7 +441,7 @@ const EnhancedTinderCard = memo(function EnhancedTinderCard({
             </div>
             <div className="flex flex-col items-center w-16 sm:w-20 md:w-24">
               <span className="text-gray-400 text-xs sm:text-sm font-medium line-through">Apply</span>
-              <span className="text-purple-400 text-[10px] sm:text-xs font-medium">Pro Only</span>
+              <span className="text-pink-400 text-[10px] sm:text-xs font-medium">Pro Only</span>
             </div>
           </div>
         </div>
@@ -514,7 +516,7 @@ export default function App() {
           <h2 className="text-3xl font-bold text-white mb-4">No more jobs! 🎉</h2>
           <button
             onClick={() => setCurrentIndex(0)}
-            className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+            className="bg-pink-600 hover:bg-pink-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
           >
             Start Over
           </button>

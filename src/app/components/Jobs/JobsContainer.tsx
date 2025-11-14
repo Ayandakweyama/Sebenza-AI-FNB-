@@ -250,7 +250,7 @@ export const JobsContainer = () => {
       <div className="w-full max-w-md mb-6">
         <div className="flex justify-between items-center mb-2">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-purple-200">
+            <span className="text-sm font-medium text-blue-200">
               <span className="text-lg font-bold text-yellow-400">{Math.min(currentIndex + 1, filteredJobs.length)}</span> of {filteredJobs.length} jobs
             </span>
             <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full">

@@ -83,7 +83,7 @@ export default function JobAlertsPage() {
           <div className="flex justify-end">
         <Button 
           onClick={() => setIsModalOpen(true)}
-          className="bg-purple-600 hover:bg-purple-700"
+          className="bg-blue-600 hover:bg-blue-700"
         >
           <Plus className="mr-2 h-4 w-4" />
           Create Alert
@@ -95,16 +95,16 @@ export default function JobAlertsPage() {
           {jobAlerts.map((alert) => (
             <div 
               key={alert.id}
-              className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700/50 hover:border-purple-500/30 transition-all duration-200"
+              className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700/50 hover:border-blue-500/30 transition-all duration-200"
             >
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                 <div className="flex-1 space-y-3">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-semibold text-white flex items-center">
-                      <Bell className={`h-5 w-5 mr-2 ${alert.isActive ? 'text-purple-400' : 'text-slate-500'}`} />
+                      <Bell className={`h-5 w-5 mr-2 ${alert.isActive ? 'text-blue-400' : 'text-slate-500'}`} />
                       {alert.name}
                       {alert.newMatches > 0 && (
-                        <span className="ml-2 px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded-full text-xs">
+                        <span className="ml-2 px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded-full text-xs">
                           {alert.newMatches} new
                         </span>
                       )}
@@ -112,8 +112,8 @@ export default function JobAlertsPage() {
                     <div className="flex items-center space-x-2">
                       <button 
                         onClick={() => toggleAlertStatus(alert.id, alert.isActive)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
-                          alert.isActive ? 'bg-purple-600' : 'bg-slate-700'
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                          alert.isActive ? 'bg-blue-600' : 'bg-slate-700'
                         }`}
                       >
                         <span
@@ -130,7 +130,7 @@ export default function JobAlertsPage() {
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
                     <div className="flex items-start text-slate-300">
-                      <Search className="h-4 w-4 mt-0.5 mr-2 text-purple-400 flex-shrink-0" />
+                      <Search className="h-4 w-4 mt-0.5 mr-2 text-blue-400 flex-shrink-0" />
                       <span className="break-words">{alert.keywords}</span>
                     </div>
                     <div className="flex items-center text-slate-300">

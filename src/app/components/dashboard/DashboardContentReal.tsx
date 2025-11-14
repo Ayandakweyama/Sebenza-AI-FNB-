@@ -10,9 +10,9 @@ import {
   Eye, 
   TrendingUp,
   FileText,
-  Target,
-  Sparkles
+  Target
 } from 'lucide-react';
+import { useIsMobile } from '../../../hooks/useIsMobile';
 
 interface StatCard {
   title: string;
@@ -43,6 +43,9 @@ export const DashboardContent: React.FC = () => {
   const { user, setChatbotOpen } = useDashboard();
   const [isVisible, setIsVisible] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+  
+  // Mobile detection
+  const isMobile = useIsMobile();
   
   // Data states
   const [statsCards, setStatsCards] = useState<StatCard[]>([]);
@@ -175,33 +178,30 @@ export const DashboardContent: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 pt-12 px-8 pb-8 overflow-y-auto h-[calc(100vh-5rem)] relative">
-      {/* Animated background elements */}
+    <div className="flex-1 pt-6 md:pt-12 px-4 md:px-8 pb-8 overflow-y-auto h-[calc(100vh-5rem)] md:h-[calc(100vh-5rem)] relative">
+      {/* Animated background elements - reduced on mobile */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500/5 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-pink-500/5 rounded-full blur-3xl animate-pulse delay-1000"></div>
-        <div className="absolute top-1/2 left-1/2 w-60 h-60 bg-blue-500/3 rounded-full blur-3xl animate-pulse delay-500"></div>
+        <div className="absolute -top-20 md:-top-40 -right-20 md:-right-40 w-40 md:w-80 h-40 md:h-80 bg-purple-500/5 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute -bottom-20 md:-bottom-40 -left-20 md:-left-40 w-40 md:w-80 h-40 md:h-80 bg-pink-500/5 rounded-full blur-3xl animate-pulse delay-1000"></div>
+        <div className="hidden md:block absolute top-1/2 left-1/2 w-60 h-60 bg-blue-500/3 rounded-full blur-3xl animate-pulse delay-500"></div>
       </div>
 
       <div className="max-w-7xl mx-auto relative z-10">
-        {/* Enhanced Header Section */}
-        <div className={`mb-8 transition-all duration-1000 transform ${
+        {/* Enhanced Header Section - Hidden on mobile, shown on desktop */}
+        <div className={`hidden md:block mb-6 md:mb-8 transition-all duration-1000 transform ${
           isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
         }`}>
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-4">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 bg-clip-text text-transparent animate-gradient">
-                  {getTimeBasedGreeting()}{user?.firstName ? `, ${user.firstName}` : ''}!
-                </h1>
-                <Sparkles className="w-8 h-8 text-purple-400 animate-pulse" />
-              </div>
-              <p className="text-slate-300 text-lg mb-2">
+            <div className="mb-4 lg:mb-0">
+              <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 bg-clip-text text-transparent animate-gradient">
+                {getTimeBasedGreeting()}{user?.firstName ? `, ${user.firstName}` : ''}!
+              </h1>
+              <p className="text-slate-300 text-base md:text-lg mb-2">
                 Here's what's happening with your job search today.
               </p>
             </div>
             
-            <div className="flex flex-col items-end text-right">
+            <div className="flex flex-col items-start md:items-end text-left md:text-right">
               <div className="text-slate-400 text-sm mb-1">
                 {currentTime.toLocaleDateString('en-US', { 
                   weekday: 'long', 
@@ -210,7 +210,7 @@ export const DashboardContent: React.FC = () => {
                   day: 'numeric' 
                 })}
               </div>
-              <div className="text-purple-400 font-mono text-lg">
+              <div className="text-purple-400 font-mono text-base md:text-lg">
                 {currentTime.toLocaleTimeString('en-US', { 
                   hour12: false,
                   hour: '2-digit',
@@ -221,19 +221,21 @@ export const DashboardContent: React.FC = () => {
             </div>
           </div>
 
-          {/* Progress indicator */}
-          <div className="w-full bg-slate-800/50 rounded-full h-1 overflow-hidden">
+          {/* Progress indicator - hidden on mobile for cleaner look */}
+          <div className="hidden md:block w-full bg-slate-800/50 rounded-full h-1 overflow-hidden">
             <div className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-pulse"></div>
           </div>
         </div>
         
         {/* Enhanced Dashboard Stats */}
-        <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 transition-all duration-1000 delay-200 transform ${
+        <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-8 transition-all ${
+          isMobile ? 'duration-200' : 'duration-1000 delay-200'
+        } transform ${
           isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
         }`}>
           {loadingStats ? (
-            <div className="col-span-full flex justify-center items-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-purple-400" />
+            <div className="col-span-full flex justify-center items-center py-6 md:py-8">
+              <Loader2 className={`h-6 w-6 md:h-8 md:w-8 animate-spin text-purple-400 ${isMobile ? '' : 'animate-spin'}`} />
             </div>
           ) : statsError ? (
             <div className="col-span-full text-center text-red-400 py-4">
@@ -243,10 +245,14 @@ export const DashboardContent: React.FC = () => {
             statsCards.map((stat, index) => (
               <div
                 key={index}
-                className="transform transition-all duration-500 hover:scale-105 hover:-translate-y-2"
-                style={{ 
-                  animationDelay: `${300 + index * 100}ms`,
-                  animation: isVisible ? 'slideInUp 0.6s ease-out forwards' : ''
+                className={`transform transition-all ${
+                  isMobile
+                    ? 'duration-200 hover:scale-[1.02]'
+                    : 'duration-500 hover:scale-105 hover:-translate-y-2'
+                }`}
+                style={{
+                  animationDelay: isMobile ? '0ms' : `${300 + index * 100}ms`,
+                  animation: isVisible ? (isMobile ? 'none' : 'slideInUp 0.6s ease-out forwards') : ''
                 }}
               >
                 <StatsCard
@@ -262,25 +268,33 @@ export const DashboardContent: React.FC = () => {
         </div>
         
         {/* Profile Progress Section */}
-        <div className={`mb-8 transition-all duration-1000 delay-300 transform ${
+        <div className={`mb-6 md:mb-8 transition-all ${
+          isMobile ? 'duration-200' : 'duration-1000 delay-300'
+        } transform ${
           isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
         }`}>
           <ProfileProgress />
         </div>
 
         {/* Enhanced Recent Activity Section */}
-        <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 transition-all duration-1000 delay-400 transform ${
+        <div className={`grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 transition-all ${
+          isMobile ? 'duration-200' : 'duration-1000 delay-400'
+        } transform ${
           isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
         }`}>
-          <div className="transform transition-all duration-500 hover:scale-[1.02] group">
+          <div className={`transform transition-all ${
+            isMobile ? 'duration-200 hover:scale-[1.01]' : 'duration-500 hover:scale-[1.02]'
+          } group`}>
             <div className="relative overflow-hidden rounded-xl">
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className={`absolute inset-0 opacity-0 transition-opacity ${
+                isMobile ? 'duration-200' : 'duration-300'
+              } group-hover:opacity-100 bg-gradient-to-br from-purple-500/10 to-transparent`}></div>
               {loadingApplications ? (
-                <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 flex justify-center items-center h-64">
-                  <Loader2 className="h-8 w-8 animate-spin text-purple-400" />
+                <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-4 md:p-6 flex justify-center items-center h-48 md:h-64">
+                  <Loader2 className={`h-6 w-6 md:h-8 md:w-8 animate-spin text-purple-400 ${isMobile ? '' : 'animate-spin'}`} />
                 </div>
               ) : applicationsError ? (
-                <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 text-center text-red-400">
+                <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-4 md:p-6 text-center text-red-400">
                   {applicationsError}
                 </div>
               ) : (
@@ -288,12 +302,12 @@ export const DashboardContent: React.FC = () => {
                   title="Recent Applications"
                   icon="FileText"
                   items={recentApplications.length > 0 ? recentApplications : [
-                    { 
-                      company: 'No applications yet', 
-                      position: 'Start applying to jobs', 
-                      status: '', 
-                      time: '', 
-                      color: 'gray' 
+                    {
+                      company: 'No applications yet',
+                      position: 'Start applying to jobs',
+                      status: '',
+                      time: '',
+                      color: 'gray'
                     }
                   ]}
                   showStatus
@@ -301,16 +315,20 @@ export const DashboardContent: React.FC = () => {
               )}
             </div>
           </div>
-          
-          <div className="transform transition-all duration-500 hover:scale-[1.02] group">
+
+          <div className={`transform transition-all ${
+            isMobile ? 'duration-200 hover:scale-[1.01]' : 'duration-500 hover:scale-[1.02]'
+          } group`}>
             <div className="relative overflow-hidden rounded-xl">
-              <div className="absolute inset-0 bg-gradient-to-br from-pink-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className={`absolute inset-0 opacity-0 transition-opacity ${
+                isMobile ? 'duration-200' : 'duration-300'
+              } group-hover:opacity-100 bg-gradient-to-br from-pink-500/10 to-transparent`}></div>
               {loadingInterviews ? (
-                <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 flex justify-center items-center h-64">
-                  <Loader2 className="h-8 w-8 animate-spin text-purple-400" />
+                <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-4 md:p-6 flex justify-center items-center h-48 md:h-64">
+                  <Loader2 className={`h-6 w-6 md:h-8 md:w-8 animate-spin text-purple-400 ${isMobile ? '' : 'animate-spin'}`} />
                 </div>
               ) : interviewsError ? (
-                <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 text-center text-red-400">
+                <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-4 md:p-6 text-center text-red-400">
                   {interviewsError}
                 </div>
               ) : (
@@ -318,11 +336,11 @@ export const DashboardContent: React.FC = () => {
                   title="Upcoming Interviews"
                   icon="Target"
                   items={upcomingInterviews.length > 0 ? upcomingInterviews : [
-                    { 
-                      company: 'No interviews scheduled', 
-                      position: 'Keep applying!', 
-                      time: '', 
-                      type: '' 
+                    {
+                      company: 'No interviews scheduled',
+                      position: 'Keep applying!',
+                      time: '',
+                      type: ''
                     }
                   ]}
                   showType

@@ -10,7 +10,7 @@ export interface Job {
   industry?: string;
   reference?: string;
   url: string;
-  source: 'indeed' | 'pnet' | 'careerjunction' | 'linkedin' | 'adzuna';
+  source: 'indeed' | 'pnet' | 'careerjunction' | 'career24' | 'linkedin' | 'adzuna' | 'jobmail' | 'bestjobs' | 'careers24' | 'jobs-co-za';
 }
 
 export interface ScraperConfig {

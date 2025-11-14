@@ -235,10 +235,10 @@ export function JobSearchResults({
   return (
     <div className="space-y-6">
       {/* Search Form */}
-      <Card className="shadow-sm">
-        <CardContent className="pt-6">
+      <Card className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 backdrop-blur-sm border border-slate-700/50 shadow-xl">
+        <CardContent className="pt-4 sm:pt-6">
           <form onSubmit={handleSearch} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <div className="space-y-2">
                 <label htmlFor="job-title" className="text-sm font-medium text-slate-300">
                   Job Title
@@ -249,7 +249,7 @@ export function JobSearchResults({
                     id="job-title"
                     placeholder="e.g. Software Engineer"
                     value={query}
-                    onChange={(e) => setQuery(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)}
                     className="pl-10"
                   />
                 </div>
@@ -265,16 +265,16 @@ export function JobSearchResults({
                     id="location"
                     placeholder="e.g. Cape Town"
                     value={location}
-                    onChange={(e) => setLocation(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocation(e.target.value)}
                     className="pl-10"
                   />
                 </div>
               </div>
               
-              <div className="flex items-end">
+              <div className="pt-2">
                 <Button 
                   type="submit" 
-                  className="w-full h-10"
+                  className="w-full h-12"
                   disabled={isLoading}
                 >
                   {isLoading ? (
@@ -309,12 +309,12 @@ export function JobSearchResults({
       {isLoading && (
         <div className="space-y-4">
           {[...Array(3)].map((_, i) => (
-            <Card key={i} className="animate-pulse">
+            <Card key={i} className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 backdrop-blur-sm border border-slate-700/50 animate-pulse">
               <CardContent className="pt-6">
                 <div className="space-y-3">
-                  <Skeleton className="h-6 w-3/4" />
-                  <Skeleton className="h-4 w-1/2" />
-                  <Skeleton className="h-4 w-1/3" />
+                  <Skeleton className="h-6 w-3/4 bg-slate-700/50" />
+                  <Skeleton className="h-4 w-1/2 bg-slate-700/50" />
+                  <Skeleton className="h-4 w-1/3 bg-slate-700/50" />
                 </div>
               </CardContent>
             </Card>
@@ -324,63 +324,68 @@ export function JobSearchResults({
 
       {/* No Results */}
       {!isLoading && filteredJobs.length === 0 && !error && (
-        <div className="text-center py-12">
-          <div className="mx-auto w-16 h-16 rounded-full bg-slate-700/50 flex items-center justify-center mb-4">
-            <Search className="h-8 w-8 text-slate-400" />
+        <div className="text-center py-12 bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-700/30">
+          <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-pink-500/20 to-purple-600/20 border-2 border-pink-500/30 flex items-center justify-center mb-4">
+            <Search className="h-8 w-8 text-pink-400" />
           </div>
           <h3 className="text-lg font-medium text-white mb-1">No jobs found</h3>
           <p className="text-slate-400">Try adjusting your search or filter criteria</p>
         </div>
       )}
 
-      {/* Job Listings */}
       <div className="space-y-4">
         {filteredJobs.map((job, index) => (
-          <Card 
-            key={`${job.source}-${index}`} 
-            className="group cursor-pointer"
+          <Card
+            key={`${job.source}-${index}`}
+            className="group cursor-pointer bg-gradient-to-br from-slate-800/80 to-slate-900/80 backdrop-blur-sm border border-slate-700/50 hover:border-pink-500/50 transition-all duration-300 transform hover:scale-[1.02] hover:shadow-2xl hover:shadow-pink-500/30 relative overflow-hidden"
             onClick={() => onJobSelect?.(job)}
           >
-            <CardContent className="pt-6">
+            {/* Pink gradient accent line */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-pink-500 via-pink-400 to-pink-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+
+            <CardContent className="pt-4 sm:pt-6">
               <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="text-lg font-semibold text-white group-hover:text-purple-400 transition-colors">
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-white group-hover:text-pink-100 transition-colors duration-300">
                     {job.title}
                   </h3>
-                  <p className="text-purple-200 mt-1">{job.company}</p>
-                  
-                  <div className="mt-3 flex flex-wrap gap-3">
+                  <div className="text-pink-400 mt-1 font-medium flex items-center">
+                    <div className="w-2 h-2 bg-pink-500 rounded-full mr-2 animate-pulse"></div>
+                    {job.company}
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-3">
                     {job.location && (
-                      <span className="inline-flex items-center text-sm text-slate-300">
-                        <MapPin className="h-4 w-4 mr-1 text-purple-400" />
+                      <span className="inline-flex items-center text-sm text-slate-300 bg-gradient-to-r from-pink-500/10 to-purple-500/10 border border-pink-500/20 px-3 py-1 rounded-full">
+                        <MapPin className="h-4 w-4 mr-1 text-pink-400" />
                         {job.location}
                       </span>
                     )}
                     {job.salary && !job.salary.includes('not specified') && (
-                      <span className="inline-flex items-center text-sm text-slate-300">
+                      <span className="inline-flex items-center text-sm text-slate-300 bg-slate-700/50 px-3 py-1 rounded-full border border-slate-600/30">
                         <DollarSign className="h-4 w-4 mr-1 text-green-400" />
                         {job.salary}
                       </span>
                     )}
                     {job.postedDate && (
-                      <span className="inline-flex items-center text-sm text-slate-300">
+                      <span className="inline-flex items-center text-sm text-slate-300 bg-slate-700/50 px-3 py-1 rounded-full border border-slate-600/30">
                         <Calendar className="h-4 w-4 mr-1 text-blue-400" />
                         {job.postedDate}
                       </span>
                     )}
                   </div>
-                  
+
                   {job.jobType && (
-                    <div className="mt-2">
-                      <Badge variant="outline" className="text-xs">
+                    <div className="mt-3">
+                      <Badge variant="outline" className="text-xs bg-gradient-to-r from-pink-500/10 to-pink-600/10 text-pink-300 border-pink-500/30 hover:bg-pink-500/20 hover:border-pink-400/50">
                         {job.jobType}
                       </Badge>
                     </div>
                   )}
                 </div>
-                
-                <div className="flex items-center space-x-2">
-                  <Badge variant="default" className="text-xs capitalize">
+
+                <div className="flex items-center space-x-2 ml-4">
+                  <Badge variant="default" className="text-xs capitalize bg-gradient-to-r from-pink-500/20 to-pink-600/20 text-pink-300 border-pink-500/30 shadow-lg shadow-pink-500/20">
                     {job.source}
                   </Badge>
                   <button
@@ -388,10 +393,10 @@ export function JobSearchResults({
                       e.stopPropagation();
                       handleSave(job.id);
                     }}
-                    className={`p-2 rounded-lg transition-colors ${
+                    className={`p-2 rounded-lg transition-all duration-300 relative ${
                       isSaved(job.id)
-                        ? 'text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20'
-                        : 'text-slate-400 hover:text-yellow-400 hover:bg-slate-700/50'
+                        ? 'text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20 shadow-lg shadow-yellow-500/20'
+                        : 'text-slate-400 hover:text-pink-400 hover:bg-pink-500/10 hover:shadow-lg hover:shadow-pink-500/20'
                     }`}
                     aria-label={isSaved(job.id) ? 'Unsave job' : 'Save job'}
                   >
@@ -408,21 +413,25 @@ export function JobSearchResults({
                         d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
                       />
                     </svg>
+                    {/* Pink ring on hover */}
+                    <div className={`absolute inset-0 rounded-lg border-2 border-pink-500/0 hover:border-pink-500/50 transition-all duration-300 ${isSaved(job.id) ? 'opacity-0' : ''}`}></div>
                   </button>
-                  <a 
-                    href={job.url} 
-                    target="_blank" 
+                  <a
+                    href={job.url}
+                    target="_blank"
                     rel="noopener noreferrer"
-                    className="text-purple-400 hover:text-purple-300 transition-colors p-2 rounded-lg hover:bg-purple-500/10"
+                    className="text-pink-400 hover:text-pink-300 transition-colors p-2 rounded-lg hover:bg-pink-500/10 hover:shadow-lg hover:shadow-pink-500/20 relative group/link"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <ExternalLink className="h-5 w-5" />
+                    {/* Pink glow effect */}
+                    <div className="absolute inset-0 rounded-lg bg-pink-500/0 group-hover/link:bg-pink-500/10 transition-all duration-300"></div>
                   </a>
                 </div>
               </div>
-              
+
               {job.description && (
-                <div className="mt-3 text-sm text-slate-300 line-clamp-2">
+                <div className="mt-4 text-sm text-slate-300 line-clamp-2 bg-gradient-to-r from-slate-800/30 to-slate-900/30 p-3 rounded-lg border border-slate-600/30 hover:border-pink-500/20 transition-colors duration-300">
                   {job.description}
                 </div>
               )}
@@ -434,11 +443,11 @@ export function JobSearchResults({
       {/* Results Summary */}
       {filteredJobs.length > 0 && (
         <div className="flex justify-center mt-6">
-          <div className="text-center text-slate-400">
-            <p className="text-sm">
+          <div className="text-center bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-700/30 px-6 py-4">
+            <p className="text-sm text-slate-300">
               Showing <span className="font-semibold text-white">{filteredJobs.length}</span> job{filteredJobs.length !== 1 ? 's' : ''}
             </p>
-            <p className="text-xs mt-1">Search for more jobs using the form above</p>
+            <p className="text-xs mt-1 text-slate-400">Search for more jobs using the form above</p>
           </div>
         </div>
       )}

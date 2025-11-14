@@ -236,12 +236,12 @@ const JobDetailsModal = memo(function JobDetailsModal({
                   </div>
 
                   {job.industry && (
-                    <div className="bg-purple-50 border border-purple-200 rounded-xl p-6">
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
                       <div className="flex items-center gap-3 mb-3">
-                        <Building2 className="w-6 h-6 text-purple-600" />
-                        <h3 className="text-lg font-semibold text-purple-700">Industry</h3>
+                        <Building2 className="w-6 h-6 text-blue-600" />
+                        <h3 className="text-lg font-semibold text-blue-700">Industry</h3>
                       </div>
-                      <p className="text-purple-800 font-semibold text-xl">
+                      <p className="text-blue-800 font-semibold text-xl">
                         {job.industry}
                       </p>
                     </div>
@@ -291,10 +291,10 @@ const JobDetailsModal = memo(function JobDetailsModal({
                       <Heart className="w-6 h-6" />
                       Apply for this job
                     </motion.button>
-                    <div className="mt-2 p-3 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg">
+                    <div className="mt-2 p-3 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-lg">
                       <div className="flex items-center gap-2 mb-1">
-                        <Sparkles className="w-4 h-4 text-purple-600" />
-                        <span className="text-sm font-semibold text-purple-700">AI Agent Coming Soon!</span>
+                        <Sparkles className="w-4 h-4 text-blue-600" />
+                        <span className="text-sm font-semibold text-blue-700">AI Agent Coming Soon!</span>
                       </div>
                       <p className="text-xs text-gray-700">
                         Our self-applying AI agent will automatically apply to jobs for you. Available exclusively for Pro users.

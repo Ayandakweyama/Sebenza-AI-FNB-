@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useAfrigter } from '@/hooks/useAfrigter';
 import DashboardNavigation from '@/components/dashboard/DashboardNavigation';
+import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 
 export default function CareerRoadmapPage() {
   const [currentRole, setCurrentRole] = useState('');
@@ -20,7 +21,8 @@ export default function CareerRoadmapPage() {
       return;
     }
     
-    await callAfrigter('career-roadmap', {
+    await callAfrigter({
+      type: 'career-roadmap',
       currentRole,
       targetRole,
       timeline,
@@ -134,9 +136,7 @@ export default function CareerRoadmapPage() {
             {response ? (
               <div className="mt-8 bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
                 <h2 className="text-2xl font-bold mb-4 text-white">Your Career Roadmap</h2>
-                <div className="prose prose-invert max-w-none text-slate-300">
-                  {response}
-                </div>
+                <MarkdownRenderer content={response} />
               </div>
             ) : (
               <div className="mt-8 text-center p-6 border-2 border-dashed border-slate-700 rounded-xl">

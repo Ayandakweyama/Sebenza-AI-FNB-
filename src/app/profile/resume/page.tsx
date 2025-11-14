@@ -35,9 +35,13 @@ export default function ResumeDocumentsPage() {
       if (response.ok) {
         const data = await response.json();
         setDocuments(data.documents || []);
+      } else {
+        console.error('Failed to fetch documents:', response.status);
+        // Could add user notification here
       }
     } catch (error) {
       console.error('Error fetching documents:', error);
+      // Could add user notification here
     } finally {
       setLoading(false);
     }
@@ -86,9 +90,13 @@ export default function ResumeDocumentsPage() {
             isPrimary: doc.id === documentId
           }))
         );
+      } else {
+        console.error('Failed to set primary document:', response.status);
+        alert('Failed to set document as primary. Please try again.');
       }
     } catch (error) {
       console.error('Error setting primary document:', error);
+      alert('Error setting primary document. Please try again.');
     }
   };
 
@@ -102,10 +110,24 @@ export default function ResumeDocumentsPage() {
 
       if (response.ok) {
         setDocuments(prev => prev.filter(doc => doc.id !== documentId));
+      } else {
+        console.error('Failed to delete document:', response.status);
+        alert('Failed to delete document. Please try again.');
       }
     } catch (error) {
       console.error('Error deleting document:', error);
+      alert('Error deleting document. Please try again.');
     }
+  };
+
+  const downloadDocument = (doc: Document) => {
+    const link = document.createElement('a');
+    link.href = doc.fileUrl;
+    link.download = doc.fileName;
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const formatFileSize = (bytes: number) => {
@@ -282,10 +304,18 @@ export default function ResumeDocumentsPage() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => window.open(document.fileUrl, '_blank')}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors"
+                    className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors"
                   >
                     <Eye className="w-4 h-4" />
                     View
+                  </button>
+                  
+                  <button
+                    onClick={() => downloadDocument(document)}
+                    className="flex items-center justify-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download
                   </button>
                   
                   <button

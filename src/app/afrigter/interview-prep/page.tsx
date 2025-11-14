@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Loader2, MessageCircle, Play, AlertCircle, Copy, RefreshCw } from 'lucide-react';
 import DashboardNavigation from '@/components/dashboard/DashboardNavigation';
+import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 
 export default function InterviewPrepPage() {
   const [selectedType, setSelectedType] = useState<string | null>(null);
@@ -221,14 +222,7 @@ export default function InterviewPrepPage() {
                 
                 {/* Preparation Results */}
                 <div className="bg-slate-800/30 p-6 rounded-xl border border-slate-700/50 mb-6">
-                  <div className="prose prose-invert max-w-none">
-                    <div 
-                      className="text-slate-300 leading-relaxed whitespace-pre-wrap"
-                      style={{ fontSize: '14px', lineHeight: '1.6' }}
-                    >
-                      {prepResult}
-                    </div>
-                  </div>
+                  <MarkdownRenderer content={prepResult} />
                 </div>
                 
                 <div className="flex flex-col sm:flex-row gap-3">

@@ -180,7 +180,7 @@ export default function ApplicationsPage() {
           <h3 className="mt-4 text-lg font-medium text-white">No applications yet</h3>
           <p className="mt-2 text-sm text-slate-300">Your job applications will appear here once you start applying.</p>
           <div className="mt-6">
-            <Button asChild className="bg-purple-600 hover:bg-purple-700">
+            <Button asChild className="bg-blue-600 hover:bg-blue-700">
               <Link href="/jobs/all">
                 <Briefcase className="h-4 w-4 mr-2" />
                 Browse Jobs

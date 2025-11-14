@@ -243,7 +243,7 @@ export function TinderJobInterface({
                   placeholder="Search jobs..."
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  className="w-full pl-9 sm:pl-10 pr-4 py-2.5 sm:py-3 text-sm sm:text-base bg-slate-700/50 border border-slate-600 text-white placeholder-slate-400 rounded-lg sm:rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                  className="w-full pl-9 sm:pl-10 pr-4 py-2.5 sm:py-3 text-sm sm:text-base bg-slate-700/50 border border-slate-600 text-white placeholder-slate-400 rounded-lg sm:rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
               </div>
               
@@ -254,7 +254,7 @@ export function TinderJobInterface({
                   placeholder="Location..."
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
-                  className="w-full pl-9 sm:pl-10 pr-4 py-2.5 sm:py-3 text-sm sm:text-base bg-slate-700/50 border border-slate-600 text-white placeholder-slate-400 rounded-lg sm:rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                  className="w-full pl-9 sm:pl-10 pr-4 py-2.5 sm:py-3 text-sm sm:text-base bg-slate-700/50 border border-slate-600 text-white placeholder-slate-400 rounded-lg sm:rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
               </div>
             </div>
@@ -266,8 +266,8 @@ export function TinderJobInterface({
                 onClick={() => setShowFilters(!showFilters)}
                 className={`px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border transition-all flex items-center gap-2 text-sm sm:text-base ${
                   showFilters 
-                    ? 'bg-purple-500/20 border-purple-500/50 text-purple-400' 
-                    : 'bg-slate-700/50 border-slate-600 text-slate-300 hover:bg-slate-700 hover:border-purple-500/30'
+                    ? 'bg-blue-500/20 border-blue-500/50 text-blue-400' 
+                    : 'bg-slate-700/50 border-slate-600 text-slate-300 hover:bg-slate-700 hover:border-blue-500/30'
                 }`}
               >
                 <Filter className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -278,8 +278,8 @@ export function TinderJobInterface({
               <motion.button
                 type="submit"
                 disabled={isSearching}
-                className={`flex-1 sm:flex-none px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg sm:rounded-xl font-medium transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-500/20 ${
-                  isSearching ? 'opacity-75 cursor-not-allowed' : 'hover:shadow-purple-500/40 hover:scale-105'
+                className={`flex-1 sm:flex-none px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg sm:rounded-xl font-medium transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 ${
+                  isSearching ? 'opacity-75 cursor-not-allowed' : 'hover:shadow-blue-500/40 hover:scale-105'
                 }`}
                 whileHover={{ scale: isSearching ? 1 : 1.02 }}
                 whileTap={{ scale: isSearching ? 1 : 0.98 }}

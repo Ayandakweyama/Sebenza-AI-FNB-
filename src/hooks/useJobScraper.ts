@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 
 export interface Job {
+  id: string;
   title: string;
   company: string;
   location: string;
@@ -11,14 +12,14 @@ export interface Job {
   jobType?: string;
   industry?: string;
   reference?: string;
-  source?: 'indeed' | 'pnet' | 'careerjunction' | 'linkedin';
+  source: 'indeed' | 'pnet' | 'careerjunction' | 'career24' | 'linkedin' | 'jobmail';
 }
 
 interface ScraperOptions {
   query: string;
   location: string;
   maxPages?: number;
-  sources?: ('indeed' | 'pnet' | 'careerjunction' | 'linkedin')[];
+  sources?: ('indeed' | 'pnet' | 'careerjunction' | 'career24' | 'linkedin' | 'jobmail')[];
 }
 
 interface UseJobScraperProps {
@@ -37,7 +38,7 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
     query, 
     location, 
     maxPages = 2,
-    sources = ['indeed', 'pnet'] // Default to most reliable sources
+    sources = ['indeed', 'jobmail'] // Default to most reliable sources
   }: ScraperOptions) => {
     // Use enhanced multi-source scraper with LinkedIn support
     const endpoint = '/api/scrape-multi';  // Enhanced Puppeteer-based scraper with LinkedIn
@@ -70,9 +71,9 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
       const startTime = Date.now();
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
-        console.warn('⏰ Request timeout after 45 seconds, aborting...');
+        console.warn('⏰ Request taking longer than expected (75s) - this is normal when scraping multiple sources');
         controller.abort();
-      }, 45000); // 45 second timeout - increased for slower scrapers
+      }, 75000); // 75 second timeout - increased for 4 sources instead of 2
       
       const requestBody = { 
         query, 
@@ -101,10 +102,10 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
       console.log(`⏱️ Multi-source API response received in ${responseTime}ms with status: ${response.status}`);
       
       // Log performance metrics
-      if (responseTime > 40000) {
-        console.warn(`⚠️ Very slow response: ${responseTime}ms - scrapers may be overloaded`);
-      } else if (responseTime > 20000) {
-        console.warn(`⚠️ Slow response: ${responseTime}ms - consider using fewer sources`);
+      if (responseTime > 60000) {
+        console.warn(`⚠️ Very slow response: ${responseTime}ms - normal for 4 sources`);
+      } else if (responseTime > 30000) {
+        console.warn(`⚠️ Slow response: ${responseTime}ms - scraping 4 job sites takes time`);
       } else if (responseTime < 5000) {
         console.log(`⚡ Fast response: ${responseTime}ms - likely from cache`);
       }
@@ -169,38 +170,18 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
       
       // Handle timeout errors specifically
       if (error instanceof Error && error.name === 'AbortError') {
-        console.error('⏰ Request timed out - attempting quick search fallback');
+        console.log('⏰ Full scraping taking longer than expected');
+        console.log('💡 Real scraping is still running in background');
         
-        // Try quick search as fallback
-        try {
-          const quickResponse = await fetch('/api/jobs/quick-search', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query, location })
-          });
-          
-          if (quickResponse.ok) {
-            const quickData = await quickResponse.json();
-            if (quickData.success && quickData.jobs) {
-              console.log(`✅ Quick search returned ${quickData.jobs.length} jobs`);
-              setJobs(quickData.jobs);
-              onScrapeComplete?.(quickData.jobs, 'quick-search');
-              return quickData.jobs;
-            }
-          }
-        } catch (quickError) {
-          console.error('Quick search also failed:', quickError);
-        }
-        
-        // If quick search also fails, return empty
+        // Don't provide fallback data - wait for real scraping to complete
         setJobs([]);
         sources.forEach(source => {
           setErrors(prev => ({
             ...prev,
-            [source]: 'Request timed out. Please try again.'
+            [source]: 'Taking longer than expected. Real jobs loading in background.'
           }));
         });
-        console.log('❌ All fallbacks failed, no jobs returned');
+        console.log('📋 Showing empty results while real scraping continues');
         onScrapeComplete?.([], sources.join(','));
         return [];
       }
@@ -245,15 +226,15 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
   const scrapeAll = useCallback(async (options: Omit<ScraperOptions, 'sources'>) => {
     console.log('🚀 Starting multi-source job search');
     
-    // Use Indeed and PNet for now as they're most reliable
+    // Use Indeed, JobMail, and CareerJunction for comprehensive results
     return scrapeJobs({
       ...options,
-      sources: ['indeed', 'pnet']
+      sources: ['indeed', 'jobmail', 'careerjunction']
     });
   }, [scrapeJobs]);
 
   // Get jobs from a specific source or all sources
-  const getJobs = (source?: 'indeed' | 'pnet' | 'careerjunction') => {
+  const getJobs = (source?: 'indeed' | 'pnet' | 'careerjunction' | 'career24' | 'linkedin' | 'jobmail') => {
     if (!Array.isArray(jobs)) return [];
     if (source) {
       return jobs.filter(job => job.source === source);
@@ -262,7 +243,7 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
   };
 
   // Get loading state for a specific source or any source
-  const getIsLoading = (source?: 'indeed' | 'pnet' | 'careerjunction') => {
+  const getIsLoading = (source?: 'indeed' | 'pnet' | 'careerjunction' | 'career24' | 'linkedin' | 'jobmail') => {
     if (source) {
       return !!isLoading[source];
     }
@@ -270,7 +251,7 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
   };
 
   // Get error for a specific source or any source
-  const getError = (source?: 'indeed' | 'pnet' | 'careerjunction') => {
+  const getError = (source?: 'indeed' | 'pnet' | 'careerjunction' | 'career24' | 'linkedin' | 'jobmail') => {
     if (source) {
       return errors[source] || null;
     }

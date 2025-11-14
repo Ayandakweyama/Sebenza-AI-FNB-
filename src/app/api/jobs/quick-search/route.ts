@@ -53,11 +53,11 @@ function generateQuickJobs(query: string, location: string, count: number = 25):
       location: location || 'South Africa',
       salary,
       postedDate: `${daysAgo} day${daysAgo > 1 ? 's' : ''} ago`,
-      description: `We are looking for a talented ${level} ${variation} to join our ${company} team in ${location}. This ${jobType.toLowerCase()} position offers ${salary} and the opportunity to work with cutting-edge technologies. Join us to make a real impact in the tech industry.`,
+      description: `⚡ Quick result - Real jobs still loading...\n\nWe are looking for a talented ${level} ${variation} to join our ${company} team in ${location}. This ${jobType.toLowerCase()} position offers ${salary} and the opportunity to work with cutting-edge technologies. Join us to make a real impact in the tech industry.`,
       jobType,
       industry: 'Technology',
       url: `https://example.com/job/${i}`,
-      source: 'indeed' as const
+      source: 'quick-search' as const
     });
   }
   
@@ -76,17 +76,15 @@ export async function POST(request: Request) {
       );
     }
     
-    // Generate more quick results for better user experience
-    const quickJobs = generateQuickJobs(query, location, 30);
-    
-    console.log(`⚡ Quick search: Generated ${quickJobs.length} jobs for "${query}" in "${location}"`);
+    // DISABLED: No sample data should be served - only real scraped jobs
+    console.log(`❌ Quick search disabled: "${query}" in "${location}" - only real jobs allowed`);
     
     return NextResponse.json({
-      success: true,
-      jobs: quickJobs,
-      count: quickJobs.length,
-      message: 'Quick results - real job scraping in progress',
-      quick: true
+      success: false,
+      jobs: [],
+      count: 0,
+      message: 'Quick search disabled - waiting for real job scraping to complete',
+      disabled: true
     });
     
   } catch (error) {
@@ -94,10 +92,10 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { 
         success: false, 
-        error: 'Failed to generate quick results',
+        error: 'Quick search disabled',
         jobs: []
       },
-      { status: 500 }
+      { status: 503 } // Service Unavailable
     );
   }
 }

@@ -235,7 +235,7 @@ export async function POST(request: Request) {
       
       page.on('console', handleConsoleMessage);
       
-      // Build search URL
+    // Build search URL
       const searchParams = new URLSearchParams({
         keywords: query.toString(),
         location: location.toString(),
@@ -355,405 +355,59 @@ export async function POST(request: Request) {
         console.log('No cookie consent banner found or could not be interacted with');
       }
       
-      // Helper function to auto-scroll the page
-      const autoScrollPage = async (page: Page) => {
-        try {
-          await page.evaluate(async () => {
-            await new Promise<void>((resolve) => {
-              let currentHeight = 0;
-              const scrollStep = 100;
-              const scrollInterval = 100; // ms
-              
-              const scrollFn = () => {
-                const scrollHeight = document.body.scrollHeight;
-                window.scrollBy(0, scrollStep);
-                currentHeight += scrollStep;
-
-                if (currentHeight < scrollHeight - window.innerHeight) {
-                  setTimeout(scrollFn, scrollInterval);
-                } else {
-                  resolve();
-                }
-              };
-              
-              scrollFn();
-            });
-          });
-        } catch (error) {
-          console.warn('Auto-scroll failed, continuing without it:', error);
-        }
-      };
-
-      // Calculate total pages to scrape (max 10)
-      const maxPagesToScrape = Math.min(Number(validatedMaxPages) || 1, 10);
-  
-      for (let pageNum = 1; pageNum <= maxPagesToScrape; pageNum++) {
-        console.log(`📄 Processing page ${pageNum} of ${maxPagesToScrape}...`);
+      // SIMPLE TEST: Just try to find any jobs on the page
+      console.log('🔍 ===== SIMPLE JOB SEARCH TEST =====');
+      
+      const simpleJobs = await page.evaluate((baseUrl: string) => {
+        // Look for any links that might be job links
+        const jobLinks = Array.from(document.querySelectorAll('a[href*="/job/"], a[href*="/jobs/"], a[href*="careerjunction"]'));
+        console.log(`Found ${jobLinks.length} potential job links`);
         
-        try {
-          // Update URL for pagination if not the first page
-          if (pageNum > 1) {
-            const pageUrl = `${CONFIG.baseUrl}/jobs?${new URLSearchParams({
-              keywords: query.toString(),
-              location: location.toString(),
-              pagesize: '20',
-              page: pageNum.toString(),
-            })}`;
-            
-            console.log(`🔄 Navigating to page ${pageNum}: ${pageUrl}`);
-            
-            try {
-              const navResponse = await page.goto(pageUrl, { 
-                waitUntil: CONFIG.navigation.waitUntil,
-                timeout: CONFIG.navigation.timeout 
-              });
-              
-              if (!navResponse || navResponse.status() < 200 || navResponse.status() >= 300) {
-                console.warn(`Failed to navigate to page ${pageNum}, stopping pagination`);
-                break;
-              }
-              
-              // Wait for the page to settle
-              await randomDelay(1000, 3000);
-            } catch (navError) {
-              console.error(`Error navigating to page ${pageNum}:`, navError);
-              break;
-            }
+        // Try to find job titles from various sources
+        const titles = [];
+        
+        // Look for h1, h2, h3 tags
+        document.querySelectorAll('h1, h2, h3, h4').forEach(el => {
+          const text = el.textContent?.trim();
+          if (text && text.length > 5 && text.length < 100) {
+            titles.push(text);
           }
-          
-          // Wait for job listings to load with a flexible selector
-          try {
-            await page.waitForSelector(
-              '.job-listing, [data-testid="job-card"], .job-card, .job-item', 
-              { 
-                timeout: CONFIG.navigation.waitForSelectorTimeout,
-                visible: true 
-              }
-            );
-            
-            // Scroll to load all jobs (lazy loading)
-            await autoScrollPage(page);
-            
-            // Add a small delay to ensure all content is loaded
-            await randomDelay(1000, 2000);
-            
-          } catch (error) {
-            console.warn(`No job listings found on page ${pageNum} or timeout waiting for them`);
-            // Take a screenshot for debugging
-            if (page) {
-              try {
-                const screenshot = await page.screenshot({ encoding: 'base64' });
-                console.log(`Screenshot of page ${pageNum}:`, `data:image/png;base64,${screenshot}`);
-              } catch (screenshotError) {
-                console.error('Failed to take screenshot:', screenshotError);
-              }
-            }
-            
-            // If we're on the first page and no jobs found, it might be an error
-            if (pageNum === 1) {
-              throw new Error('No job listings found on the first page. The page structure might have changed.');
-            }
-            
-            // Otherwise, just break the loop as we've reached the end
-            break;
+        });
+        
+        // Look for elements with job-related classes
+        document.querySelectorAll('.job-title, .title, .position').forEach(el => {
+          const text = el.textContent?.trim();
+          if (text && text.length > 5) {
+            titles.push(text);
           }
-          
-          // Add debug logging for page content
-          const pageContent = await page.content();
-          console.log('Page content length:', pageContent.length);
-          console.log('Page title:', await page.title());
-          
-          // Take a screenshot for debugging
-          try {
-            const screenshot = await page.screenshot({ encoding: 'base64' });
-            console.log('Page screenshot (first 100 chars):', `data:image/png;base64,${screenshot.substring(0, 100)}...`);
-          } catch (e) {
-            console.error('Failed to take screenshot:', e);
-          }
-          
-          // Extract job data from the current page
-          const pageJobs = await page.evaluate((baseUrl: string) => {
-            // Helper function to get text content with multiple selectors
-            const getText = (element: Element, selectors: string[]): string => {
-              for (const selector of selectors) {
-                try {
-                  const el = element.querySelector(selector);
-                  if (el && el.textContent && el.textContent.trim()) {
-                    return el.textContent.trim();
-                  }
-                } catch (e) {
-                  console.warn(`Error querying selector ${selector}:`, e);
-                }
-              }
-              return '';
-            };
-            
-            // Helper function to get href with multiple selectors
-            const getHref = (element: Element, selectors: string[]): string => {
-              for (const selector of selectors) {
-                try {
-                  const el = element.querySelector(selector);
-                  if (el) {
-                    const href = el.getAttribute('href');
-                    if (href) return href;
-                  }
-                } catch (e) {
-                  console.warn(`Error getting href with selector ${selector}:`, e);
-                }
-              }
-              return '';
-            };
-            
-            // Log the document body for debugging
-            console.log('Document body length:', document.body?.innerText?.length || 0);
-            
-            // Try different selectors to find job elements - updated with more specific selectors
-            const selectors = [
-              'div.job-card',
-              'div.job-listing',
-              'article.job',
-              'div.job',
-              'li.job',
-              'div[data-testid="job-card"]',
-              'div[class*="job-card"]',
-              'div[class*="job-listing"]',
-              'div[class*="job-item"]',
-              'div[class*="job-"]',
-              'div[class*="listing"]',
-              'article[class*="job"]',
-              'li[class*="job"]',
-              'div[class*="result"]',
-              'div[class*="item"]',
-              'div.card', // More generic selectors as fallback
-              'div.list-item'
-            ];
-            
-            let jobElements: Element[] = [];
-            
-            // First, try to find job container elements
-            const containerSelectors = [
-              'div#search-results',
-              'div.job-listings',
-              'div.jobs-container',
-              'div.search-results',
-              'div[role="list"]'
-            ];
-            
-            // Look for container elements first
-            let container: Element | null = null;
-            for (const selector of containerSelectors) {
-              try {
-                const el = document.querySelector(selector);
-                if (el) {
-                  console.log(`Found container with selector: ${selector}`);
-                  container = el;
-                  break;
-                }
-              } catch (e) {
-                console.warn(`Error with container selector ${selector}:`, e);
-              }
-            }
-            
-            // If we found a container, search within it
-            const searchRoot = container || document;
-            
-            // Try each selector until we find some job elements
-            for (const selector of selectors) {
-              try {
-                const elements = Array.from(searchRoot.querySelectorAll(selector));
-                console.log(`Found ${elements.length} elements with selector: ${selector}`);
-                
-                // If we found elements and they look like job listings (have title and company)
-                const filteredElements = elements.filter(el => {
-                  const hasTitle = Boolean(getText(el, ['h2', 'h3', 'h4', '.title', '.job-title', '[data-testid*="title"]']));
-                  const hasCompany = Boolean(getText(el, ['.company', '.employer', '[data-testid*="company"]']));
-                  return hasTitle || hasCompany; // At least one of them should be present
-                });
-                
-                if (filteredElements.length > 0) {
-                  console.log(`Found ${filteredElements.length} valid job elements with selector: ${selector}`);
-                  jobElements = filteredElements;
-                  break;
-                }
-              } catch (e) {
-                console.warn(`Error with selector ${selector}:`, e);
-              }
-            }
-            
-            if (!jobElements || jobElements.length === 0) {
-              console.warn('No job elements found with any selector');
-              
-              // Try a more generic approach - look for any links that might be job links
-              console.log('Trying fallback approach...');
-              const allLinks = Array.from(document.querySelectorAll('a[href*="/job/"], a[href*="/jobs/"]'));
-              console.log(`Found ${allLinks.length} potential job links`);
-              
-              if (allLinks.length > 0) {
-                // Create basic job entries from links
-                const fallbackJobs = allLinks.slice(0, 10).map((link, index) => {
-                  const anchor = link as HTMLAnchorElement;
-                  return {
-                    title: link.textContent?.trim() || `Job ${index + 1}`,
-                    company: 'Company not specified',
-                    location: 'Location not specified',
-                    salary: 'Salary not specified',
-                    postedDate: 'Date not specified',
-                    description: '',
-                    jobType: undefined,
-                    industry: undefined,
-                    reference: undefined,
-                    url: anchor.href.startsWith('http') ? anchor.href : `${baseUrl}${anchor.href}`,
-                    source: 'CareerJunction'
-                  };
-                });
-                
-                console.log(`Created ${fallbackJobs.length} fallback jobs`);
-                return fallbackJobs;
-              }
-              
-              return [];
-            }
-            
-            const results = [];
-            
-            for (const jobElement of jobElements) {
-              try {
-                // Extract job data with fallback selectors
-                const title = getText(jobElement, [
-                  'h2.job-title a', 'h3.job-title a', 'h2 a', 'h3 a',
-                  '[data-testid="job-title"]', '.job-title', '.title', 'h2', 'h3'
-                ]);
-                
-                if (!title) {
-                  console.warn('Skipping job element with no title');
-                  continue;
-                }
-                
-                const company = getText(jobElement, [
-                  '.company', '.company-name', '.employer',
-                  '[data-testid="company-name"]', '.org', '.company-name', 'span.company'
-                ]);
-                
-                const location = getText(jobElement, [
-                  '.location', '.job-location', '.area',
-                  '[data-testid="job-location"]', '.loc', '.job-area', 'span.location'
-                ]);
-                
-                const salary = getText(jobElement, [
-                  '.salary', '.job-salary', '.remuneration',
-                  '[data-testid="job-salary"]', '.package', '.job-package', 'span.salary'
-                ]);
-                
-                const postedDate = getText(jobElement, [
-                  '.date-posted', '.posted-date', '.date',
-                  '[data-testid="job-date"]', '.timeago', '.posted', 'span.date'
-                ]);
-                
-                const jobType = getText(jobElement, ['.job-type', '.type', '.employment-type', 'span.type']);
-                const industry = getText(jobElement, ['.industry', '.sector', '.job-category', 'span.industry']);
-                const reference = getText(jobElement, ['.reference', '.job-ref', 'span.reference']);
-                
-                // Construct job URL
-                const href = getHref(jobElement, [
-                  'a.job-title', 'a[href*="/jobs/"]', 'a[href*="/job/"]',
-                  'a[href*="careerjunction"]', 'a[data-testid="job-link"]', 'a'
-                ]);
-                
-                let url = '#';
-                if (href) {
-                  try {
-                    url = new URL(href, baseUrl).href;
-                  } catch (e) {
-                    url = href.startsWith('/') ? `${baseUrl}${href}` : href;
-                  }
-                }
-                
-                results.push({
-                  title: title || 'No title',
-                  company: company || 'Company not specified',
-                  location: location || 'Location not specified',
-                  salary: salary || 'Salary not specified',
-                  postedDate: postedDate || 'Date not specified',
-                  description: '', // Will be filled in detailed view
-                  jobType: jobType || undefined,
-                  industry: industry || undefined,
-                  reference: reference || undefined,
-                  url: url,
-                  source: 'CareerJunction'
-                });
-                
-              } catch (error) {
-                console.warn('Error parsing job element:', error);
-                // Continue with the next job element
-              }
-            }
-            
-            return results;
-          }, CONFIG.baseUrl);
-          
-          const pageJobsCount = pageJobs?.length || 0;
-          console.log(`✅ Processed ${pageJobsCount} jobs on page ${pageNum}`);
-          
-          // Add the jobs from this page to our results
-          jobs.push(...pageJobs);
-          
-          if (pageJobs.length === 0 && pageNum === 1) {
-            // If no jobs found on first page, it might be an error
-            const pageContent = await page.content().catch(() => '');
-            console.warn('No jobs found on first page. Page content length:', pageContent.length);
-            
-            if (pageContent.includes('no jobs found') || 
-                pageContent.includes('no results') ||
-                pageContent.length < 1000) { // Very small page might be an error page
-              throw new Error('No jobs found for the given search criteria');
-            }
-          }
-          
-          // Continue to next page if we have jobs
-          if (pageJobs.length > 0) {
-            // Add random delay between pages to avoid rate limiting
-            if (pageNum < maxPagesToScrape) {
-              const delay = randomInt(
-                CONFIG.navigation.delayBetweenPages.min, 
-                CONFIG.navigation.delayBetweenPages.max
-              );
-              console.log(`⏳ Waiting ${delay}ms before next page...`);
-              await new Promise(resolve => setTimeout(resolve, delay));
-            }
-          } else {
-            console.log('No jobs found on this page, stopping pagination');
-            break;
-          }
-          
-        } catch (pageError) {
-          console.error(`❌ Error processing page ${pageNum}:`, pageError);
-          
-          // If it's the first page, rethrow the error to fail fast
-          if (pageNum === 1) {
-            throw new Error(`Failed to process the first page: ${pageError instanceof Error ? pageError.message : 'Unknown error'}`);
-          }
-          
-          // Otherwise, log the error and break the loop
-          console.warn(`Skipping to next page due to error on page ${pageNum}`);
-          break;
-        }
-      }
-
-      // Return the results
+        });
+        
+        console.log(`Found ${titles.length} potential job titles`);
+        
+        // Return basic information
+        return {
+          jobLinks: jobLinks.length,
+          titles: titles.slice(0, 5), // First 5 titles
+          pageTextLength: document.body?.innerText?.length || 0,
+          hasJobsSection: !!document.querySelector('[data-testid*="job"], .job, .vacancy, .position')
+        };
+      }, CONFIG.baseUrl);
+      
+      console.log('Simple job search results:', simpleJobs);
+      
+      // Return test results
       return NextResponse.json({
         success: true,
-        jobs: jobs,
-        meta: {
-          total: jobs.length,
-          pages: Math.ceil(jobs.length / 20), // Assuming 20 jobs per page
-          query,
-          location,
-          timestamp: new Date().toISOString()
-        }
+        test: true,
+        message: 'Simple test completed',
+        data: simpleJobs,
+        pageTitle,
+        pageUrl: page?.url(),
+        timestamp: new Date().toISOString()
       });
       
     } catch (error: unknown) {
-      log('❌ Error during scraping:', { 
+      log('❌ Error during debugging:', { 
         error: error instanceof Error ? {
           name: error.name,
           message: error.message,
@@ -791,7 +445,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { 
           success: false, 
-          error: 'Failed to scrape CareerJunction',
+          error: 'Failed to debug CareerJunction',
           message: errorMessage,
           requestId,
           timestamp: new Date().toISOString()
@@ -800,7 +454,7 @@ export async function POST(request: Request) {
           status: 500,
           headers: {
             'X-Request-ID': requestId,
-            'X-Error-Type': 'ScraperError'
+            'X-Error-Type': 'DebugError'
           }
         }
       );
@@ -827,7 +481,7 @@ export async function POST(request: Request) {
       };
       
       await cleanup();
-      log('===== CLEANUP COMPLETE =====');
+      log('===== DEBUG CLEANUP COMPLETE =====');
     }
   } catch (outerError) {
     // Handle any errors that occur outside the main try-catch
@@ -837,15 +491,15 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { 
         success: false, 
-        error: 'Failed to scrape CareerJunction',
+        error: 'Failed to debug CareerJunction',
         message: errorMessage,
-        requestId,
+        requestId: 'unknown',
         timestamp: new Date().toISOString()
       },
       { status: 500 }
     );
   } finally {
     // Log the end of the request
-    log('🔹 Request completed at:', new Date().toISOString());
+    log('🔹 Debug request completed at:', new Date().toISOString());
   }
 }

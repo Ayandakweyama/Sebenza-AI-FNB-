@@ -46,22 +46,31 @@ export default function DashboardNavigation({
 
   return (
     <>
-      {/* Breadcrumbs */}
-      <div className="mb-2">
-        <div className="text-sm text-slate-500">
-          {breadcrumbs.map((breadcrumb, index) => (
-            <span key={breadcrumb.href}>
-              {breadcrumb.label}
-              {!breadcrumb.isLast && <span className="mx-2">/</span>}
-            </span>
-          ))}
+      {/* Breadcrumbs - Hide on afrigter main page */}
+      {pathname !== '/afrigter' && (
+        <div className="mb-2">
+          <div className="text-sm text-slate-500">
+            {breadcrumbs.map((breadcrumb, index) => (
+              <span key={breadcrumb.href}>
+                {breadcrumb.label}
+                {!breadcrumb.isLast && <span className="mx-2">/</span>}
+              </span>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Page Header */}
       {(title || description) && (
         <div className="mb-6 sm:mb-8">
-          {title && <h1 className="text-3xl font-bold text-white mb-2">{title}</h1>}
+          <div className="flex items-center gap-4 mb-4">
+            <img 
+              src="/Sebenza ai raw logo.png" 
+              alt="Sebenza AI Logo" 
+              className="h-48 w-auto"
+            />
+            {title && <h1 className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-pink-500 to-pink-600 bg-clip-text text-transparent leading-tight">{title}</h1>}
+          </div>
           {description && <p className="text-lg text-slate-400">{description}</p>}
         </div>
       )}

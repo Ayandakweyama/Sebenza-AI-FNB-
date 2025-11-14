@@ -5,16 +5,21 @@ import { autoScroll, configureRequestInterception, FAST_BROWSER_CONFIG, fastDela
 export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult> {
   const { query, location, maxPages = 3 } = config; // Increased default pages
   let browser;
+  const startTime = Date.now();
   
   try {
     console.log(`🔍 Starting Indeed scraper for "${query}" in "${location}"`);
     
     browser = await getBrowserFromPool();
+    console.log(`⏱️ Browser acquired in ${Date.now() - startTime}ms`);
+    
     const page = await browser.newPage();
+    console.log(`⏱️ Page created in ${Date.now() - startTime}ms`);
     
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     
     await configureRequestInterception(page, true); // Aggressive blocking for speed
+    console.log(`⏱️ Request interception configured in ${Date.now() - startTime}ms`);
     
     const allJobs: Job[] = [];
     
@@ -26,18 +31,21 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
       console.log(`   URL: ${searchUrl}`);
       
       try {
+        const pageStartTime = Date.now();
         await page.goto(searchUrl, { 
           waitUntil: 'domcontentloaded',  // Changed from networkidle2
           timeout: 60000 
         });
-        console.log('   ✓ Page loaded');
+        console.log(`   ✓ Page loaded in ${Date.now() - pageStartTime}ms`);
       } catch (navError) {
         console.error(`   ✗ Navigation failed:`, navError);
         throw navError;
       }
       
+      const scrollStartTime = Date.now();
       await fastDelay(1000, 2000); // Faster delays
       await autoScroll(page);
+      console.log(`   ✓ Auto-scroll completed in ${Date.now() - scrollStartTime}ms`);
       
       // Debug: Check what selectors are available
       const debugSelectors = await page.evaluate(() => {
@@ -52,6 +60,7 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
       });
       console.log(`📊 Indeed page ${pageNum + 1} - Available selectors:`, debugSelectors);
       
+      const extractStartTime = Date.now();
       const jobs = await page.evaluate((): Job[] => {
         const jobElements = document.querySelectorAll('div.job_seen_beacon, div.jobsearch-SerpJobCard, div[data-jk], div.slider_container div.slider_item, table.jobsTable tr');
         const extractedJobs: Job[] = [];
@@ -117,13 +126,16 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
         return extractedJobs;
       });
       
-      console.log(`✅ Indeed - Found ${jobs.length} jobs on page ${pageNum + 1}`);
+      console.log(`✅ Indeed - Found ${jobs.length} jobs on page ${pageNum + 1} (extraction took ${Date.now() - extractStartTime}ms)`);
       allJobs.push(...jobs);
       
       if (pageNum < maxPages - 1) {
         await fastDelay(1500, 3000); // Faster page delays
       }
     }
+    
+    const totalTime = Date.now() - startTime;
+    console.log(`🎉 Indeed scraper completed in ${totalTime}ms - Total jobs: ${allJobs.length}`);
     
     return {
       jobs: allJobs,
@@ -147,8 +159,8 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
         await returnBrowserToPool(browser);
         console.log('✓ Indeed browser returned to pool');
       } catch (closeError) {
-        console.warn('Error returning Indeed browser to pool:', closeError);
-        await browser.close().catch(() => {});
+        console.warn('⚠️ Error closing Indeed browser:', closeError);
+        // Continue - don't let cleanup errors break the response
       }
     }
   }

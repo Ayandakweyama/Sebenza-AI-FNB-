@@ -5,26 +5,26 @@ export const navigationItems: NavigationItem[] = [
     title: 'Afrigter', 
     description: 'AI Career Mentor', 
     path: '/afrigter',
-    icon: '🤖'
+    icon: 'Bot'
   },
   { 
     title: 'Job Listings', 
     description: 'Browse available opportunities', 
     path: '/jobs',
-    icon: '💼'
+    icon: 'Briefcase'
   },
   { 
     title: 'Your Profile', 
     description: 'Update your information', 
     path: '/profile',
-    icon: '👤',
+    icon: 'User',
     
   },
   { 
     title: 'Applications', 
     description: 'Track your job applications', 
     path: '/applications',
-    icon: '📋'
+    icon: 'ClipboardList'
   },
   // Analytics section removed as per user request
   // Networking section removed as per user request

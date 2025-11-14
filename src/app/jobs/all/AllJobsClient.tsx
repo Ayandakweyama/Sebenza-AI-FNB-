@@ -53,49 +53,49 @@ export default function AllJobsClient() {
   }, [scrapeAll]);
 
   return (
-    <div className="min-h-screen bg-slate-900">
+    <div className="space-y-4 sm:space-y-6 lg:space-y-8">
       {/* Header with view toggle */}
-      <div className="bg-gradient-to-r from-purple-600 via-purple-500 to-blue-600 shadow-2xl border-b border-purple-500/30 sticky top-0 sm:top-16 z-10">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-5 md:py-6">
-          <div className="flex flex-col gap-6">
-            <div className="text-white text-center sm:text-left">
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-1 sm:mb-2 text-white drop-shadow-lg">
+      <div className="bg-gradient-to-r from-pink-600 via-pink-500 to-purple-600 shadow-2xl border border-pink-500/30 sticky top-0 z-10 rounded-2xl overflow-hidden">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-3 sm:py-4 md:py-6">
+          <div className="flex flex-col gap-4 sm:gap-6">
+            <div className="text-center sm:text-left">
+              <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold mb-1 sm:mb-2 text-white drop-shadow-lg">
                 Find Your Next Opportunity
-              </h1>
-              <p className="text-purple-100 text-sm sm:text-base md:text-lg font-medium">
-                Discover jobs from Indeed, Pnet & CareerJunction
+              </h2>
+              <p className="text-pink-200 text-sm sm:text-base md:text-lg font-medium">
+                Discover jobs from Indeed, Pnet, Career24, LinkedIn & more
               </p>
             </div>
 
             {/* View mode toggle */}
             <div className="flex justify-center sm:justify-start">
-              <div className="bg-white/10 backdrop-blur-sm p-1 rounded-xl sm:rounded-2xl flex gap-1 shadow-lg w-full sm:w-auto">
+              <div className="bg-white/10 backdrop-blur-sm p-1 rounded-lg sm:rounded-xl flex gap-1 shadow-lg w-full sm:w-auto max-w-xs sm:max-w-none">
                 <motion.button
                   onClick={() => setViewMode('tinder')}
-                  className={`flex-1 sm:flex-none px-4 sm:px-6 py-2 sm:py-3 rounded-lg sm:rounded-xl font-semibold transition-all duration-200 flex items-center justify-center gap-2 text-sm sm:text-base ${
+                  className={`flex-1 sm:flex-none px-3 sm:px-4 md:px-6 py-2 sm:py-3 rounded-md sm:rounded-lg md:rounded-xl font-semibold transition-all duration-200 flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-sm md:text-base ${
                     viewMode === 'tinder'
-                      ? 'bg-white text-purple-700 shadow-lg shadow-white/30'
+                      ? 'bg-white text-pink-700 shadow-lg shadow-white/30'
                       : 'text-white/80 hover:text-white hover:bg-white/20'
                   }`}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
-                  <Heart className="w-4 h-4 sm:w-5 sm:h-5" />
-                  <span className="hidden xs:inline">Swipe</span>
+                  <Heart className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5" />
+                  <span className="hidden xs:inline sm:inline">Swipe</span>
                 </motion.button>
-                
+
                 <motion.button
                   onClick={() => setViewMode('list')}
-                  className={`flex-1 sm:flex-none px-4 sm:px-6 py-2 sm:py-3 rounded-lg sm:rounded-xl font-semibold transition-all duration-200 flex items-center justify-center gap-2 text-sm sm:text-base ${
+                  className={`flex-1 sm:flex-none px-3 sm:px-4 md:px-6 py-2 sm:py-3 rounded-md sm:rounded-lg md:rounded-xl font-semibold transition-all duration-200 flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-sm md:text-base ${
                     viewMode === 'list'
-                      ? 'bg-white text-purple-700 shadow-lg shadow-white/30'
+                      ? 'bg-white text-pink-700 shadow-lg shadow-white/30'
                       : 'text-white/80 hover:text-white hover:bg-white/20'
                   }`}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
-                  <LayoutGrid className="w-4 h-4 sm:w-5 sm:h-5" />
-                  <span className="hidden xs:inline">List</span>
+                  <LayoutGrid className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5" />
+                  <span className="hidden xs:inline sm:inline">List</span>
                 </motion.button>
               </div>
             </div>
@@ -106,16 +106,18 @@ export default function AllJobsClient() {
       {/* Content based on view mode */}
       <div className="flex-1">
         {viewMode === 'tinder' ? (
-          <TinderJobInterface 
-            initialQuery="software engineer"
-            initialLocation="South Africa"
-            sharedJobs={jobs}
-            sharedIsLoading={isLoading}
-            sharedScrapeAll={scrapeAll}
-          />
+          <div className="px-2 sm:px-4">
+            <TinderJobInterface
+              initialQuery="software engineer"
+              initialLocation="South Africa"
+              sharedJobs={jobs}
+              sharedIsLoading={isLoading}
+              sharedScrapeAll={scrapeAll}
+            />
+          </div>
         ) : (
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <JobSearchResults 
+          <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">
+            <JobSearchResults
               initialQuery="software engineer"
               initialLocation="South Africa"
               onJobSelect={(job) => console.log('Selected job:', job)}

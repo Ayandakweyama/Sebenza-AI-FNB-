@@ -5,6 +5,7 @@ import { Send, User, Bot, Briefcase, TrendingUp, Users, BookOpen, Mic, BarChart3
 import DashboardNavigation from '@/components/dashboard/DashboardNavigation';
 import ChatHistorySidebar from '@/components/chat/ChatHistorySidebar';
 import { useChatHistory, ChatSession } from '@/hooks/useChatHistory';
+import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 
 export default function CareerAdvicePage() {
   const [messages, setMessages] = useState([
@@ -328,7 +329,11 @@ export default function CareerAdvicePage() {
                             ? 'bg-blue-500 text-white'
                             : 'bg-slate-700 text-slate-100'
                         }`}>
-                          <p className="text-sm leading-relaxed">{message.content}</p>
+                          {message.type === 'assistant' ? (
+                            <MarkdownRenderer content={message.content} className="prose-sm" />
+                          ) : (
+                            <p className="text-sm leading-relaxed">{message.content}</p>
+                          )}
                         </div>
                       </div>
                     ))}

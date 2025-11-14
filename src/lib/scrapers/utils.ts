@@ -1,4 +1,6 @@
 import { randomInt } from 'crypto';
+import path from 'path';
+import fs from 'fs';
 import type { Browser, Page } from 'puppeteer';
 
 export const randomDelay = (min: number, max: number): Promise<void> => 
@@ -74,27 +76,52 @@ let browserPool: Browser[] = [];
 const MAX_POOL_SIZE = 3;
 
 export async function getBrowserFromPool(): Promise<Browser> {
-  // Check if we have a browser in the pool and if it's still connected
-  while (browserPool.length > 0) {
-    const browser = browserPool.pop()!;
-    if (browser.isConnected()) {
-      return browser;
-    }
-    // If not connected, close it and continue
-    await browser.close().catch(() => {});
-  }
-  
-  // Create a new browser instance
+  // Create a new browser instance with guaranteed unique userDataDir
   const puppeteer = await import('puppeteer');
-  return await puppeteer.default.launch(FAST_BROWSER_CONFIG);
+  
+  let userDataDir: string;
+  let uniqueDir: string;
+  let attempts = 0;
+  
+  do {
+    const timestamp = Date.now();
+    const randomId = Math.random().toString(36).substr(2, 9) + Math.random().toString(36).substr(2, 9) + Math.random().toString(36).substr(2, 9);
+    uniqueDir = `puppeteer_dev_chrome_profile-${timestamp}-${randomId}`;
+    userDataDir = path.join(require('os').tmpdir(), uniqueDir);
+    attempts++;
+  } while (fs.existsSync(userDataDir) && attempts < 10); // Ensure directory doesn't exist
+  
+  console.log(`🔧 Creating browser with unique userDataDir: ${userDataDir}`);
+  
+  const config = {
+    ...FAST_BROWSER_CONFIG,
+    userDataDir
+  };
+  
+  try {
+    const browser = await puppeteer.default.launch(config);
+    console.log(`✅ Browser created successfully with unique profile: ${uniqueDir}`);
+    return browser;
+  } catch (error) {
+    console.error(`❌ Failed to create browser with profile ${uniqueDir}:`, error);
+    throw error;
+  }
 }
 
 export async function returnBrowserToPool(browser: Browser) {
-  // Only return to pool if browser is still connected
-  if (browser.isConnected() && browserPool.length < MAX_POOL_SIZE) {
-    browserPool.push(browser);
+  // Since each browser has a unique userDataDir, don't reuse them
+  // Just close the browser properly with error handling
+  if (browser && browser.isConnected()) {
+    try {
+      console.log('🧹 Closing browser...');
+      await browser.close();
+      console.log('✅ Browser closed successfully');
+    } catch (error) {
+      console.warn('⚠️ Error closing browser (this is usually safe to ignore):', error);
+      // Don't rethrow - browser cleanup errors are usually not critical
+    }
   } else {
-    await browser.close().catch(() => {});
+    console.log('ℹ️ Browser already closed or not connected');
   }
 }
 
@@ -143,11 +170,12 @@ export const FAST_BROWSER_CONFIG = {
     '--disable-css',
     '--disable-plugins',
     '--disable-extensions',
-    '--disable-javascript',
+    // Removed --disable-javascript - scrapers need JS
     '--no-first-run',
     '--memory-pressure-off'
   ],
   defaultViewport: { width: 1024, height: 600 },
   ignoreHTTPSErrors: true,
-  timeout: 15000
+  timeout: 15000,
+  protocolTimeout: 120000 // 2 minutes for protocol operations
 };

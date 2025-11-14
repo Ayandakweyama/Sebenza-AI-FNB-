@@ -164,12 +164,12 @@ export async function POST(request: Request) {
       jobs: allJobs,
       count: allJobs.length,
       sourceCounts: {
-        adzuna: allJobs.length,
-        indeed: 0,
-        pnet: 0,
-        careerjunction: 0
+        indeed: allJobs.filter(j => j.source === 'indeed').length,
+        pnet: allJobs.filter(j => j.source === 'pnet').length,
+        careerjunction: allJobs.filter(j => j.source === 'careerjunction').length,
+        linkedin: 0
       },
-      message: 'Jobs fetched from Adzuna API (fallback)'
+      message: 'Sample jobs - add Adzuna API keys or fix Puppeteer for real scraping'
     });
 
   } catch (error) {
