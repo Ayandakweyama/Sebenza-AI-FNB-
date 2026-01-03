@@ -1,8 +1,8 @@
 import React from 'react';
 import { MobileDashboard } from './MobileDashboard';
-import { DesktopSidebar } from './DesktopSidebar';
 import { DashboardContent } from './DashboardContentReal';
 import { MobileGreeting } from './MobileGreeting';
+import { DesktopGreeting } from './DesktopGreeting';
 import { useDashboard } from './context/DashboardContext';
 import { Plus } from 'lucide-react';
 
@@ -36,11 +36,17 @@ export const DashboardLayout: React.FC = () => {
       
       {/* Content container */}
       <div className="relative z-10">
-        {/* Mobile View */}
-        <div className="md:hidden relative">
-          {/* Mobile Greeting at the top */}
-          <MobileGreeting />
+        {/* Desktop Greeting - Shown on desktop only */}
+        <DesktopGreeting />
 
+        {/* Mobile Greeting - Shown on mobile only */}
+        <div className="md:hidden">
+          <MobileGreeting />
+        </div>
+
+        {/* Unified Dashboard View - Works on both mobile and desktop */}
+        <div className="relative">
+          {/* Unified Navigation Dashboard - Works on all screen sizes */}
           <MobileDashboard 
             navigationItems={updatedNavigationItems}
             hoveredCard={hoveredCard}
@@ -49,25 +55,10 @@ export const DashboardLayout: React.FC = () => {
             chatbotOpen={chatbotOpen}
           />
           
-          {/* Mobile Dashboard Content */}
-          <div className="px-4 pb-8 pt-0 -mt-16">
+          {/* Dashboard Content */}
+          <div className="px-4 md:px-8 pb-8 pt-0 md:-mt-16">
             <DashboardContent />
           </div>
-
-        </div>
-
-        {/* Desktop View */}
-        <div className="hidden md:flex h-screen">
-          <DesktopSidebar 
-            navigationItems={updatedNavigationItems}
-            hoveredCard={hoveredCard}
-            setHoveredCard={setHoveredCard}
-            sidebarCollapsed={sidebarCollapsed}
-            setSidebarCollapsed={setSidebarCollapsed}
-            setChatbotOpen={setChatbotOpen}
-          />
-          
-          <DashboardContent />
         </div>
       </div>
     </div>

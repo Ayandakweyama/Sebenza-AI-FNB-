@@ -116,7 +116,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = (props) => {
     <div 
       ref={containerRef}
       className={`
-        md:hidden h-screen overflow-hidden
+        h-screen overflow-hidden
         bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 
         relative
         transition-opacity duration-700
@@ -278,10 +278,10 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = (props) => {
         </div>
 
         {/* Scrollable Cards Container - Takes remaining space */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden scroll-smooth">
+        <div className="flex-1 overflow-y-auto md:overflow-hidden overflow-x-hidden scroll-smooth">
           {/* Enhanced Ultra-Modern Navigation Cards */}
           <div className="relative z-10 px-4 py-6">
-            <div className="grid grid-cols-2 gap-5 pb-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-5 pb-6">
               {navigationItems.map((item: NavigationItem, index: number) => {
                 const isHovered = hoveredCard === index;
                 const isPressed = pressedItem === index;

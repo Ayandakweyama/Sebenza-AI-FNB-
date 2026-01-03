@@ -396,10 +396,80 @@ const ContentDisplay: React.FC<ContentDisplayProps> = ({
       </div>
     </CardHeader>
     <CardContent>
-      <div className="bg-slate-900 p-3 sm:p-4 rounded-lg max-h-96 overflow-y-auto">
-        <pre className="whitespace-pre-wrap text-xs sm:text-sm text-slate-300 font-sans">
-          {content}
-        </pre>
+      <div className="bg-slate-900/50 backdrop-blur-sm p-4 sm:p-6 rounded-xl max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-900">
+        <div className="prose prose-invert prose-sm max-w-none">
+          <div className="text-xs sm:text-sm text-slate-200 font-sans leading-relaxed space-y-4">
+            {content.split('\n').map((line, index) => {
+              let processedLine = line;
+              
+              // Handle ### headings first (convert to styled subsections)
+              if (line.startsWith('###')) {
+                processedLine = line.replace(/^###\s*/, '');
+                return (
+                  <div key={index} className="mt-6 mb-4">
+                    <h3 className="text-base sm:text-lg font-semibold text-white mb-3 pb-2 border-b border-slate-700">
+                      {processedLine}
+                    </h3>
+                  </div>
+                );
+              }
+              
+              // Handle # headings (main sections)
+              if (line.startsWith('#') && !line.startsWith('###')) {
+                return (
+                  <div key={index} className="mt-8 mb-6">
+                    <h2 className="text-lg sm:text-xl font-bold text-white mb-4 pb-3 border-b border-blue-500/30">
+                      {line.replace('#', '').trim()}
+                    </h2>
+                  </div>
+                );
+              }
+              
+              // Handle bullet points (including * characters at start of line)
+              if (/^[\s]*[\*\-\•]\s/.test(line)) {
+                return (
+                  <div key={index} className="flex items-start gap-3 ml-4 mb-3 group">
+                    <span className="text-blue-400 mt-1 text-sm font-bold group-hover:text-blue-300 transition-colors">•</span>
+                    <span className="text-slate-200 flex-1 leading-relaxed">
+                      {line.replace(/^[\s]*[\*\-\•]\s*/, '')}
+                    </span>
+                  </div>
+                );
+              }
+              
+              // Handle numbered lists
+              if (/^\d+\./.test(line.trim())) {
+                return (
+                  <div key={index} className="flex items-start gap-3 ml-4 mb-3 group">
+                    <span className="text-blue-400 font-bold text-sm group-hover:text-blue-300 transition-colors min-w-[20px]">
+                      {line.match(/^\d+\./)?.[0]}
+                    </span>
+                    <span className="text-slate-200 flex-1 leading-relaxed">
+                      {line.replace(/^\d+\.\s*/, '')}
+                    </span>
+                  </div>
+                );
+              }
+              
+              // Handle bold text
+              if (processedLine.includes('**')) {
+                processedLine = processedLine.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-semibold">$1</strong>');
+              }
+              
+              // Handle empty lines
+              if (processedLine.trim() === '') {
+                return <div key={index} className="h-4" />;
+              }
+              
+              // Regular text
+              return (
+                <p key={index} className="mb-3 text-slate-200 leading-relaxed">
+                  <span dangerouslySetInnerHTML={{ __html: processedLine }} />
+                </p>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </CardContent>
   </Card>
@@ -854,16 +924,6 @@ export default function ApplicationsPage() {
         </p>
       </div>
 
-      {/* Profile Strength Display */}
-      <ProfileStrengthDisplay
-        percentage={profileStrength}
-        label={strengthLabel}
-        color={strengthColor}
-        recommendations={strengthRecommendations}
-        isLoading={isProfileLoading}
-        error={profileError}
-      />
-
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="input" className="flex items-center gap-2 text-xs sm:text-sm">
@@ -1004,41 +1064,22 @@ export default function ApplicationsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 sm:space-y-4">
-                {/* CV Upload */}
-                <CVUpload
-                  isUploading={isUploading}
-                  cvFile={cvFile}
-                  cvParsed={cvParsed}
-                  onUpload={handleCVUpload}
-                  onReset={handleCVReset}
-                />
-
-                {/* Skills */}
+                {/* CV Text Input */}
                 <div>
-                  <label className="block text-xs sm:text-sm font-medium mb-2">
-                    Skills
-                    {userProfile.skills.length > 0 && (
-                      <span className="text-slate-400 ml-2 text-xs">
-                        ({userProfile.skills.length})
-                      </span>
-                    )}
+                  <label htmlFor="cv-text" className="block text-xs sm:text-sm font-medium mb-2">
+                    CV Text <span className="text-slate-400 text-xs">(Copy and paste your CV text here)</span>
                   </label>
-                  {userProfile.skills.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-3 p-2 sm:p-3 bg-slate-900 rounded-lg">
-                      {userProfile.skills.map((skill) => (
-                        <SkillBadge
-                          key={skill}
-                          skill={skill}
-                          onRemove={handleSkillRemove}
-                          className="text-xs"
-                        />
-                      ))}
-                    </div>
-                  )}
-                  <SkillInput
-                    onAdd={handleSkillAdd}
-                    existingSkills={userProfile.skills}
+                  <Textarea
+                    id="cv-text"
+                    value={cvText}
+                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setCvText(e.target.value)}
+                    placeholder="Paste your CV text here. Include your work experience, education, skills, and any other relevant information..."
+                    rows={8}
+                    className="text-sm resize-y"
                   />
+                  <p className="text-xs text-slate-500 mt-1">
+                    {cvText.length} characters
+                  </p>
                 </div>
 
                 {/* Experience Level */}
@@ -1060,25 +1101,10 @@ export default function ApplicationsPage() {
                   </select>
                 </div>
 
-                {/* Experience */}
-                <div>
-                  <label htmlFor="experience" className="block text-xs sm:text-sm font-medium mb-2">
-                    Experience Summary
-                  </label>
-                  <Textarea
-                    id="experience"
-                    value={userProfile.experience}
-                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleProfileChange('experience', e.target.value)}
-                    placeholder="Describe your relevant experience..."
-                    rows={5}
-                    className="text-sm resize-y"
-                  />
-                </div>
-
                 {/* Preferences */}
                 <div>
                   <label htmlFor="preferences" className="block text-xs sm:text-sm font-medium mb-2">
-                    Preferences & Goals
+                    Preferences & Goals <span className="text-slate-400 text-xs">(Optional)</span>
                   </label>
                   <Textarea
                     id="preferences"
