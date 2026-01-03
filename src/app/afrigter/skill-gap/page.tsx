@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import DashboardNavigation from '@/components/dashboard/DashboardNavigation';
 
 export default function SkillGapPage() {
   const [currentRole, setCurrentRole] = useState('');
@@ -77,11 +76,29 @@ export default function SkillGapPage() {
 
   return (
     <div className="min-h-screen bg-slate-950">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-12 sm:pt-16 lg:pt-20 pb-6 sm:pb-8 lg:pb-12">
-        <DashboardNavigation 
-          title="Skill Gap Analysis"
-          description="Identify the skills you need to develop to reach your career goals"
-        />
+      <div className="container mx-auto pt-16 sm:pt-20 pb-6 sm:pb-8 px-4 max-w-7xl">
+        {/* Header */}
+        <div className="mb-6 sm:mb-8">
+          <div className="flex items-center justify-between mb-8">
+            <a 
+              href="/dashboard"
+              className="inline-flex items-center px-4 py-2 rounded-lg bg-slate-800/50 border border-slate-700 hover:bg-slate-700/50 text-slate-300 hover:text-white transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-chevron-left h-5 w-5 mr-2" aria-hidden="true">
+                <path d="m15 18-6-6 6-6"></path>
+              </svg>
+              Back to Dashboard
+            </a>
+          </div>
+          <div className="flex items-center justify-center gap-2 sm:gap-3 mb-2">
+            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-pink-400 to-rose-500 bg-clip-text text-transparent text-center">
+              Skill Gap Analysis
+            </h1>
+          </div>
+          <p className="text-slate-400 text-sm sm:text-base text-center px-2">
+            Identify the skills you need to develop to reach your career goals
+          </p>
+        </div>
         
         <div className="mt-6">
           <form onSubmit={handleSubmit} className="bg-slate-800/50 rounded-xl p-6 mb-8 border border-slate-700/50">
