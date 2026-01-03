@@ -19,7 +19,7 @@ export default function SkillsManagementPage() {
 
   return (
     <div className="min-h-screen bg-slate-950">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-12">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-12 sm:pt-16 lg:pt-20 pb-6 sm:pb-8 lg:pb-12">
         <DashboardNavigation 
           title="Skills & Languages Management"
           description="Manage your professional skills and language proficiencies"

@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { useFormContext } from 'react-hook-form';
+import { Button } from '@/components/ui/button';
 import DashboardNavigation from '@/components/dashboard/DashboardNavigation';
 import { MultiStepFormProvider, useMultiStepFormContext } from './components/FormContext';
 import { PersonalInfoStep } from './components/PersonalInfoStep';
@@ -15,7 +16,102 @@ import { SkillsStepEnhanced } from './components/SkillsStepEnhanced';
 import { SkillsStepResponsive } from './components/SkillsStepResponsive';
 import { GoalsStep } from './components/GoalsStep';
 import { CVStyleStep } from './components/CVStyleStep';
+import { ExistingDataSummary } from './components/ExistingDataSummary';
 import { profileFormSchema, ProfileFormData } from './profile.schema';
+import { useAuth } from '@clerk/nextjs';
+import { getValidToken, exponentialBackoff } from '@/utils/authHelpers';
+
+// Function to load existing profile data from API
+const loadProfileData = async (): Promise<Partial<ProfileFormData> | null> => {
+  try {
+    const response = await fetch('/api/profile');
+    
+    if (!response.ok) {
+      console.error('Failed to load profile data:', response.status);
+      return null;
+    }
+    
+    const data = await response.json();
+    
+    // Transform API data to match ProfileFormData structure
+    const transformedProfile: Partial<ProfileFormData> = {
+      // Personal info
+      firstName: data.profile?.firstName || '',
+      lastName: data.profile?.lastName || '',
+      email: data.user?.email || '',
+      phone: data.profile?.phone || '',
+      location: data.profile?.location || '',
+      bio: data.profile?.bio || '',
+
+      // Education
+      education: data.education?.map((edu: any) => ({
+        institution: edu.institution,
+        degree: edu.degree,
+        fieldOfStudy: edu.fieldOfStudy,
+        startDate: new Date(edu.startDate),
+        endDate: edu.endDate ? new Date(edu.endDate) : undefined,
+        current: edu.current || false,
+        description: edu.description || ''
+      })) || [],
+
+      // Work experience
+      workExperience: data.experience?.map((exp: any) => ({
+        company: exp.company,
+        position: exp.position,
+        startDate: new Date(exp.startDate),
+        endDate: exp.endDate ? new Date(exp.endDate) : undefined,
+        current: exp.current || false,
+        description: exp.description || '',
+        achievements: exp.achievements || []
+      })) || [],
+
+      // Skills
+      technicalSkills: data.skills
+        ?.filter((s: any) => s.category === 'technical')
+        ?.map((s: any) => ({
+          name: s.name,
+          level: s.proficiency === 'beginner' ? 'Beginner' :
+                 s.proficiency === 'intermediate' ? 'Intermediate' :
+                 s.proficiency === 'advanced' ? 'Advanced' : 'Expert'
+        })) || [],
+
+      softSkills: data.skills
+        ?.filter((s: any) => s.category === 'soft')
+        ?.map((s: any) => s.name) || [],
+
+      languages: data.skills
+        ?.filter((s: any) => s.category === 'language')
+        ?.map((s: any) => ({
+          name: s.name,
+          proficiency: s.proficiency === 'beginner' ? 'Basic' :
+                      s.proficiency === 'intermediate' ? 'Conversational' :
+                      s.proficiency === 'expert' ? 'Fluent' : 'Native'
+        })) || [],
+
+      // Goals & preferences
+      jobTitle: data.jobPreferences?.jobTitle || '',
+      industries: data.jobPreferences?.industries || [],
+      jobTypes: data.jobPreferences?.desiredRoles || [],
+      salaryExpectation: data.jobPreferences?.salaryExpectation,
+      relocation: data.jobPreferences?.relocation || false,
+      remotePreference: data.jobPreferences?.remoteWork ? 'Remote' : 'Flexible',
+      careerGoals: data.jobPreferences?.careerGoals || '',
+
+      // CV Style
+      template: data.cvStyle?.template || 'Professional',
+      colorScheme: data.cvStyle?.colorScheme || '#2563eb',
+      fontFamily: data.cvStyle?.fontFamily || 'Arial',
+      showPhoto: data.cvStyle?.showPhoto !== false
+    };
+
+    console.log('Loaded profile data from API:', transformedProfile);
+    return transformedProfile;
+    
+  } catch (error) {
+    console.error('Error loading profile data:', error);
+    return null;
+  }
+};
 
 // Function to save profile data to the API
 const saveProfileData = async (data: ProfileFormData) => {
@@ -134,6 +230,87 @@ const saveProfileData = async (data: ProfileFormData) => {
 
 export default function PersonalProfilePage() {
   const router = useRouter();
+  const { isLoaded, isSignedIn, getToken } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
+  const [existingData, setExistingData] = useState<Partial<ProfileFormData> | null>(null);
+  const [showSummary, setShowSummary] = useState(false);
+
+  // Load existing profile data on mount with robust authentication timing
+  useEffect(() => {
+    const loadData = async () => {
+      if (!isLoaded || !isSignedIn) {
+        setIsLoading(false);
+        return;
+      }
+
+      // Add initial delay to let Clerk fully initialize
+      await exponentialBackoff(0, 1000);
+
+      // Validate token before making API calls
+      const token = await getValidToken(getToken, 3);
+      if (!token) {
+        console.warn('Unable to get valid token, skipping profile data load');
+        setIsLoading(false);
+        return;
+      }
+
+      console.log('Token validated, loading profile data...');
+      setIsLoading(true);
+      
+      try {
+        // First try to load from API (most up-to-date)
+        const apiData = await loadProfileData();
+        
+        // Then check localStorage for any unsaved changes
+        let localStorageData: Partial<ProfileFormData> | null = null;
+        if (typeof window !== 'undefined') {
+          const savedData = localStorage.getItem('profileFormData');
+          if (savedData) {
+            try {
+              localStorageData = JSON.parse(savedData);
+              console.log('Found localStorage data:', localStorageData);
+            } catch (error) {
+              console.error('Error parsing localStorage data:', error);
+            }
+          }
+        }
+
+        // Merge data: API data as base, localStorage data overrides if more recent
+        let mergedData: Partial<ProfileFormData> = {};
+        
+        if (apiData) {
+          mergedData = { ...apiData };
+        }
+        
+        if (localStorageData) {
+          // localStorage data takes precedence (user's recent changes)
+          mergedData = { ...mergedData, ...localStorageData };
+        }
+
+        setExistingData(mergedData);
+        
+        // Show notification if we found existing data
+        if (apiData || localStorageData) {
+          toast.success('Your existing profile data has been loaded');
+          // Show summary if there's meaningful data
+          const hasData = Object.keys(mergedData).some(key => {
+            const value = mergedData[key as keyof ProfileFormData];
+            if (Array.isArray(value)) return value.length > 0;
+            return value !== null && value !== undefined && value !== '';
+          });
+          setShowSummary(hasData);
+        }
+        
+      } catch (error) {
+        console.error('Error loading profile data:', error);
+        toast.error('Failed to load existing profile data');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, [isLoaded, isSignedIn, getToken]);
 
   const handleSubmit = async (data: ProfileFormData) => {
     try {
@@ -158,25 +335,33 @@ export default function PersonalProfilePage() {
     }
   };
 
-  // Set default values from localStorage if available
+  // Set default values from existing data, localStorage, or defaults
   const getDefaultValues = (): Partial<ProfileFormData> => {
-    if (typeof window === 'undefined') return {};
+    // If we have existing data, use it
+    if (existingData) {
+      console.log('Using existing profile data as defaults:', existingData);
+      return existingData;
+    }
     
-    const savedData = localStorage.getItem('profileFormData');
-    if (savedData) {
-      try {
-        const parsedData = JSON.parse(savedData);
-        // Validate the parsed data against the schema
-        const result = profileFormSchema.safeParse(parsedData);
-        if (result.success) {
-          return result.data;
+    // Check localStorage for saved data
+    if (typeof window !== 'undefined') {
+      const savedData = localStorage.getItem('profileFormData');
+      if (savedData) {
+        try {
+          const parsedData = JSON.parse(savedData);
+          const result = profileFormSchema.safeParse(parsedData);
+          if (result.success) {
+            console.log('Using localStorage data as defaults:', result.data);
+            return result.data;
+          }
+        } catch (error) {
+          console.error('Error parsing saved form data:', error);
         }
-      } catch (error) {
-        console.error('Error parsing saved form data:', error);
       }
     }
     
-    // Return default values if no saved data or parsing failed
+    // Return default values if no existing data
+    console.log('Using default values');
     return {
       education: [{
         institution: '',
@@ -208,16 +393,60 @@ export default function PersonalProfilePage() {
 
   return (
     <div className="min-h-screen bg-slate-950">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-12">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-12 sm:pt-16 lg:pt-20 pb-6 sm:pb-8 lg:pb-12">
         <DashboardNavigation 
           title="Complete Your Profile"
           description="Fill in your details to get the most out of Sebenza AI"
         />
         
         <div className="mt-8 bg-slate-900/50 border border-slate-800 rounded-2xl p-6 sm:p-8">
-          <MultiStepFormProvider defaultValues={getDefaultValues()} onSubmit={handleSubmit}>
-            <FormSteps />
-          </MultiStepFormProvider>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-500 mr-3" />
+              <span className="text-slate-400">Loading your profile data...</span>
+            </div>
+          ) : showSummary && existingData ? (
+            <div className="space-y-6">
+              <div className="text-center">
+                <h2 className="text-2xl font-bold text-white mb-2">
+                  Welcome back! Here's your profile so far
+                </h2>
+                <p className="text-slate-400 mb-6">
+                  You can continue where you left off or make changes to any section
+                </p>
+              </div>
+              
+              <ExistingDataSummary data={existingData} />
+              
+              <div className="flex justify-center gap-4 pt-4">
+                <Button
+                  onClick={() => setShowSummary(false)}
+                  size="lg"
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  Continue Editing
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    // Clear existing data and start fresh
+                    setExistingData(null);
+                    setShowSummary(false);
+                    if (typeof window !== 'undefined') {
+                      localStorage.removeItem('profileFormData');
+                    }
+                    toast.info('Starting with a fresh profile');
+                  }}
+                >
+                  Start Over
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <MultiStepFormProvider defaultValues={getDefaultValues()} onSubmit={handleSubmit}>
+              <FormSteps />
+            </MultiStepFormProvider>
+          )}
         </div>
       </div>
     </div>

@@ -1,10 +1,10 @@
 'use client';
 
 import { useJobContext } from '@/contexts/JobContext';
-import { Briefcase, Bookmark, Clock, Bell, CheckCircle } from 'lucide-react';
+import { Briefcase, Clock, Bell, CheckCircle } from 'lucide-react';
 
 export default function NavigationStatus() {
-  const { savedJobs, applications, jobAlerts, isLoading } = useJobContext();
+  const { applications, jobAlerts, isLoading } = useJobContext();
 
   const stats = [
     {
@@ -14,14 +14,6 @@ export default function NavigationStatus() {
       description: 'Search and discover opportunities',
       status: 'active',
       href: '/jobs/all'
-    },
-    {
-      name: 'Saved Jobs',
-      icon: Bookmark,
-      count: savedJobs.length,
-      description: `${savedJobs.length} jobs saved`,
-      status: savedJobs.length > 0 ? 'active' : 'empty',
-      href: '/jobs/saved'
     },
     {
       name: 'Applications',
@@ -48,7 +40,7 @@ export default function NavigationStatus() {
         <h3 className="text-lg font-semibold text-white">Navigation Status</h3>
       </div>
       
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-3 gap-4">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
@@ -87,7 +79,7 @@ export default function NavigationStatus() {
         })}
       </div>
       
-      {(isLoading.savedJobs || isLoading.applications || isLoading.jobAlerts) && (
+      {(isLoading.applications || isLoading.jobAlerts) && (
         <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
           <div className="flex items-center gap-2 text-blue-400">
             <div className="w-4 h-4 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />

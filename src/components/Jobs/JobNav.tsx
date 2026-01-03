@@ -2,11 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Briefcase, Bookmark, Clock, Bell } from 'lucide-react';
+import { Briefcase, Clock, Bell } from 'lucide-react';
 
 const navigation = [
   { name: 'All Jobs', href: '/jobs/all', icon: Briefcase },
-  { name: 'Saved Jobs', href: '/jobs/saved', icon: Bookmark },
   { name: 'Applications', href: '/jobs/applications', icon: Clock },
   { name: 'Job Alerts', href: '/jobs/alerts', icon: Bell },
 ];

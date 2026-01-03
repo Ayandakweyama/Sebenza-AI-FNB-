@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileText, 
   Upload, 
-  Sparkles, 
   TrendingUp, 
   AlertCircle,
   CheckCircle,
@@ -313,7 +312,6 @@ export function ATSCheckerAI() {
                   </>
                 ) : (
                   <>
-                    <Sparkles className="w-5 h-5 mr-2" />
                     Analyze Resume with AI
                   </>
                 )}

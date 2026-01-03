@@ -1,7 +1,17 @@
 import { SignIn } from "@clerk/nextjs";
 import Image from "next/image";
+import { redirect } from 'next/navigation';
+import { auth } from '@clerk/nextjs/server';
  
-export default function Page() {
+export default async function Page() {
+  // Check if user is already signed in
+  const { userId } = await auth();
+  
+  if (userId) {
+    // User is already signed in, redirect to dashboard
+    redirect('/dashboard');
+  }
+ 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800 p-4">
       <div className="w-full max-w-md">
@@ -13,6 +23,7 @@ export default function Page() {
               width={60} 
               height={60}
               className="rounded-lg"
+              style={{ width: 'auto', height: 'auto' }}
             />
           </div>
           <h1 className="text-3xl font-bold text-white mb-2">Welcome Back</h1>
@@ -52,8 +63,8 @@ export default function Page() {
             routing="path"
             path="/sign-in"
             signUpUrl="/sign-up"
-            afterSignInUrl="/"
-            afterSignUpUrl="/"
+            afterSignInUrl="/dashboard"
+            afterSignUpUrl="/dashboard"
           />
         </div>
         

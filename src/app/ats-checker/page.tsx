@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useRef } from 'react';
-import { Upload, FileText, CheckCircle, XCircle, AlertTriangle, Download, Zap, Target, Award, TrendingUp, Link, Sparkles } from 'lucide-react';
+import { Upload, FileText, CheckCircle, XCircle, AlertTriangle, Download, Zap, Target, Award, TrendingUp, Link } from 'lucide-react';
 import { generateAtsReport, generateWordReport } from '@/lib/generateAtsReport';
 // Define types for our analysis results
 interface KeywordAnalysis {
@@ -562,7 +562,6 @@ Keywords will be automatically extracted and highlighted in your resume analysis
             className={`px-8 py-3 text-lg font-medium rounded-lg flex items-center transition-colors ${!uploadedFile || isAnalyzing ? 'bg-slate-700 text-gray-500 cursor-not-allowed' : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white'}`}
           >
             {isAnalyzing ? 'Analyzing...' : 'Check ATS Compatibility'}
-            {!isAnalyzing && <Sparkles className="w-5 h-5 ml-2" />}
           </button>
         </div>
 

@@ -1,4 +1,6 @@
 import { useState, useCallback } from 'react';
+import { useAuth } from '@clerk/nextjs';
+import { getValidToken } from '@/utils/authHelpers';
 
 export interface Job {
   id: string;
@@ -33,6 +35,7 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
   const [errors, setErrors] = useState<{ [key: string]: string | null }>({});
   const [jobs, setJobs] = useState<Job[]>([]);
   const [activeRequests, setActiveRequests] = useState<Set<string>>(new Set());
+  const { getToken, isLoaded, isSignedIn } = useAuth();
 
   const scrapeJobs = useCallback(async ({ 
     query, 
@@ -40,6 +43,13 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
     maxPages = 2,
     sources = ['indeed', 'jobmail'] // Default to most reliable sources
   }: ScraperOptions) => {
+    // Try to get token for enhanced features, but don't require it for basic scraping
+    const token = await getValidToken(getToken, 3);
+    console.log('🔐 scrapeJobs: Token result:', token ? 'Token obtained' : 'No token available (scraping still works)');
+    
+    // Note: scrape-multi is now public, so authentication is optional
+    // Token will be used for future enhanced features but not required for basic scraping
+    
     // Use enhanced multi-source scraper with LinkedIn support
     const endpoint = '/api/scrape-multi';  // Enhanced Puppeteer-based scraper with LinkedIn
     // const endpoint = '/api/scrape-fallback';  // Fallback Adzuna API (limited sources)
@@ -90,6 +100,7 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
         signal: controller.signal,
         headers: { 
           'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` }), // Only add auth header if token exists
           'X-Request-Source': 'useJobScraper',
           'X-Source-Page': typeof window !== 'undefined' ? window.location.pathname : ''
         },
@@ -126,6 +137,45 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
           url: endpoint,
           method: 'POST'
         });
+        
+        // Handle 404 - User not found in database
+        if (response.status === 404) {
+          console.log('👤 User not found in database, attempting to sync user...');
+          // Try to sync the user first
+          const syncResponse = await fetch('/api/auth/sync-user', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (syncResponse.ok) {
+            console.log('✅ User synced successfully, retrying job scrape...');
+            // Retry the original request after sync
+            const retryResponse = await fetch(endpoint, {
+              method: 'POST',
+              signal: controller.signal,
+              headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+                'X-Request-Source': 'useJobScraper',
+                'X-Source-Page': typeof window !== 'undefined' ? window.location.pathname : ''
+              },
+              body: JSON.stringify(requestBody)
+            });
+            
+            if (retryResponse.ok) {
+              const retryData = await retryResponse.json().catch(() => ({}));
+              console.log('✅ Job scrape successful after user sync');
+              return retryData;
+            } else {
+              console.warn('⚠️ Retry failed after user sync');
+            }
+          } else {
+            console.warn('⚠️ User sync failed');
+          }
+        }
         
         let errorMessage = 'Error from job scraper: ';
         
@@ -221,7 +271,7 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
       
       console.log(`🏁 Finished multi-source job scrape`);
     }
-  }, [onScrapeComplete, onError, onScrapeStart, activeRequests, jobs]);
+  }, [onScrapeComplete, onError, onScrapeStart, activeRequests, jobs, getToken, isLoaded, isSignedIn]);
 
   const scrapeAll = useCallback(async (options: Omit<ScraperOptions, 'sources'>) => {
     console.log('🚀 Starting multi-source job search');

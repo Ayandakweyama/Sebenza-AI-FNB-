@@ -1,12 +1,61 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth, currentUser, getAuth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
+import type { RequestLike } from '@clerk/nextjs/server';
+
+// Helper function to get user from request (supports both session and token)
+async function getUserFromRequest(request: NextRequest) {
+  try {
+    // First try to get user from session (cookies)
+    const { userId } = await auth();
+    if (userId) {
+      console.log('✅ Got user from session:', userId);
+      return userId;
+    }
+
+    // If no session, try to get from Authorization header
+    const authHeader = request.headers.get('authorization');
+    console.log('🔐 Checking auth header:', authHeader ? 'Present' : 'Missing');
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      console.log('🔐 Extracted token, attempting verification...');
+      
+      try {
+        // Create a new request object with the token for verification
+        const authRequest = new Request(request.url, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const { userId: tokenUserId } = getAuth(authRequest);
+        if (tokenUserId) {
+          console.log('✅ Got user from token:', tokenUserId);
+          return tokenUserId;
+        } else {
+          console.log('❌ Token verification returned no userId');
+        }
+      } catch (tokenError) {
+        console.error('❌ Token verification failed:', tokenError);
+      }
+    }
+
+    console.log('❌ No valid authentication found');
+    return null;
+  } catch (error) {
+    console.error('❌ Error getting user from request:', error);
+    return null;
+  }
+}
 
 // GET /api/profile - Get user profile
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const { userId: clerkId } = await auth();
-
+    const clerkId = await getUserFromRequest(request);
+    
     if (!clerkId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -53,7 +102,7 @@ export async function GET() {
 // PUT /api/profile - Update user profile
 export async function PUT(request: NextRequest) {
   try {
-    const { userId: clerkId } = await auth();
+    const clerkId = await getUserFromRequest(request);
 
     if (!clerkId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

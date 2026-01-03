@@ -67,7 +67,7 @@ const Footer = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8">
           <div className="col-span-2">
-            <Link href="/" className="flex items-center">
+            <Link href="/dashboard" className="flex items-center">
               <img
                 src="/sebenza ai full.ico"
                 alt="Sebenza AI"

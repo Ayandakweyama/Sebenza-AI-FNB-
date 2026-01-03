@@ -16,8 +16,7 @@ import {
   Building2,
   Calendar,
   Eye,
-  Lock,
-  Sparkles
+  Lock
 } from 'lucide-react';
 
 interface Job {
@@ -428,7 +427,6 @@ const EnhancedTinderCard = memo(function EnhancedTinderCard({
                 <Lock className="w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 drop-shadow-lg" />
               </motion.button>
               <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 bg-pink-600 text-white text-xs px-2 py-1 rounded-lg whitespace-nowrap flex items-center gap-1">
-                <Sparkles className="w-3 h-3" />
                 <span>AI Agent Soon</span>
               </div>
             </div>

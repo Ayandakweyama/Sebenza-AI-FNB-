@@ -3,17 +3,18 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 import { DashboardProvider } from "./components/dashboard/context/DashboardContext";
-import { JobProvider } from "@/contexts/JobContext";
-import { useUser } from "@clerk/nextjs";
+import { JobProvider } from "../contexts/JobContext";
+import { ProfileProvider } from "../contexts/ProfileContext";
+import { UserSync } from "@/components/auth/UserSync";
 
 function ProvidersContent({ children }: { children: React.ReactNode }) {
-  const { user } = useUser();
-
   return (
-    <DashboardProvider user={user}>
-      <JobProvider>
-        {children}
-      </JobProvider>
+    <DashboardProvider>
+      <ProfileProvider>
+        <JobProvider>
+          {children}
+        </JobProvider>
+      </ProfileProvider>
     </DashboardProvider>
   );
 }
@@ -25,10 +26,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
         baseTheme: dark,
         variables: { colorPrimary: "#3b82f6" },
       }}
+      // Updated to use new prop names
+      signInFallbackRedirectUrl="/dashboard"
+      signUpFallbackRedirectUrl="/dashboard"
     >
-      <ProvidersContent>
-        {children}
-      </ProvidersContent>
+      <UserSync>
+        <ProvidersContent>
+          {children}
+        </ProvidersContent>
+      </UserSync>
     </ClerkProvider>
   );
 }

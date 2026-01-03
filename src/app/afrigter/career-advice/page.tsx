@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Send, User, Bot, Briefcase, TrendingUp, Users, BookOpen, Mic, BarChart3, HandHeart, Sparkles, MessageSquare, History } from 'lucide-react';
+import { Send, User, Bot, Briefcase, TrendingUp, Users, BookOpen, Mic, BarChart3, HandHeart, MessageSquare, History } from 'lucide-react';
 import DashboardNavigation from '@/components/dashboard/DashboardNavigation';
 import ChatHistorySidebar from '@/components/chat/ChatHistorySidebar';
 import { useChatHistory, ChatSession } from '@/hooks/useChatHistory';
@@ -153,7 +153,7 @@ export default function CareerAdvicePage() {
       color: "bg-green-500" 
     },
     { 
-      icon: Sparkles, 
+      icon: TrendingUp, 
       text: "How can I build a strong personal brand?", 
       color: "bg-purple-500" 
     },

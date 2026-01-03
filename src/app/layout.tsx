@@ -3,7 +3,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 import Navbar from "./components/navbar/Navbar";
 import RemoveExtensionAttributes from "./components/RemoveExtensionAttributes";
-import { UserSync } from "@/components/auth/UserSync";
+import PageLoader from "@/components/ui/PageLoader";
 
 // Temporarily disable Google Fonts to fix Turbopack issue
 // import { Geist, Geist_Mono } from "next/font/google";
@@ -56,14 +56,14 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <Providers>
-          <UserSync>
-            <div className="min-h-screen flex flex-col">
-              <Navbar />
-              <main className="flex-1">
+          <div className="min-h-screen flex flex-col">
+            <Navbar />
+            <main className="flex-1">
+              <PageLoader>
                 {children}
-              </main>
-            </div>
-          </UserSync>
+              </PageLoader>
+            </main>
+          </div>
         </Providers>
         <RemoveExtensionAttributes />
       </body>

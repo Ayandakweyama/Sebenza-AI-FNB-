@@ -15,7 +15,6 @@ import {
   RotateCcw,
   TrendingUp,
   Zap,
-  Sparkles,
   Lock
 } from 'lucide-react';
 import { Job, useJobScraper } from '@/hooks/useJobScraper';

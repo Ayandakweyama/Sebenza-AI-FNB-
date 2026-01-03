@@ -68,6 +68,7 @@ export default function DashboardNavigation({
               src="/Sebenza ai raw logo.png" 
               alt="Sebenza AI Logo" 
               className="h-48 w-auto"
+              style={{ width: 'auto' }}
             />
             {title && <h1 className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-pink-500 to-pink-600 bg-clip-text text-transparent leading-tight">{title}</h1>}
           </div>

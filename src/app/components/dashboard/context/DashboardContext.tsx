@@ -136,15 +136,11 @@ const DashboardProviderContent: React.FC<{
 
 interface DashboardProviderProps {
   children: ReactNode;
-  user: any; // Replace 'any' with proper user type if available
 }
 
-export const DashboardProvider: React.FC<DashboardProviderProps> = ({ children, user }) => {
+export const DashboardProvider: React.FC<DashboardProviderProps> = ({ children }) => {
   const router = useRouter();
-  
-  // We can assume the user is signed in at this point since we check in the page component
-  const isSignedIn = true;
-  const isLoaded = true;
+  const { isLoaded, isSignedIn, user } = useUser();
 
   return (
     <DashboardProviderContent 

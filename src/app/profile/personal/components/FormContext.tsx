@@ -100,9 +100,12 @@ export const MultiStepFormProvider: React.FC<{
     showPhoto: true,
   };
 
+  // Merge default values with provided values
+  const mergedDefaults = defaultValues ? { ...fallbackDefaults, ...defaultValues } : fallbackDefaults;
+
   const formMethods = useForm<ProfileFormData>({
     resolver: zodResolver(profileFormSchema),
-    defaultValues: defaultValues || fallbackDefaults,
+    defaultValues: mergedDefaults,
   } as any);
 
   const [currentStep, setCurrentStep] = useState<FormStep>('personal');

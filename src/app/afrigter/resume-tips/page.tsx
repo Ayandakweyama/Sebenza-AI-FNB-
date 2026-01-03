@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Upload, FileText, Sparkles, CheckCircle, Loader2, X, AlertCircle } from 'lucide-react';
+import { Upload, FileText, CheckCircle, Loader2, X, AlertCircle, Briefcase } from 'lucide-react';
 import DashboardNavigation from '@/components/dashboard/DashboardNavigation';
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 
@@ -78,7 +78,7 @@ export default function ResumeTipsPage() {
 
   return (
     <div className="min-h-screen bg-slate-950">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-12">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-12 sm:pt-16 lg:pt-20 pb-6 sm:pb-8 lg:pb-12">
         <DashboardNavigation 
           title="Resume Tips & Feedback"
           description="Get AI-powered resume analysis and personalized feedback"
@@ -227,7 +227,6 @@ export default function ResumeTipsPage() {
                     </>
                   ) : (
                     <>
-                      <Sparkles className="w-4 h-4 mr-2" />
                       Analyze My Resume
                     </>
                   )}
@@ -242,7 +241,6 @@ export default function ResumeTipsPage() {
                   </div>
                   <div className="flex items-center">
                     <div className="w-12 h-12 rounded-full flex items-center justify-center bg-gradient-to-br from-blue-600 to-purple-600">
-                      <Sparkles className="w-6 h-6 text-white" />
                     </div>
                   </div>
                 </div>

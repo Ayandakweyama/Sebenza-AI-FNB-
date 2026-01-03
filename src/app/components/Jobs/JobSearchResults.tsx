@@ -206,7 +206,13 @@ export function JobSearchResults({
   };
 
   const handleSave = async (jobId: string) => {
-    const job = filteredJobs.find(j => j.id === jobId);
+    // Find the job using multiple ID formats
+    const job = filteredJobs.find(j => 
+      j.id === jobId || 
+      j.url === jobId || 
+      `${j.company}-${j.title}` === jobId
+    );
+    
     if (!job) return;
 
     try {
@@ -391,17 +397,19 @@ export function JobSearchResults({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleSave(job.id);
+                      // Use consistent ID format for save/unsave
+                      const jobId = job.id || job.url || `${job.company}-${job.title}`;
+                      handleSave(jobId);
                     }}
                     className={`p-2 rounded-lg transition-all duration-300 relative ${
-                      isSaved(job.id)
+                      isSaved(job.id || job.url || `${job.company}-${job.title}`)
                         ? 'text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20 shadow-lg shadow-yellow-500/20'
                         : 'text-slate-400 hover:text-pink-400 hover:bg-pink-500/10 hover:shadow-lg hover:shadow-pink-500/20'
                     }`}
-                    aria-label={isSaved(job.id) ? 'Unsave job' : 'Save job'}
+                    aria-label={isSaved(job.id || job.url || `${job.company}-${job.title}`) ? 'Unsave job' : 'Save job'}
                   >
                     <svg
-                      className={`h-5 w-5 ${isSaved(job.id) ? 'fill-current' : ''}`}
+                      className={`h-5 w-5 ${isSaved(job.id || job.url || `${job.company}-${job.title}`) ? 'fill-current' : ''}`}
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"

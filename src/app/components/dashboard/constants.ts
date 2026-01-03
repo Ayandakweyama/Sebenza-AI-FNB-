@@ -21,8 +21,8 @@ export const navigationItems: NavigationItem[] = [
     
   },
   { 
-    title: 'Applications', 
-    description: 'Track your job applications', 
+    title: 'Application Assistant', 
+    description: 'AI application tool', 
     path: '/applications',
     icon: 'ClipboardList'
   },

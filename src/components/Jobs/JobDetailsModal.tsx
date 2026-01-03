@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 import { Job } from '@/hooks/useJobScraper';
 import { useState } from 'react';
-import { Sparkles } from 'lucide-react';
 
 interface JobDetailsModalProps {
   job: Job | null;
@@ -293,7 +292,6 @@ const JobDetailsModal = memo(function JobDetailsModal({
                     </motion.button>
                     <div className="mt-2 p-3 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-lg">
                       <div className="flex items-center gap-2 mb-1">
-                        <Sparkles className="w-4 h-4 text-blue-600" />
                         <span className="text-sm font-semibold text-blue-700">AI Agent Coming Soon!</span>
                       </div>
                       <p className="text-xs text-gray-700">

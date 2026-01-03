@@ -76,12 +76,6 @@ export default function ApplicationsPage() {
               Browse Jobs
             </Link>
           </Button>
-          <Button asChild className="bg-purple-600 hover:bg-purple-700">
-            <Link href="/jobs/saved">
-              <Briefcase className="h-4 w-4 mr-2" />
-              View Saved Jobs
-            </Link>
-          </Button>
         </div>
           </div>
           
