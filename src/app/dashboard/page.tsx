@@ -3,13 +3,23 @@
 import { DashboardProvider } from '@/app/components/dashboard/context/DashboardContext';
 import { DashboardLayout } from '@/app/components/dashboard/DashboardLayout';
 import { ChatbotProvider } from '@/app/components/dashboard/ChatbotProvider';
+import { LoadingSpinner } from '@/app/components/dashboard/LoadingSpinner';
 import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function DashboardPage() {
   const { isLoaded, isSignedIn, user } = useUser();
   const router = useRouter();
+  const [showLoading, setShowLoading] = useState(true);
+
+  // Minimum loading time to show the spinner (1.5 seconds)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowLoading(false);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Handle auth redirect if not signed in
   useEffect(() => {
@@ -18,24 +28,9 @@ export default function DashboardPage() {
     }
   }, [isLoaded, isSignedIn, router]);
 
-  // Sync user with database (temporarily disabled due to auth issues)
-  // useEffect(() => {
-  //   if (isSignedIn && user) {
-  //     fetch('/api/auth/sync-user', {
-  //       method: 'POST',
-  //     }).catch(error => {
-  //       console.error('Failed to sync user:', error);
-  //     });
-  //   }
-  // }, [isSignedIn, user]);
-
-  // Show loading state while checking auth
-  if (!isLoaded) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-900">
-        <div className="text-white">Loading dashboard...</div>
-      </div>
-    );
+  // Show loading state while checking auth OR during minimum loading time
+  if (!isLoaded || showLoading) {
+    return <LoadingSpinner message="" variant="default" />;
   }
 
   // Only render dashboard if signed in

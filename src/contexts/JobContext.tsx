@@ -33,6 +33,12 @@ interface JobContextType {
   updateApplicationStatus: (applicationId: string, status: JobApplication['status']) => Promise<void>;
   hasApplied: (jobId: string) => boolean;
   
+  // Saved Jobs
+  savedJobs: Job[];
+  saveJob: (job: Job) => Promise<void>;
+  unsaveJob: (jobId: string) => Promise<void>;
+  isSaved: (jobId: string) => boolean;
+  
   // Job Alerts
   jobAlerts: JobAlert[];
   createJobAlert: (alert: Omit<JobAlert, 'id' | 'createdDate' | 'newMatches'>) => Promise<void>;
@@ -44,6 +50,7 @@ interface JobContextType {
   isLoading: {
     applications: boolean;
     jobAlerts: boolean;
+    savedJobs: boolean;
   };
 }
 
@@ -52,9 +59,11 @@ const JobContext = createContext<JobContextType | undefined>(undefined);
 export function JobProvider({ children }: { children: React.ReactNode }) {
   const { getToken, isLoaded, isSignedIn } = useAuth();
   const [applications, setApplications] = useState<JobApplication[]>([]);
+  const [savedJobs, setSavedJobs] = useState<Job[]>([]);
   const [jobAlerts, setJobAlerts] = useState<JobAlert[]>([]);
   const [isLoading, setIsLoading] = useState({
     applications: false,
+    savedJobs: false,
     jobAlerts: false,
   });
 
@@ -186,6 +195,105 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
   const hasApplied = useCallback((jobId: string) => {
     return applications.some(app => app.jobId === jobId);
   }, [applications]);
+
+  // Saved Jobs Functions
+  const loadSavedJobs = useCallback(async () => {
+    setIsLoading(prev => ({ ...prev, savedJobs: true }));
+    try {
+      const token = await getValidToken(getToken, 3);
+      if (!token) {
+        console.warn('Unable to get valid token for saved jobs');
+        return;
+      }
+      
+      const response = await fetch('/api/jobs/saved', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSavedJobs(data.jobs || []);
+      } else if (response.status === 401) {
+        console.warn('Authentication failed for saved jobs, token may be expired');
+      }
+    } catch (error) {
+      console.error('Failed to load saved jobs:', error);
+    } finally {
+      setIsLoading(prev => ({ ...prev, savedJobs: false }));
+    }
+  }, [getToken, isLoaded, isSignedIn]);
+
+  const saveJob = useCallback(async (job: Job) => {
+    try {
+      let token = await getToken();
+      
+      // If token is null, try again after a short delay (clock skew issue)
+      if (!token) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        token = await getToken();
+      }
+      
+      const response = await fetch('/api/jobs/saved', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ job }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setSavedJobs(prev => [...prev, data.job]);
+      } else if (response.status === 401) {
+        console.warn('Authentication failed, token may be expired');
+      }
+    } catch (error) {
+      console.error('Failed to save job:', error);
+      throw error;
+    }
+  }, [getToken, isLoaded, isSignedIn]);
+
+  const unsaveJob = useCallback(async (jobId: string) => {
+    try {
+      let token = await getToken();
+      
+      // If token is null, try again after a short delay (clock skew issue)
+      if (!token) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        token = await getToken();
+      }
+      
+      const response = await fetch(`/api/jobs/saved/${jobId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+      });
+      
+      if (response.ok) {
+        setSavedJobs(prev => prev.filter(savedJob => {
+          const savedJobId = savedJob.id || savedJob.url || `${savedJob.company}-${savedJob.title}`;
+          return savedJobId !== jobId;
+        }));
+      } else if (response.status === 401) {
+        console.warn('Authentication failed, token may be expired');
+      }
+    } catch (error) {
+      console.error('Failed to unsave job:', error);
+      throw error;
+    }
+  }, [getToken, isLoaded, isSignedIn]);
+
+  const isSaved = useCallback((jobId: string) => {
+    return savedJobs.some(savedJob => {
+      const savedJobId = savedJob.id || savedJob.url || `${savedJob.company}-${savedJob.title}`;
+      return savedJobId === jobId;
+    });
+  }, [savedJobs]);
 
   // Job Alerts Functions
   const loadJobAlerts = useCallback(async () => {
@@ -366,6 +474,7 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
       try {
         await Promise.allSettled([
           loadApplications(),
+          loadSavedJobs(),
           loadJobAlerts()
         ]);
       } catch (error) {
@@ -374,13 +483,17 @@ export function JobProvider({ children }: { children: React.ReactNode }) {
     };
 
     loadInitialData();
-  }, [isLoaded, isSignedIn, getToken, loadApplications, loadJobAlerts]);
+  }, [isLoaded, isSignedIn, getToken, loadApplications, loadSavedJobs, loadJobAlerts]);
 
   const value: JobContextType = {
     applications,
     applyToJob,
     updateApplicationStatus,
     hasApplied,
+    savedJobs,
+    saveJob,
+    unsaveJob,
+    isSaved,
     jobAlerts,
     createJobAlert,
     updateJobAlert,

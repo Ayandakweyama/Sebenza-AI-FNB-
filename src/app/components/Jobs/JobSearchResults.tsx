@@ -198,6 +198,14 @@ export function JobSearchResults({
   // Job context for saving functionality
   const { saveJob, unsaveJob, isSaved } = useJobContext();
 
+  // Safety check for isSaved function
+  const checkIsSaved = (jobId: string) => {
+    if (!isSaved || typeof isSaved !== 'function') {
+      return false;
+    }
+    return isSaved(jobId);
+  };
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim() && location.trim()) {
@@ -216,7 +224,7 @@ export function JobSearchResults({
     if (!job) return;
 
     try {
-      if (isSaved(jobId)) {
+      if (checkIsSaved(jobId)) {
         await unsaveJob(jobId);
       } else {
         await saveJob(job);
@@ -349,40 +357,47 @@ export function JobSearchResults({
             {/* Pink gradient accent line */}
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-pink-500 via-pink-400 to-pink-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
 
-            <CardContent className="pt-4 sm:pt-6">
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-white group-hover:text-pink-100 transition-colors duration-300">
+            {/* Mobile-optimized card content with better spacing */}
+            <CardContent className="pt-3 sm:pt-6 pb-4 sm:pb-6 px-4 sm:px-6">
+              {/* Mobile-optimized layout */}
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 sm:gap-4">
+                <div className="flex-1 min-w-0">
+                  {/* Job title with better mobile typography */}
+                  <h3 className="text-base sm:text-lg font-semibold text-white group-hover:text-pink-100 transition-colors duration-300 leading-tight mb-2">
                     {job.title}
                   </h3>
-                  <div className="text-pink-400 mt-1 font-medium flex items-center">
-                    <div className="w-2 h-2 bg-pink-500 rounded-full mr-2 animate-pulse"></div>
-                    {job.company}
+                  
+                  {/* Company with enhanced mobile visibility */}
+                  <div className="text-pink-400 mt-1 mb-3 font-medium flex items-center">
+                    <div className="w-2 h-2 bg-pink-500 rounded-full mr-2 animate-pulse flex-shrink-0"></div>
+                    <span className="truncate">{job.company}</span>
                   </div>
 
-                  <div className="mt-4 flex flex-wrap gap-3">
+                  {/* Mobile-optimized tags container */}
+                  <div className="flex flex-wrap gap-2 sm:gap-3 mb-3">
                     {job.location && (
-                      <span className="inline-flex items-center text-sm text-slate-300 bg-gradient-to-r from-pink-500/10 to-purple-500/10 border border-pink-500/20 px-3 py-1 rounded-full">
-                        <MapPin className="h-4 w-4 mr-1 text-pink-400" />
-                        {job.location}
+                      <span className="inline-flex items-center text-xs sm:text-sm text-slate-300 bg-gradient-to-r from-pink-500/10 to-purple-500/10 border border-pink-500/20 px-2 py-1 sm:px-3 sm:py-1 rounded-full">
+                        <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mr-1 text-pink-400 flex-shrink-0" />
+                        <span className="truncate">{job.location}</span>
                       </span>
                     )}
                     {job.salary && !job.salary.includes('not specified') && (
-                      <span className="inline-flex items-center text-sm text-slate-300 bg-slate-700/50 px-3 py-1 rounded-full border border-slate-600/30">
-                        <DollarSign className="h-4 w-4 mr-1 text-green-400" />
-                        {job.salary}
+                      <span className="inline-flex items-center text-xs sm:text-sm text-slate-300 bg-slate-700/50 px-2 py-1 sm:px-3 sm:py-1 rounded-full border border-slate-600/30">
+                        <DollarSign className="h-3 w-3 sm:h-4 sm:w-4 mr-1 text-green-400 flex-shrink-0" />
+                        <span className="truncate">{job.salary}</span>
                       </span>
                     )}
                     {job.postedDate && (
-                      <span className="inline-flex items-center text-sm text-slate-300 bg-slate-700/50 px-3 py-1 rounded-full border border-slate-600/30">
-                        <Calendar className="h-4 w-4 mr-1 text-blue-400" />
-                        {job.postedDate}
+                      <span className="inline-flex items-center text-xs sm:text-sm text-slate-300 bg-slate-700/50 px-2 py-1 sm:px-3 sm:py-1 rounded-full border border-slate-600/30">
+                        <Calendar className="h-3 w-3 sm:h-4 sm:w-4 mr-1 text-blue-400 flex-shrink-0" />
+                        <span className="truncate">{job.postedDate}</span>
                       </span>
                     )}
                   </div>
 
+                  {/* Job type badge with mobile optimization */}
                   {job.jobType && (
-                    <div className="mt-3">
+                    <div className="mt-2">
                       <Badge variant="outline" className="text-xs bg-gradient-to-r from-pink-500/10 to-pink-600/10 text-pink-300 border-pink-500/30 hover:bg-pink-500/20 hover:border-pink-400/50">
                         {job.jobType}
                       </Badge>
@@ -390,56 +405,86 @@ export function JobSearchResults({
                   )}
                 </div>
 
-                <div className="flex items-center space-x-2 ml-4">
+                {/* Mobile-optimized action buttons */}
+                <div className="flex items-center justify-between sm:flex-col sm:items-end sm:space-y-2 sm:space-x-0 space-x-2 ml-0 sm:ml-4">
+                  {/* Source badge - smaller on mobile */}
                   <Badge variant="default" className="text-xs capitalize bg-gradient-to-r from-pink-500/20 to-pink-600/20 text-pink-300 border-pink-500/30 shadow-lg shadow-pink-500/20">
                     {job.source}
                   </Badge>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      // Use consistent ID format for save/unsave
-                      const jobId = job.id || job.url || `${job.company}-${job.title}`;
-                      handleSave(jobId);
-                    }}
-                    className={`p-2 rounded-lg transition-all duration-300 relative ${
-                      isSaved(job.id || job.url || `${job.company}-${job.title}`)
-                        ? 'text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20 shadow-lg shadow-yellow-500/20'
-                        : 'text-slate-400 hover:text-pink-400 hover:bg-pink-500/10 hover:shadow-lg hover:shadow-pink-500/20'
-                    }`}
-                    aria-label={isSaved(job.id || job.url || `${job.company}-${job.title}`) ? 'Unsave job' : 'Save job'}
-                  >
-                    <svg
-                      className={`h-5 w-5 ${isSaved(job.id || job.url || `${job.company}-${job.title}`) ? 'fill-current' : ''}`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                  
+                  {/* Action buttons container */}
+                  <div className="flex items-center space-x-1 sm:space-x-2">
+                    {/* Save button with larger touch target on mobile */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // Use consistent ID format for save/unsave
+                        const jobId = job.id || job.url || `${job.company}-${job.title}`;
+                        handleSave(jobId);
+                      }}
+                      className={`p-2.5 sm:p-2 rounded-lg transition-all duration-300 relative ${
+                        checkIsSaved(job.id || job.url || `${job.company}-${job.title}`)
+                          ? 'text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20 shadow-lg shadow-yellow-500/20'
+                          : 'text-slate-400 hover:text-pink-400 hover:bg-pink-500/10 hover:shadow-lg hover:shadow-pink-500/20'
+                      }`}
+                      aria-label={checkIsSaved(job.id || job.url || `${job.company}-${job.title}`) ? 'Unsave job' : 'Save job'}
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
-                      />
-                    </svg>
-                    {/* Pink ring on hover */}
-                    <div className={`absolute inset-0 rounded-lg border-2 border-pink-500/0 hover:border-pink-500/50 transition-all duration-300 ${isSaved(job.id) ? 'opacity-0' : ''}`}></div>
-                  </button>
-                  <a
-                    href={job.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-pink-400 hover:text-pink-300 transition-colors p-2 rounded-lg hover:bg-pink-500/10 hover:shadow-lg hover:shadow-pink-500/20 relative group/link"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <ExternalLink className="h-5 w-5" />
-                    {/* Pink glow effect */}
-                    <div className="absolute inset-0 rounded-lg bg-pink-500/0 group-hover/link:bg-pink-500/10 transition-all duration-300"></div>
-                  </a>
+                      <svg
+                        className={`h-4 w-4 sm:h-5 sm:w-5 ${checkIsSaved(job.id || job.url || `${job.company}-${job.title}`) ? 'fill-current' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+                        />
+                      </svg>
+                      {/* Pink ring on hover */}
+                      <div className={`absolute inset-0 rounded-lg border-2 border-pink-500/0 hover:border-pink-500/50 transition-all duration-300 ${checkIsSaved(job.id || job.url || `${job.company}-${job.title}`) ? 'opacity-0' : ''}`}></div>
+                    </button>
+                    
+                    {/* External link button with larger touch target on mobile */}
+                    <a
+                      href={job.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-pink-400 hover:text-pink-300 transition-all duration-300 p-2.5 sm:p-2 rounded-lg hover:bg-pink-500/10 hover:shadow-lg hover:shadow-pink-500/20 relative group/link overflow-hidden"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <ExternalLink className="h-4 w-4 sm:h-5 sm:w-5 relative z-10" />
+                      
+                      {/* Enhanced visual feedback layers */}
+                      {/* Subtle background glow */}
+                      <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-pink-500/5 to-purple-500/5 opacity-0 group-hover/link:opacity-100 transition-all duration-300"></div>
+                      
+                      {/* Animated border effect */}
+                      <div className="absolute inset-0 rounded-lg border-2 border-pink-500/0 group-hover/link:border-pink-500/30 transition-all duration-300"></div>
+                      
+                      {/* Pulsing ring effect on hover */}
+                      <div className="absolute inset-0 rounded-lg bg-pink-500/0 group-hover/link:bg-pink-500/10 transition-all duration-300">
+                        <div className="absolute inset-0 rounded-lg border-2 border-pink-400/0 group-hover/link:border-pink-400/50 transition-all duration-500 animate-pulse"></div>
+                      </div>
+                      
+                      {/* Icon glow effect */}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-6 h-6 sm:w-7 sm:h-7 bg-pink-500/0 group-hover/link:bg-pink-500/20 rounded-full transition-all duration-300 blur-sm"></div>
+                      </div>
+                      
+                      {/* Tooltip indicator */}
+                      <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover/link:opacity-100 transition-opacity duration-300 whitespace-nowrap pointer-events-none border border-pink-500/30">
+                        View Job Post
+                      </div>
+                    </a>
+                  </div>
                 </div>
               </div>
 
+              {/* Description with mobile optimization */}
               {job.description && (
-                <div className="mt-4 text-sm text-slate-300 line-clamp-2 bg-gradient-to-r from-slate-800/30 to-slate-900/30 p-3 rounded-lg border border-slate-600/30 hover:border-pink-500/20 transition-colors duration-300">
+                <div className="mt-3 sm:mt-4 text-xs sm:text-sm text-slate-300 line-clamp-2 sm:line-clamp-3 bg-gradient-to-r from-slate-800/30 to-slate-900/30 p-3 rounded-lg border border-slate-600/30 hover:border-pink-500/20 transition-colors duration-300">
                   {job.description}
                 </div>
               )}
