@@ -7,8 +7,8 @@
   },
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "prisma generate && prisma db push && next build",
-    "start": "next start",
+    "build": "prisma generate && next build",
+    "start": "prisma db push && next start",
     "lint": "next lint",
     "railway:build": "npm run db:generate && npm run build",
     "railway:start": "npm run db:push && npm start",
