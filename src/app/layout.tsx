@@ -4,6 +4,7 @@ import { Providers } from "./providers";
 import Navbar from "./components/navbar/Navbar";
 import RemoveExtensionAttributes from "./components/RemoveExtensionAttributes";
 import PageLoader from "@/components/ui/PageLoader";
+import Script from "next/script";
 
 // Temporarily disable Google Fonts to fix Turbopack issue
 // import { Geist, Geist_Mono } from "next/font/google";
@@ -51,6 +52,21 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} dark`} suppressHydrationWarning>
+      <head>
+        {/* Preload critical images to improve LCP */}
+        <link
+          rel="preload"
+          href="/images/logonobg.png"
+          as="image"
+          type="image/png"
+        />
+        <link
+          rel="preload"
+          href="/Sebenza ai raw logo.png"
+          as="image"
+          type="image/png"
+        />
+      </head>
       <body 
         className="min-h-screen bg-slate-950 text-gray-200"
         suppressHydrationWarning

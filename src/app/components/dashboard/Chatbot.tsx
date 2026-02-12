@@ -1,5 +1,6 @@
 import React from 'react';
 import { ChatbotProps } from './types';
+import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 
 export const Chatbot: React.FC<ChatbotProps> = ({
   isOpen,
@@ -47,7 +48,11 @@ export const Chatbot: React.FC<ChatbotProps> = ({
                   ? 'bg-purple-600 text-white' 
                   : 'bg-slate-700 text-white'
               }`}>
-                <p className="text-sm">{msg.message}</p>
+                {msg.type === 'bot' ? (
+                  <MarkdownRenderer content={msg.message} className="prose-sm" />
+                ) : (
+                  <p className="text-sm">{msg.message}</p>
+                )}
               </div>
             </div>
           ))}

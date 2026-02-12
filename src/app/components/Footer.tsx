@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { Linkedin, Twitter, Github, Mail, ArrowRight } from 'lucide-react';
 
 const Footer = () => {
@@ -62,13 +63,16 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="md:col-span-2">
             <Link href="/dashboard" className="flex items-center">
-            <div className="relative h-48 w-48 md:h-56 md:w-56 transition-all duration-300 transform">
-              <img 
-                src="/images/logonobg.png" 
-                alt="Sebenza AI"
-                className="h-full w-full object-contain"
-              />
-            </div>
+              <div className="relative h-16 w-16 md:h-20 md:w-20 transition-all duration-300 transform">
+                <Image 
+                  src="/images/logonobg.png" 
+                  alt="Sebenza AI"
+                  width={80}
+                  height={80}
+                  loading="lazy"
+                  className="h-full w-full object-contain"
+                />
+              </div>
             </Link>
             <p className="mt-4 text-slate-400 max-w-md">
               AI-powered tools to accelerate your job search and career growth. 

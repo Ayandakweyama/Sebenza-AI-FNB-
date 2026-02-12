@@ -7,7 +7,8 @@ import type {
   CareerAdviceParams, 
   CareerRoadmapParams, 
   SkillGapParams,
-  CoverLetterParams
+  CoverLetterParams,
+  CVRegeneratorParams
 } from '@/lib/ai/mistralService';
 
 // CORS headers
@@ -91,7 +92,8 @@ export async function POST(request: Request) {
       'career-advice',
       'career-roadmap',
       'skill-gap',
-      'cover-letter'
+      'cover-letter',
+      'cv-regenerator'
     ];
 
     if (!type || !validServiceTypes.includes(type as ServiceType)) {
@@ -178,6 +180,16 @@ export async function POST(request: Request) {
           }
           console.log('📧 Generating cover letter with GPT-4o-mini...');
           response = await mistralService.generateCoverLetter(params);
+          break;
+        }
+
+        case 'cv-regenerator': {
+          const params = data as CVRegeneratorParams;
+          if (!params.cvText || !params.jobDescription) {
+            throw new Error('CV text and job description are required for CV regeneration');
+          }
+          console.log('📝 Regenerating CV with GPT-4o-mini...');
+          response = await mistralService.regenerateCV(params);
           break;
         }
           

@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useDashboard } from './context/DashboardContext';
 import type { NavigationItem } from './types';
 import { Bot, Briefcase, User, ClipboardList, ChevronRight, Zap, TrendingUp } from 'lucide-react';
@@ -425,9 +426,11 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = (props) => {
                                 {/* Enhanced rotating rings around logo */}
                                 <div className="absolute -inset-3 border-2 border-white/30 rounded-full animate-spin-slow"></div>
                                 <div className="absolute -inset-2 border border-pink-400/40 rounded-full animate-spin-slower"></div>
-                                <img 
+                                <Image 
                                   src="/Sebenza ai raw logo.png" 
                                   alt="Sebenza AI Logo" 
+                                  width={60} 
+                                  height={85} 
                                   className={`
                                     relative w-full h-full object-contain p-2
                                     transition-transform duration-500

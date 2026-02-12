@@ -133,7 +133,7 @@ export default function ContactPage() {
               </div>
               <div className="ml-4">
                 <h3 className="text-lg font-medium text-white">Our Office</h3>
-                <p className="mt-1 text-gray-400">123 Career Street<br />Joburg, 2000<br />South Africa</p>
+                <p className="mt-1 text-gray-400">Chwane Ln <br />Umlazi J section, 4066 <br />South Africa</p>
               </div>
             </div>
             
@@ -158,7 +158,7 @@ export default function ContactPage() {
               </div>
               <div className="ml-4">
                 <h3 className="text-lg font-medium text-white">Call Us</h3>
-                <p className="mt-1 text-gray-400">+27 12 345 6789</p>
+                <p className="mt-1 text-gray-400">+27 69 132 7681</p>
                 <p className="text-sm text-gray-500">Mon-Fri from 8am to 5pm</p>
               </div>
             </div>

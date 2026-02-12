@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { UserButton, useUser, SignInButton, SignUpButton } from '@clerk/nextjs';
 import { Menu, X } from 'lucide-react';
@@ -77,10 +78,13 @@ const NavbarContent = () => {
             {/* Logo - centered on mobile, far left on desktop */}
             <div className="flex-shrink-0 mx-auto md:mx-0">
               <Link href="/dashboard" className="flex items-center">
-                <div className="relative h-48 w-48 md:h-56 md:w-56 transition-all duration-300 hover:scale-105 transform">
-                  <img 
+                <div className="relative h-20 w-20 md:h-28 md:w-28 transition-all duration-300 hover:scale-105 transform">
+                  <Image 
                     src="/images/logonobg.png" 
                     alt="Sebenza AI"
+                    width={112}
+                    height={112}
+                    priority
                     className="h-full w-full object-contain"
                   />
                 </div>

@@ -34,9 +34,12 @@ const nextConfig: NextConfig = {
   // Enable React Strict Mode
   reactStrictMode: true,
   
-  // Handle images
+  // Handle images — include S3 bucket domain for optimized image serving
   images: {
-    domains: ['localhost'],
+    domains: [
+      'localhost',
+      `${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com`,
+    ],
     unoptimized: true,
   },
   

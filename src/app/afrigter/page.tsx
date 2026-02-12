@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
-import { MessageCircle, Search, Rocket, Map, BarChart3 } from 'lucide-react';
+import { MessageCircle, Search, Rocket, Map, BarChart3, FileText } from 'lucide-react';
 
 export const metadata: Metadata = {
   title: 'Afrigter - AI Career Mentor',
@@ -94,6 +94,18 @@ export default function AfrigterPage() {
             </div>
             <h2 className="text-xl font-semibold mb-2 text-white">Skill Gap Analysis</h2>
             <p className="text-slate-300 group-hover:text-white transition-colors">Identify and bridge the skills needed for your target roles.</p>
+          </a>
+
+          {/* CV Regenerator Card - Cyan/Teal */}
+          <a 
+            href="/afrigter/cv-regenerator" 
+            className="group block p-6 rounded-xl transition-all duration-300 bg-gradient-to-br from-cyan-800/30 to-teal-900/50 border border-cyan-700/30 hover:border-cyan-500/50 hover:shadow-lg hover:shadow-cyan-500/20 h-full"
+          >
+            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-cyan-500 to-teal-600 flex items-center justify-center mb-4">
+              <FileText className="w-6 h-6 text-white" />
+            </div>
+            <h2 className="text-xl font-semibold mb-2 text-white">CV Regenerator</h2>
+            <p className="text-slate-300 group-hover:text-white transition-colors">Upload your CV and a job post — AI enhances your CV for the role without fabricating credentials.</p>
           </a>
         </div>
       </div>

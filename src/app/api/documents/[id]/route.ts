@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
+import { deleteFromS3 } from '@/lib/s3';
 
 // GET /api/documents/[id] - Get specific document
 export async function GET(
@@ -133,6 +134,14 @@ export async function DELETE(
 
     if (!document) {
       return NextResponse.json({ error: 'Document not found' }, { status: 404 });
+    }
+
+    // Delete file from S3 first, then remove DB record
+    try {
+      await deleteFromS3(document.fileUrl);
+    } catch (s3Error) {
+      console.error('Warning: Failed to delete file from S3:', s3Error);
+      // Continue with DB deletion even if S3 fails
     }
 
     await prisma.document.delete({

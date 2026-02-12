@@ -34,6 +34,7 @@ import { parseCV, extractSkillsFromCV } from '@/lib/cvParser';
 import { useProfileStrength } from '@/hooks/useProfileStrength';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { ProfileFormData } from '@/app/profile/personal/profile.schema';
+import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 
 // ============================================================================
 // Types & Interfaces
@@ -397,79 +398,7 @@ const ContentDisplay: React.FC<ContentDisplayProps> = ({
     </CardHeader>
     <CardContent>
       <div className="bg-slate-900/50 backdrop-blur-sm p-4 sm:p-6 rounded-xl max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-900">
-        <div className="prose prose-invert prose-sm max-w-none">
-          <div className="text-xs sm:text-sm text-slate-200 font-sans leading-relaxed space-y-4">
-            {content.split('\n').map((line, index) => {
-              let processedLine = line;
-              
-              // Handle ### headings first (convert to styled subsections)
-              if (line.startsWith('###')) {
-                processedLine = line.replace(/^###\s*/, '');
-                return (
-                  <div key={index} className="mt-6 mb-4">
-                    <h3 className="text-base sm:text-lg font-semibold text-white mb-3 pb-2 border-b border-slate-700">
-                      {processedLine}
-                    </h3>
-                  </div>
-                );
-              }
-              
-              // Handle # headings (main sections)
-              if (line.startsWith('#') && !line.startsWith('###')) {
-                return (
-                  <div key={index} className="mt-8 mb-6">
-                    <h2 className="text-lg sm:text-xl font-bold text-white mb-4 pb-3 border-b border-blue-500/30">
-                      {line.replace('#', '').trim()}
-                    </h2>
-                  </div>
-                );
-              }
-              
-              // Handle bullet points (including * characters at start of line)
-              if (/^[\s]*[\*\-\•]\s/.test(line)) {
-                return (
-                  <div key={index} className="flex items-start gap-3 ml-4 mb-3 group">
-                    <span className="text-blue-400 mt-1 text-sm font-bold group-hover:text-blue-300 transition-colors">•</span>
-                    <span className="text-slate-200 flex-1 leading-relaxed">
-                      {line.replace(/^[\s]*[\*\-\•]\s*/, '')}
-                    </span>
-                  </div>
-                );
-              }
-              
-              // Handle numbered lists
-              if (/^\d+\./.test(line.trim())) {
-                return (
-                  <div key={index} className="flex items-start gap-3 ml-4 mb-3 group">
-                    <span className="text-blue-400 font-bold text-sm group-hover:text-blue-300 transition-colors min-w-[20px]">
-                      {line.match(/^\d+\./)?.[0]}
-                    </span>
-                    <span className="text-slate-200 flex-1 leading-relaxed">
-                      {line.replace(/^\d+\.\s*/, '')}
-                    </span>
-                  </div>
-                );
-              }
-              
-              // Handle bold text
-              if (processedLine.includes('**')) {
-                processedLine = processedLine.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-semibold">$1</strong>');
-              }
-              
-              // Handle empty lines
-              if (processedLine.trim() === '') {
-                return <div key={index} className="h-4" />;
-              }
-              
-              // Regular text
-              return (
-                <p key={index} className="mb-3 text-slate-200 leading-relaxed">
-                  <span dangerouslySetInnerHTML={{ __html: processedLine }} />
-                </p>
-              );
-            })}
-          </div>
-        </div>
+        <MarkdownRenderer content={content} className="prose-sm" />
       </div>
     </CardContent>
   </Card>
@@ -592,6 +521,10 @@ export default function ApplicationsPage() {
   // Access to user profile data throughout the app
   const userProfileData = useUserProfile();
   
+  // Hydration fix: defer Radix Tabs rendering until client mount
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   // State Management
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -924,7 +857,7 @@ export default function ApplicationsPage() {
         </p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
+      {mounted ? <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="input" className="flex items-center gap-2 text-xs sm:text-sm">
             <Target className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -1331,7 +1264,11 @@ export default function ApplicationsPage() {
             </Card>
           )}
         </TabsContent>
-      </Tabs>
+      </Tabs> : (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+        </div>
+      )}
     </div>
   );
 }

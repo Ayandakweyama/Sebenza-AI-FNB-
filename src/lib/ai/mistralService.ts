@@ -65,6 +65,14 @@ export interface CoverLetterParams {
   experienceLevel?: 'entry' | 'mid' | 'senior' | 'executive';
 }
 
+export interface CVRegeneratorParams {
+  cvText: string;
+  jobDescription: string;
+  jobTitle?: string;
+  companyName?: string;
+  experienceLevel?: 'entry' | 'mid' | 'senior' | 'executive';
+}
+
 class OpenAIService {
   private apiKey: string;
   private baseUrl: string = 'https://api.openai.com/v1/chat/completions';
@@ -77,7 +85,7 @@ class OpenAIService {
     }
   }
 
-  private async callOpenAI(prompt: string, systemPrompt: string): Promise<MistralResponse> {
+  private async callOpenAI(prompt: string, systemPrompt: string, maxTokens: number = 2000): Promise<MistralResponse> {
     if (!this.apiKey) {
       throw new Error('OpenAI API key is not configured');
     }
@@ -101,7 +109,7 @@ class OpenAIService {
               content: prompt
             }
           ],
-          max_tokens: 2000,
+          max_tokens: maxTokens,
           temperature: 0.7,
           top_p: 1,
           stream: false
@@ -489,6 +497,59 @@ Prioritize recommendations for ${params.experienceLevel}-level professionals tar
     return response.content;
   }
 
+  async regenerateCV(params: CVRegeneratorParams): Promise<string> {
+    const systemPrompt = `You are Afrigter, an expert CV writer and ATS optimization specialist with 15+ years of experience tailoring CVs for specific job applications.
+
+CRITICAL RULES — YOU MUST FOLLOW THESE:
+1. **NEVER fabricate, invent, or exaggerate** any credentials, skills, work experience, education, certifications, or achievements that are not present in the original CV.
+2. **ONLY use information that exists in the original CV.** You may rephrase, reorganise, and reword — but every fact must come from the original.
+3. You may reorder sections and bullet points to prioritise what is most relevant to the target job.
+4. You may rephrase bullet points to use stronger action verbs and quantify achievements where the data already exists.
+5. You may add a tailored professional summary that draws ONLY from existing CV content.
+6. You may suggest an optional "Key Skills" section that highlights skills already mentioned in the CV that match the job description.
+7. If the candidate is missing critical requirements from the job post, note this in a separate "Gap Analysis" section at the end — do NOT add those skills to the CV itself.
+
+Your goal is to make the candidate's REAL experience shine in the context of this specific job.`;
+
+    const prompt = `Regenerate and optimise this CV for the following job posting. Remember: use ONLY the candidate's real information.
+
+**Original CV:**
+${params.cvText}
+
+**Target Job Description:**
+${params.jobDescription}
+
+${params.jobTitle ? `**Job Title:** ${params.jobTitle}` : ''}
+${params.companyName ? `**Company:** ${params.companyName}` : ''}
+${params.experienceLevel ? `**Experience Level:** ${params.experienceLevel}` : ''}
+
+**Please produce the following:**
+
+## 📄 Enhanced CV
+
+[Produce the full, restructured CV text optimised for this job. Use clean formatting with clear section headers, bullet points, and professional language. Prioritise the most relevant experience and skills for this role.]
+
+## 🎯 What Was Changed
+- [List every change you made and why, so the candidate can verify nothing was fabricated]
+
+## 📊 ATS Keyword Match
+
+### Keywords Found in CV
+- [List each keyword from the job description that IS present or now highlighted in the CV, one per line]
+
+### Keywords Missing from CV
+- [List each keyword from the job description that is NOT in the candidate's background, one per line]
+
+## ⚠️ Gap Analysis
+- [List any critical job requirements the candidate does not appear to have, with suggestions on how to address them honestly (e.g. courses, projects, transferable skills)]
+
+## 💡 Additional Tips
+- [2-3 practical tips for strengthening the application beyond the CV]`;
+
+    const response = await this.callOpenAI(prompt, systemPrompt, 4000);
+    return response.content;
+  }
+
   async generateCoverLetter(params: CoverLetterParams): Promise<string> {
     const systemPrompt = `You are Afrigter, an expert career mentor and professional writer specializing in creating compelling, ATS-optimized cover letters. You have 15+ years of experience helping professionals craft personalized cover letters that stand out and get interviews.
 
@@ -554,4 +615,4 @@ Make this cover letter stand out and demonstrate why this candidate is the perfe
 }
 
 export const mistralService = new OpenAIService();
-export type ServiceType = 'resume-tips' | 'interview-prep' | 'job-search' | 'career-advice' | 'career-roadmap' | 'skill-gap' | 'cover-letter';
+export type ServiceType = 'resume-tips' | 'interview-prep' | 'job-search' | 'career-advice' | 'career-roadmap' | 'skill-gap' | 'cover-letter' | 'cv-regenerator';

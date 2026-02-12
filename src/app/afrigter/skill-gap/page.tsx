@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 
 export default function SkillGapPage() {
   const [currentRole, setCurrentRole] = useState('');
@@ -239,11 +240,7 @@ export default function SkillGapPage() {
             {response ? (
               <div className="space-y-6">
                 <div className="prose prose-invert max-w-none">
-                  {response.split('\n').map((paragraph, index) => (
-                    <p key={index} className="mb-4 text-slate-300">
-                      {paragraph}
-                    </p>
-                  ))}
+                  <MarkdownRenderer content={response} />
                 </div>
                 
                 <div className="mt-8 pt-6 border-t border-slate-700">

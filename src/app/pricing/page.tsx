@@ -40,7 +40,7 @@ export default function PricingPage() {
             POPULAR
           </div>
           <h3 className="text-2xl font-bold text-white mb-2">Pro</h3>
-          <p className="text-4xl font-bold text-white mb-6">R149<span className="text-lg text-blue-200">/month</span></p>
+          <p className="text-4xl font-bold text-white mb-6">R35<span className="text-lg text-blue-200">/month</span></p>
           <ul className="space-y-4 mb-8">
             <li className="flex items-center text-gray-300">
               <span className="text-green-400 mr-2">✓</span> Advanced CV Builder
@@ -63,7 +63,7 @@ export default function PricingPage() {
         {/* Enterprise Plan */}
         <div className="bg-slate-800/50 rounded-xl p-8 border border-slate-700/50">
           <h3 className="text-2xl font-bold text-white mb-2">Enterprise</h3>
-          <p className="text-4xl font-bold text-white mb-6">Custom</p>
+          <p className="text-4xl font-bold text-white mb-6">R99<span className="text-lg text-blue-200">/month</span></p>
           <ul className="space-y-4 mb-8">
             <li className="flex items-center text-gray-300">
               <span className="text-green-400 mr-2">✓</span> Everything in Pro

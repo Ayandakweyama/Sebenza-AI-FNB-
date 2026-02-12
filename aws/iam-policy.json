@@ -1,0 +1,26 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "S3DocumentUploadDownloadDelete",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": "arn:aws:s3:::sebenza-ai-documents/users/*"
+    },
+    {
+      "Sid": "S3ListUserDocuments",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::sebenza-ai-documents",
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": "users/*"
+        }
+      }
+    }
+  ]
+}
