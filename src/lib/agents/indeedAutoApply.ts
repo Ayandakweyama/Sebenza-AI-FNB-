@@ -412,6 +412,8 @@ function normaliseIndeedUrl(url: string): string {
 // will be skipped individually).
 
 async function signInToIndeed(page: Page, userEmail: string): Promise<void> {
+  const isServer = isServerEnvironment();
+
   console.log('[AutoApply] Navigating to Indeed…');
   await page.goto('https://za.indeed.com/', { waitUntil: 'domcontentloaded', timeout: 45000 });
   await fastDelay(2000, 3000);
@@ -422,7 +424,17 @@ async function signInToIndeed(page: Page, userEmail: string): Promise<void> {
     return;
   }
 
-  // Navigate to auth page so user can sign in
+  // ── SERVER MODE (Railway): skip sign-in wait entirely ──────────────────
+  // The headless browser is not accessible to the user, so waiting is pointless.
+  // Indeed allows browsing & searching without auth. Jobs that require sign-in
+  // to apply will be skipped individually with a clear message.
+  if (isServer) {
+    console.log('[AutoApply] SERVER MODE: Proceeding without sign-in (no interactive browser available)');
+    console.log('[AutoApply] Jobs that require Indeed sign-in to apply will be skipped.');
+    return;
+  }
+
+  // ── LOCAL MODE: Interactive sign-in flow ──────────────────────────────
   console.log('[AutoApply] Not signed in — opening Indeed sign-in page…');
   await page.goto('https://secure.indeed.com/auth', { waitUntil: 'networkidle2', timeout: 45000 });
   await fastDelay(2000, 3000);
@@ -454,7 +466,6 @@ async function signInToIndeed(page: Page, userEmail: string): Promise<void> {
     console.log(`[AutoApply] ⏳ Waiting for sign-in… (${elapsed}s elapsed, ${remaining}s remaining)`);
 
     try {
-      // Check all browser tabs for Indeed signed-in state
       const allPages = await page.browser().pages();
       for (const p of allPages) {
         try {
@@ -462,7 +473,6 @@ async function signInToIndeed(page: Page, userEmail: string): Promise<void> {
           if (pUrl.includes('indeed.com') && !pUrl.includes('/auth')) {
             if (await checkIfSignedIn(p)) {
               console.log('[AutoApply] ✅ Successfully signed in to Indeed!');
-              // Make sure main page is on Indeed
               if (page.url().includes('/auth')) {
                 await page.goto('https://za.indeed.com/', { waitUntil: 'domcontentloaded', timeout: 20000 });
                 await fastDelay(1000, 2000);
@@ -475,7 +485,7 @@ async function signInToIndeed(page: Page, userEmail: string): Promise<void> {
     } catch { /* ignore transient navigation errors */ }
   }
 
-  // Final check — navigate to Indeed and see if we're signed in now
+  // Final check
   try {
     await page.goto('https://za.indeed.com/', { waitUntil: 'domcontentloaded', timeout: 20000 });
     await fastDelay(2000, 3000);
@@ -485,7 +495,6 @@ async function signInToIndeed(page: Page, userEmail: string): Promise<void> {
     }
   } catch { /* ignore */ }
 
-  // Not signed in after 5 min — proceed anyway, jobs requiring auth will be skipped
   console.log('[AutoApply] ⚠️ Sign-in timeout — proceeding without auth. Jobs requiring sign-in will be skipped.');
 }
 
