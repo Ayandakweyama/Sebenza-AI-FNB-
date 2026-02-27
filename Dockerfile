@@ -78,17 +78,14 @@ COPY --from=builder /app/public ./public
 # Copy Prisma schema (needed by @prisma/client at runtime)
 COPY --from=builder /app/prisma ./prisma
 
-# Puppeteer downloads Chromium to ~/.cache/puppeteer/ during npm ci.
-# The standalone output only copies a subset of node_modules, so we need
-# both the puppeteer packages AND the cached Chromium binary.
-COPY --from=deps /app/node_modules/puppeteer ./node_modules/puppeteer
-COPY --from=deps /app/node_modules/puppeteer-core ./node_modules/puppeteer-core
+# The standalone output only bundles a minimal node_modules subset.
+# Puppeteer, Prisma CLI, and their deep transitive deps are missing.
+# Copy the FULL node_modules on top — overlays what standalone already has.
+COPY --from=deps /app/node_modules ./node_modules
+# Ensure generated Prisma client is present (created during build stage)
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+# Puppeteer's cached Chromium binary (downloaded during npm ci)
 COPY --from=deps /root/.cache/puppeteer /root/.cache/puppeteer
-
-# Copy full node_modules to a separate path for Prisma CLI (has deep transitive deps).
-# The standalone node_modules is kept intact for the Next.js server.
-COPY --from=builder /app/node_modules /prisma-cli/node_modules
-COPY --from=builder /app/prisma /prisma-cli/prisma
 
 EXPOSE 3000
 
@@ -96,4 +93,4 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 # Push schema at startup (internal DB only reachable at runtime, not build time)
-CMD NODE_PATH=/prisma-cli/node_modules node /prisma-cli/node_modules/prisma/build/index.js db push --skip-generate --schema=/prisma-cli/prisma/schema.prisma && node server.js
+CMD node ./node_modules/prisma/build/index.js db push --skip-generate && node server.js
