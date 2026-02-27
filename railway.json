@@ -1,20 +1,11 @@
 {
   "build": {
-    "builder": "NIXPACKS"
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile"
   },
   "deploy": {
     "numReplicas": 1,
     "sleepApplication": false,
     "restartPolicyType": "ON_FAILURE"
-  },
-  "environments": {
-    "production": {
-      "build": {
-        "builder": "NIXPACKS",
-        "options": {
-          "NODE_VERSION": "20"
-        }
-      }
-    }
   }
 }

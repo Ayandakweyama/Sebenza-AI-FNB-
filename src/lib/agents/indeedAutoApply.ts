@@ -73,12 +73,29 @@ export function getSessionProgress(sessionId: string): AutoApplyProgress | undef
   return progressCache.get(sessionId);
 }
 
+// ─── Environment Detection ──────────────────────────────────────────────────
+
+function isServerEnvironment(): boolean {
+  return !!(
+    process.env.RAILWAY_ENVIRONMENT ||
+    process.env.RAILWAY_PROJECT_ID ||
+    process.env.RENDER ||
+    process.env.FLY_APP_NAME ||
+    process.env.VERCEL ||
+    process.env.DOCKER_CONTAINER ||
+    (process.env.NODE_ENV === 'production' && !process.env.DISPLAY)
+  );
+}
+
 // ─── Browser Launch ──────────────────────────────────────────────────────────
-// Launches a visible Chrome browser so the user can see what's happening
-// and manually sign in to Indeed when prompted.
+// Locally: launches a visible Chrome browser so the user can watch.
+// On Railway/production: launches headless Chromium in the container.
 
 async function launchVisibleBrowser(): Promise<Browser> {
   const puppeteer = await import('puppeteer');
+  const isServer = isServerEnvironment();
+
+  console.log(`[AutoApply] Environment: ${isServer ? 'SERVER (headless)' : 'LOCAL (visible)'}`);
 
   // First try connecting to an already-running debug Chrome (optional)
   try {
@@ -89,30 +106,49 @@ async function launchVisibleBrowser(): Promise<Browser> {
     console.log('[AutoApply] ✅ Connected to existing Chrome browser');
     return browser;
   } catch {
-    console.log('[AutoApply] No existing Chrome found — launching a new visible browser…');
+    console.log('[AutoApply] No existing Chrome found — launching a new browser…');
   }
 
   // Use a persistent profile so cookies/sessions survive across runs
-  const path = await import('path');
+  const pathMod = await import('path');
   const os = await import('os');
-  const userDataDir = path.default.join(os.default.homedir(), '.sebenza-chrome-profile');
-  console.log(`[AutoApply] Using persistent Chrome profile: ${userDataDir}`);
+  const userDataDir = pathMod.default.join(os.default.tmpdir(), '.sebenza-chrome-profile');
+  console.log(`[AutoApply] Using Chrome profile: ${userDataDir}`);
 
-  // Launch a new visible Chrome window
-  const browser = await puppeteer.default.launch({
-    headless: false,
-    defaultViewport: null,
-    userDataDir,
-    args: [
-      '--start-maximized',
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-blink-features=AutomationControlled',
-    ],
-  });
-
-  console.log('[AutoApply] ✅ Launched visible Chrome browser');
-  return browser;
+  if (isServer) {
+    // ── SERVER / RAILWAY: headless Chromium ─────────────────────────────
+    const browser = await puppeteer.default.launch({
+      headless: true,
+      defaultViewport: { width: 1366, height: 768 },
+      userDataDir,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--disable-blink-features=AutomationControlled',
+        '--single-process',
+        '--no-zygote',
+      ],
+    });
+    console.log('[AutoApply] ✅ Launched headless Chromium (server mode)');
+    return browser;
+  } else {
+    // ── LOCAL DEV: visible Chrome window ────────────────────────────────
+    const browser = await puppeteer.default.launch({
+      headless: false,
+      defaultViewport: null,
+      userDataDir,
+      args: [
+        '--start-maximized',
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-blink-features=AutomationControlled',
+      ],
+    });
+    console.log('[AutoApply] ✅ Launched visible Chrome browser (local mode)');
+    return browser;
+  }
 }
 
 // ─── Main Agent ──────────────────────────────────────────────────────────────
@@ -377,6 +413,8 @@ function normaliseIndeedUrl(url: string): string {
 // Google" and pre-fill the email, then polls until sign-in is detected.
 
 async function signInWithGoogle(page: Page, userEmail: string): Promise<void> {
+  const isServer = isServerEnvironment();
+
   console.log('[AutoApply] Navigating to Indeed…');
   await page.goto('https://za.indeed.com/', { waitUntil: 'domcontentloaded', timeout: 45000 });
   await fastDelay(2000, 3000);
@@ -387,6 +425,69 @@ async function signInWithGoogle(page: Page, userEmail: string): Promise<void> {
     return;
   }
 
+  // On server (Railway): no human can sign in manually.
+  // Try to proceed without sign-in — Indeed allows browsing and some
+  // Easy Apply jobs work without being logged in. If a specific apply
+  // action later requires auth, it will be caught per-job.
+  if (isServer) {
+    console.log('[AutoApply] ⚠️ SERVER MODE: No manual sign-in available.');
+    console.log('[AutoApply] Attempting to proceed without Indeed login…');
+    console.log('[AutoApply] (Jobs requiring auth will be skipped individually)');
+
+    // Try email/password sign-in if INDEED_EMAIL and INDEED_PASSWORD are set
+    const indeedEmail = process.env.INDEED_EMAIL || userEmail;
+    const indeedPassword = process.env.INDEED_PASSWORD;
+
+    if (indeedPassword) {
+      console.log('[AutoApply] Found INDEED_PASSWORD env var — attempting auto sign-in…');
+      try {
+        await page.goto('https://secure.indeed.com/auth', { waitUntil: 'networkidle2', timeout: 30000 });
+        await fastDelay(2000, 3000);
+
+        // Try to fill email
+        const emailInput = await page.$('input[type="email"], input[name="__email"]');
+        if (emailInput) {
+          await emailInput.click({ clickCount: 3 });
+          await emailInput.type(indeedEmail, { delay: 20 });
+          await fastDelay(500, 1000);
+
+          // Click continue/next
+          const continueBtn = await page.$('button[type="submit"]');
+          if (continueBtn) await continueBtn.click();
+          await fastDelay(2000, 3000);
+
+          // Fill password
+          const passInput = await page.$('input[type="password"]');
+          if (passInput) {
+            await passInput.click({ clickCount: 3 });
+            await passInput.type(indeedPassword, { delay: 20 });
+            await fastDelay(500, 1000);
+
+            const signInBtn = await page.$('button[type="submit"]');
+            if (signInBtn) await signInBtn.click();
+            await fastDelay(3000, 5000);
+
+            if (await checkIfSignedIn(page)) {
+              console.log('[AutoApply] ✅ Auto sign-in successful!');
+              return;
+            }
+          }
+        }
+        console.log('[AutoApply] Auto sign-in did not succeed — continuing without auth');
+      } catch (err) {
+        console.warn('[AutoApply] Auto sign-in error:', err);
+      }
+    }
+
+    // Navigate back to Indeed homepage and proceed without sign-in
+    try {
+      await page.goto('https://za.indeed.com/', { waitUntil: 'domcontentloaded', timeout: 20000 });
+      await fastDelay(1000, 2000);
+    } catch { /* ignore */ }
+    return;
+  }
+
+  // ── LOCAL MODE: Interactive sign-in flow ──────────────────────────────
   // Navigate to auth page
   console.log('[AutoApply] Not signed in yet — opening Indeed sign-in page…');
   await page.goto('https://secure.indeed.com/auth', { waitUntil: 'networkidle2', timeout: 45000 });

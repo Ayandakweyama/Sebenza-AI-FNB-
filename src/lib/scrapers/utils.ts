@@ -1,7 +1,20 @@
 import { randomInt } from 'crypto';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import type { Browser, Page } from 'puppeteer';
+
+function isServerEnvironment(): boolean {
+  return !!(
+    process.env.RAILWAY_ENVIRONMENT ||
+    process.env.RAILWAY_PROJECT_ID ||
+    process.env.RENDER ||
+    process.env.FLY_APP_NAME ||
+    process.env.VERCEL ||
+    process.env.DOCKER_CONTAINER ||
+    (process.env.NODE_ENV === 'production' && !process.env.DISPLAY)
+  );
+}
 
 export const randomDelay = (min: number, max: number): Promise<void> => 
   new Promise(resolve => setTimeout(resolve, randomInt(min, max)));
@@ -78,6 +91,7 @@ const MAX_POOL_SIZE = 3;
 export async function getBrowserFromPool(): Promise<Browser> {
   // Create a new browser instance with guaranteed unique userDataDir
   const puppeteer = await import('puppeteer');
+  const isServer = isServerEnvironment();
   
   let userDataDir: string;
   let uniqueDir: string;
@@ -87,14 +101,14 @@ export async function getBrowserFromPool(): Promise<Browser> {
     const timestamp = Date.now();
     const randomId = Math.random().toString(36).substr(2, 9) + Math.random().toString(36).substr(2, 9) + Math.random().toString(36).substr(2, 9);
     uniqueDir = `puppeteer_dev_chrome_profile-${timestamp}-${randomId}`;
-    userDataDir = path.join(require('os').tmpdir(), uniqueDir);
+    userDataDir = path.join(os.tmpdir(), uniqueDir);
     attempts++;
   } while (fs.existsSync(userDataDir) && attempts < 10); // Ensure directory doesn't exist
   
-  console.log(`🔧 Creating browser with unique userDataDir: ${userDataDir}`);
+  console.log(`🔧 Creating browser (${isServer ? 'server' : 'local'}) with userDataDir: ${userDataDir}`);
   
   const config = {
-    ...FAST_BROWSER_CONFIG,
+    ...(isServer ? SERVER_BROWSER_CONFIG : FAST_BROWSER_CONFIG),
     userDataDir
   };
   
@@ -178,4 +192,26 @@ export const FAST_BROWSER_CONFIG = {
   ignoreHTTPSErrors: true,
   timeout: 15000,
   protocolTimeout: 120000 // 2 minutes for protocol operations
+};
+
+// Server/Railway-safe config with container-compatible args
+export const SERVER_BROWSER_CONFIG = {
+  headless: true,
+  args: [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-gpu',
+    '--single-process',
+    '--no-zygote',
+    '--disable-extensions',
+    '--disable-plugins',
+    '--no-first-run',
+    '--memory-pressure-off',
+    '--disable-blink-features=AutomationControlled',
+  ],
+  defaultViewport: { width: 1366, height: 768 },
+  ignoreHTTPSErrors: true,
+  timeout: 30000,
+  protocolTimeout: 180000 // 3 minutes for server environments
 };
