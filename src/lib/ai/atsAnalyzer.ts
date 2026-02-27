@@ -1,10 +1,13 @@
 import OpenAI from 'openai';
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  dangerouslyAllowBrowser: false
-});
+// Lazy OpenAI client — only instantiated when actually called at runtime,
+// NOT at module-load time (which would crash during `next build`).
+function getOpenAI(): OpenAI {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+    dangerouslyAllowBrowser: false
+  });
+}
 
 export interface ATSAnalysisResult {
   overallScore: number;
@@ -247,7 +250,7 @@ export class ATSAnalyzer {
       
       Provide a detailed JSON analysis following the specified structure.`;
 
-      const completion = await openai.chat.completions.create({
+      const completion = await getOpenAI().chat.completions.create({
         model: "gpt-4-turbo-preview",
         messages: [
           { role: "system", content: systemPrompt },
@@ -307,7 +310,7 @@ export class ATSAnalyzer {
     }`;
 
     try {
-      const completion = await openai.chat.completions.create({
+      const completion = await getOpenAI().chat.completions.create({
         model: "gpt-4-turbo-preview",
         messages: [
           { role: "system", content: "You are a senior hiring manager who looks beyond keywords to understand true candidate potential." },
@@ -344,7 +347,7 @@ export class ATSAnalyzer {
     Resume: ${resumeText}`;
 
     try {
-      const completion = await openai.chat.completions.create({
+      const completion = await getOpenAI().chat.completions.create({
         model: "gpt-3.5-turbo",
         messages: [
           { role: "system", content: "You are an ATS expert analyzing resume sections." },
@@ -395,7 +398,7 @@ export class ATSAnalyzer {
     Return JSON with narrative analysis.`;
 
     try {
-      const completion = await openai.chat.completions.create({
+      const completion = await getOpenAI().chat.completions.create({
         model: "gpt-3.5-turbo",
         messages: [
           { role: "system", content: "You are a career coach analyzing professional narratives." },
@@ -461,7 +464,7 @@ export class ATSAnalyzer {
     Return JSON with detailed achievement analysis.`;
 
     try {
-      const completion = await openai.chat.completions.create({
+      const completion = await getOpenAI().chat.completions.create({
         model: "gpt-3.5-turbo",
         messages: [
           { role: "system", content: "You are an expert at evaluating professional achievements and impact." },
@@ -521,7 +524,7 @@ export class ATSAnalyzer {
     Return as JSON with arrays for each category.`;
 
     try {
-      const completion = await openai.chat.completions.create({
+      const completion = await getOpenAI().chat.completions.create({
         model: "gpt-3.5-turbo",
         messages: [
           { role: "system", content: "You are an ATS keyword optimization expert." },
@@ -575,7 +578,7 @@ export class ATSAnalyzer {
     Return as JSON.`;
 
     try {
-      const completion = await openai.chat.completions.create({
+      const completion = await getOpenAI().chat.completions.create({
         model: "gpt-3.5-turbo",
         messages: [
           { role: "system", content: "You are a career coach creating ATS improvement plans." },
@@ -626,7 +629,7 @@ export class ATSAnalyzer {
     Return as JSON.`;
 
     try {
-      const completion = await openai.chat.completions.create({
+      const completion = await getOpenAI().chat.completions.create({
         model: "gpt-3.5-turbo",
         messages: [
           { role: "system", content: "You are an industry expert comparing resumes to benchmarks." },

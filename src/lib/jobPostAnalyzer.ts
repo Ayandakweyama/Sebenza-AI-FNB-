@@ -1,17 +1,9 @@
 import OpenAI from 'openai';
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-// Log initialization status
-if (typeof window === 'undefined') {
-  if (process.env.OPENAI_API_KEY) {
-    console.log('OpenAI client is available for job post analysis');
-  } else {
-    console.warn('OpenAI API key is not configured for job post analysis');
-  }
+// Lazy OpenAI client — only instantiated when actually called at runtime,
+// NOT at module-load time (which would crash during `next build`).
+function getOpenAI(): OpenAI {
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 }
 
 export interface JobAnalysisResult {
@@ -100,7 +92,7 @@ Return the response in JSON format with the following structure:
     // Truncate job post text if it's too long (to avoid token limits)
     const truncatedText = jobPostText.length > 10000 ? jobPostText.substring(0, 10000) + '...' : jobPostText;
     
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
