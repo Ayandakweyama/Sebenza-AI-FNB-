@@ -97,4 +97,5 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 # Push schema then start server
-CMD npx prisma db push --skip-generate && node server.js
+# Use node directly — npx can't find the .bin symlink in standalone output
+CMD node ./node_modules/prisma/build/index.js db push --skip-generate && node server.js
