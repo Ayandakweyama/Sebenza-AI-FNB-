@@ -23,13 +23,9 @@ ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 ARG CLERK_SECRET_KEY
 ENV CLERK_SECRET_KEY=$CLERK_SECRET_KEY
-ARG DATABASE_URL
-ENV DATABASE_URL=$DATABASE_URL
-
-# Generate Prisma client, push schema, and build Next.js
+# Generate Prisma client and build Next.js
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npx prisma generate
-RUN npx prisma db push --skip-generate
 RUN npm run build
 
 # ── Stage 3: Production ──────────────────────────────────────────────────────
@@ -89,14 +85,16 @@ COPY --from=deps /app/node_modules/puppeteer ./node_modules/puppeteer
 COPY --from=deps /app/node_modules/puppeteer-core ./node_modules/puppeteer-core
 COPY --from=deps /root/.cache/puppeteer /root/.cache/puppeteer
 
-# Copy @prisma/client for runtime queries (CLI no longer needed here)
+# Copy Prisma packages for runtime (client + CLI for db push at startup)
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/node_modules/effect ./node_modules/effect
 
 EXPOSE 3000
 
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Schema already pushed during build — just start the server
-CMD node server.js
+# Push schema at startup (internal DB only reachable from running services)
+CMD node ./node_modules/prisma/build/index.js db push --skip-generate && node server.js
