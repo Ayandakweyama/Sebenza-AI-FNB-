@@ -77,7 +77,7 @@ const NavbarContent = () => {
 
             {/* Logo - centered on mobile, far left on desktop */}
             <div className="flex-shrink-0 mx-auto md:mx-0">
-              <Link href="/dashboard" className="flex items-center">
+              <Link href="/" className="flex items-center">
                 <div className="relative h-20 w-20 md:h-28 md:w-28 transition-all duration-300 hover:scale-105 transform">
                   <Image 
                     src="/images/logonobg.png" 

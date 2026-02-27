@@ -36,6 +36,7 @@ model User {
   savedJobs         SavedJob[]
   jobAlerts         JobAlert[]
   chatSessions      ChatSession[]
+  autoApplySessions AutoApplySession[]
 
   @@map("users")
 }
@@ -425,4 +426,63 @@ model ChatMessage {
   
   @@index([sessionId, createdAt])
   @@map("chat_messages")
+}
+
+// ─── Auto-Apply Agent ────────────────────────────────────────────────────────
+
+model AutoApplySession {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Search config
+  searchQuery     String
+  location        String   @default("South Africa")
+  jobType         String?
+  maxApplications Int      @default(10)
+  indeedEmail     String?
+
+  // Progress
+  status          String   @default("pending") // pending, running, paused, completed, failed, cancelled
+  totalFound      Int      @default(0)
+  appliedCount    Int      @default(0)
+  skippedCount    Int      @default(0)
+  failedCount     Int      @default(0)
+  lastError       String?
+
+  // Timestamps
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  logs            AutoApplyLog[]
+
+  @@index([userId, status])
+  @@map("auto_apply_sessions")
+}
+
+model AutoApplyLog {
+  id                String   @id @default(cuid())
+  sessionId         String
+  session           AutoApplySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  // Job info
+  jobTitle          String
+  company           String
+  jobUrl            String
+  matchScore        Int?
+
+  // Result
+  status            String   // applied, skipped, failed, needs_review
+  questionsFound    Int      @default(0)
+  questionsAnswered Int      @default(0)
+  aiResponses       Json?
+  failureReason     String?
+  skipReason        String?
+
+  createdAt         DateTime @default(now())
+
+  @@index([sessionId])
+  @@map("auto_apply_logs")
 }

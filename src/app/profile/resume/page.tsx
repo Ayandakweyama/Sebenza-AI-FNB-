@@ -24,6 +24,8 @@ export default function ResumeDocumentsPage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [selectedType, setSelectedType] = useState<string>('all');
+  const [uploadType, setUploadType] = useState<string>('resume');
+  const [uploadMessage, setUploadMessage] = useState('');
 
   useEffect(() => {
     fetchDocuments();
@@ -52,9 +54,10 @@ export default function ResumeDocumentsPage() {
     if (!file) return;
 
     setUploading(true);
+    setUploadMessage('');
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('type', 'resume'); // Default to resume
+    formData.append('type', uploadType);
     formData.append('description', '');
 
     try {
@@ -66,20 +69,25 @@ export default function ResumeDocumentsPage() {
       if (response.ok) {
         const data = await response.json();
         setDocuments(prev => [data.document, ...prev]);
+        setUploadMessage('Document uploaded successfully!');
       } else {
-        alert('Failed to upload document');
+        const err = await response.json();
+        setUploadMessage(err.error || 'Failed to upload document');
       }
     } catch (error) {
       console.error('Error uploading document:', error);
-      alert('Error uploading document');
+      setUploadMessage('Error uploading document');
     } finally {
       setUploading(false);
+      // Reset the file input
+      event.target.value = '';
+      setTimeout(() => setUploadMessage(''), 4000);
     }
   };
 
   const setPrimaryDocument = async (documentId: string) => {
     try {
-      const response = await fetch(`/api/profile/documents/${documentId}/primary`, {
+      const response = await fetch(`/api/profile/documents/${documentId}`, {
         method: 'PUT',
       });
 
@@ -174,7 +182,22 @@ export default function ResumeDocumentsPage() {
         <div className="mb-8">
           <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
             <h2 className="text-xl font-semibold text-white mb-4">Upload New Document</h2>
-            
+
+            {/* Document type selector */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-slate-300 mb-2">Document Type</label>
+              <select
+                value={uploadType}
+                onChange={(e) => setUploadType(e.target.value)}
+                className="w-full sm:w-64 px-4 py-2.5 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:border-blue-500 focus:outline-none"
+              >
+                <option value="resume">Resume / CV</option>
+                <option value="cover_letter">Cover Letter</option>
+                <option value="portfolio">Portfolio</option>
+                <option value="certificate">Certificate</option>
+              </select>
+            </div>
+
             <div className="border-2 border-dashed border-slate-600 rounded-lg p-8 text-center hover:border-blue-500/50 transition-colors">
               <input
                 type="file"
@@ -197,6 +220,12 @@ export default function ResumeDocumentsPage() {
                 </p>
               </label>
             </div>
+
+            {uploadMessage && (
+              <p className={`mt-3 text-sm font-medium ${uploadMessage.includes('successfully') ? 'text-green-400' : 'text-red-400'}`}>
+                {uploadMessage}
+              </p>
+            )}
           </div>
         </div>
 

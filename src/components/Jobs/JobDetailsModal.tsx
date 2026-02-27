@@ -281,21 +281,24 @@ const JobDetailsModal = memo(function JobDetailsModal({
                 <h3 className="text-xl font-bold text-gray-900 mb-6">Actions</h3>
                 
                 <div className="space-y-4">
-                  {/* Apply button - Coming Soon */}
+                  {/* Apply button - Links to Auto Apply */}
                   <div className="relative">
-                    <motion.button
-                      disabled
-                      className="w-full bg-gray-400 cursor-not-allowed text-white font-semibold py-4 px-6 rounded-xl flex items-center justify-center gap-3 opacity-60"
-                    >
-                      <Heart className="w-6 h-6" />
-                      Apply for this job
-                    </motion.button>
-                    <div className="mt-2 p-3 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-lg">
+                    <a href="/jobs/auto-apply">
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-semibold py-4 px-6 rounded-xl flex items-center justify-center gap-3 transition-all"
+                      >
+                        <Heart className="w-6 h-6" />
+                        Auto Apply with AI
+                      </motion.button>
+                    </a>
+                    <div className="mt-2 p-3 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-semibold text-blue-700">AI Agent Coming Soon!</span>
+                        <span className="text-sm font-semibold text-purple-700">🤖 AI Auto-Apply Agent</span>
                       </div>
                       <p className="text-xs text-gray-700">
-                        Our self-applying AI agent will automatically apply to jobs for you. Available exclusively for Pro users.
+                        Let our AI agent search Indeed, answer application questions using your CV, and apply automatically.
                       </p>
                     </div>
                   </div>

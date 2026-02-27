@@ -62,13 +62,10 @@ export default function ApplicationsPage() {
         <div className="space-y-6 mt-6">
           <div className="flex justify-end">
         <div className="flex gap-3">
-          <Button 
-            variant="outline" 
-            className="border-slate-600 text-slate-500 cursor-not-allowed opacity-60"
-            disabled
-            title="Self-applying AI agent is still under construction"
-          >
-            🤖 Auto Apply
+          <Button asChild variant="outline" className="border-purple-500/30 text-purple-400 hover:bg-purple-500/10">
+            <Link href="/jobs/auto-apply">
+              🤖 Auto Apply
+            </Link>
           </Button>
           <Button asChild variant="outline" className="border-purple-500/30 text-purple-400 hover:bg-purple-500/10">
             <Link href="/jobs/all">
@@ -81,7 +78,7 @@ export default function ApplicationsPage() {
           
           <div className="text-center">
             <p className="text-sm text-slate-400">
-              💡 <span className="text-purple-400 font-medium">Coming Soon:</span> AI-powered auto-application feature will be available soon!
+              💡 <span className="text-purple-400 font-medium">NEW:</span> Try our AI Auto-Apply agent to automatically apply to jobs on Indeed!
             </p>
           </div>
           

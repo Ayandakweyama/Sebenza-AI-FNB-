@@ -70,11 +70,12 @@ export function UserSync({ children }: { children: React.ReactNode }) {
           
           if (retryCount.current < maxRetries) {
             // Use exponential backoff for retry
-            const delay = await exponentialBackoff(retryCount.current - 1, 1000);
-            console.log(`Retrying sync in ${delay}ms (attempt ${retryCount.current}/${maxRetries})`);
+            const delayMs = Math.pow(2, retryCount.current - 1) * 1000;
+            console.log(`Retrying sync in ${delayMs}ms (attempt ${retryCount.current}/${maxRetries})`);
             setTimeout(() => {
               syncAttempted.current = false;
-            }, delay);
+            }, delayMs);
+            await exponentialBackoff(retryCount.current - 1, 1000);
           } else {
             console.error('Max retries reached for user sync');
             toast.error('Failed to sync user after multiple attempts. Please refresh the page.');

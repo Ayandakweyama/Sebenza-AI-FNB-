@@ -45,6 +45,7 @@ export default function ProfilePage() {
               <span className="text-lg sm:text-2xl">👤</span>
             </div>
             <h2 className="text-lg sm:text-xl font-semibold mb-2 text-white group-hover:text-blue-200 transition-colors">
+              Personal Profile
             </h2>
             <p className="text-sm sm:text-base text-slate-400 group-hover:text-slate-300 transition-colors leading-relaxed">
               View and manage your profile information.

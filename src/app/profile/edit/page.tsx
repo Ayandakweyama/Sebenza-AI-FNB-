@@ -42,6 +42,7 @@ export default function EditProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
 
   useEffect(() => {
     fetchProfile();
@@ -52,7 +53,23 @@ export default function EditProfilePage() {
       const response = await fetch('/api/profile');
       if (response.ok) {
         const data = await response.json();
-        setProfile(data.profile || profile);
+        const p = data.profile || {};
+        setProfile({
+          firstName: p.firstName || '',
+          lastName: p.lastName || '',
+          email: data.user?.email || p.email || '',
+          phone: p.phone || '',
+          location: p.location || '',
+          bio: p.bio || '',
+          avatar: p.avatar || '',
+          linkedinUrl: p.linkedinUrl || '',
+          githubUrl: p.githubUrl || '',
+          websiteUrl: p.websiteUrl || '',
+          title: p.title || '',
+          company: p.company || '',
+          experience: p.experience || '',
+          industry: p.industry || '',
+        });
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
@@ -101,17 +118,37 @@ export default function EditProfilePage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(profile),
+        body: JSON.stringify({
+          profile: {
+            firstName: profile.firstName,
+            lastName: profile.lastName,
+            phone: profile.phone,
+            location: profile.location,
+            bio: profile.bio,
+            avatar: profile.avatar,
+            linkedinUrl: profile.linkedinUrl,
+            githubUrl: profile.githubUrl,
+            websiteUrl: profile.websiteUrl,
+            title: profile.title,
+            company: profile.company,
+            experience: profile.experience,
+            industry: profile.industry,
+          },
+        }),
       });
 
       if (response.ok) {
-        alert('Profile updated successfully!');
+        setSaveMessage('Profile updated successfully!');
+        setTimeout(() => setSaveMessage(''), 3000);
       } else {
-        alert('Failed to update profile');
+        const err = await response.json();
+        setSaveMessage(err.error || 'Failed to update profile');
+        setTimeout(() => setSaveMessage(''), 4000);
       }
     } catch (error) {
       console.error('Error updating profile:', error);
-      alert('Error updating profile');
+      setSaveMessage('Error updating profile');
+      setTimeout(() => setSaveMessage(''), 4000);
     } finally {
       setSaving(false);
     }
@@ -385,7 +422,14 @@ export default function EditProfilePage() {
           </div>
 
           {/* Save Button */}
-          <div className="flex justify-end">
+          <div className="flex items-center justify-end gap-4">
+            {saveMessage && (
+              <span className={`text-sm font-medium ${
+                saveMessage.includes('successfully') ? 'text-green-400' : 'text-red-400'
+              }`}>
+                {saveMessage}
+              </span>
+            )}
             <button
               onClick={handleSave}
               disabled={saving}
