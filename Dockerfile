@@ -85,16 +85,15 @@ COPY --from=deps /app/node_modules/puppeteer ./node_modules/puppeteer
 COPY --from=deps /app/node_modules/puppeteer-core ./node_modules/puppeteer-core
 COPY --from=deps /root/.cache/puppeteer /root/.cache/puppeteer
 
-# Copy Prisma packages for runtime (client + CLI for db push at startup)
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder /app/node_modules/effect ./node_modules/effect
+# Copy full node_modules to a separate path for Prisma CLI (has deep transitive deps).
+# The standalone node_modules is kept intact for the Next.js server.
+COPY --from=builder /app/node_modules /prisma-cli/node_modules
+COPY --from=builder /app/prisma /prisma-cli/prisma
 
 EXPOSE 3000
 
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Push schema at startup (internal DB only reachable from running services)
-CMD node ./node_modules/prisma/build/index.js db push --skip-generate && node server.js
+# Push schema at startup (internal DB only reachable at runtime, not build time)
+CMD NODE_PATH=/prisma-cli/node_modules node /prisma-cli/node_modules/prisma/build/index.js db push --skip-generate --schema=/prisma-cli/prisma/schema.prisma && node server.js
