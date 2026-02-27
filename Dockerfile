@@ -23,10 +23,13 @@ ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 ARG CLERK_SECRET_KEY
 ENV CLERK_SECRET_KEY=$CLERK_SECRET_KEY
+ARG DATABASE_URL
+ENV DATABASE_URL=$DATABASE_URL
 
-# Generate Prisma client and build Next.js
+# Generate Prisma client, push schema, and build Next.js
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npx prisma generate
+RUN npx prisma db push --skip-generate
 RUN npm run build
 
 # ── Stage 3: Production ──────────────────────────────────────────────────────
@@ -76,7 +79,7 @@ COPY --from=builder /app/.next/standalone ./
 # Copy static assets
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
-# Copy Prisma schema for db push at startup
+# Copy Prisma schema (needed by @prisma/client at runtime)
 COPY --from=builder /app/prisma ./prisma
 
 # Puppeteer downloads Chromium to ~/.cache/puppeteer/ during npm ci.
@@ -86,16 +89,14 @@ COPY --from=deps /app/node_modules/puppeteer ./node_modules/puppeteer
 COPY --from=deps /app/node_modules/puppeteer-core ./node_modules/puppeteer-core
 COPY --from=deps /root/.cache/puppeteer /root/.cache/puppeteer
 
-# Also copy @prisma/client (needed for db push at runtime)
+# Copy @prisma/client for runtime queries (CLI no longer needed here)
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 
 EXPOSE 3000
 
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Push schema then start server
-# Use node directly — npx can't find the .bin symlink in standalone output
-CMD node ./node_modules/prisma/build/index.js db push --skip-generate && node server.js
+# Schema already pushed during build — just start the server
+CMD node server.js
