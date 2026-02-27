@@ -17,6 +17,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Next.js needs these vars at build time for static page generation / prerendering.
+# Railway automatically injects service env vars as Docker build args.
+ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+ARG CLERK_SECRET_KEY
+ENV CLERK_SECRET_KEY=$CLERK_SECRET_KEY
+
 # Generate Prisma client and build Next.js
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npx prisma generate
