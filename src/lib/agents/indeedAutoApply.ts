@@ -201,10 +201,10 @@ export async function runAutoApplyAgent(config: AutoApplyConfig): Promise<AutoAp
       Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
     });
 
-    // Step 1: Navigate to Indeed and let the user sign in
-    progress.currentStep = 'Opening Indeed — please sign in if needed...';
+    // Step 1: Navigate to Indeed and give user time to sign in
+    progress.currentStep = 'Waiting for Indeed sign-in...';
     await updateSessionProgress(sessionId, progress);
-    await signInWithGoogle(page, config.userEmail);
+    await signInToIndeed(page, config.userEmail);
 
     // Step 2: Search for jobs
     progress.currentStep = 'Searching for jobs...';
@@ -407,158 +407,44 @@ function normaliseIndeedUrl(url: string): string {
 }
 
 // ─── Indeed Sign-In ──────────────────────────────────────────────────────────
-// Opens Indeed and gives the user up to 5 minutes to sign in manually.
-// If the user is already signed in (cookie persistence), it skips immediately.
-// Otherwise it navigates to the Indeed auth page, tries to click "Sign in with
-// Google" and pre-fill the email, then polls until sign-in is detected.
+// Opens Indeed auth page, pre-fills email, and waits up to 5 minutes for the
+// user to complete sign-in. If timeout, proceeds anyway (jobs needing auth
+// will be skipped individually).
 
-async function signInWithGoogle(page: Page, userEmail: string): Promise<void> {
-  const isServer = isServerEnvironment();
-
+async function signInToIndeed(page: Page, userEmail: string): Promise<void> {
   console.log('[AutoApply] Navigating to Indeed…');
   await page.goto('https://za.indeed.com/', { waitUntil: 'domcontentloaded', timeout: 45000 });
   await fastDelay(2000, 3000);
 
-  // Check if already signed in (cookie persistence from the user's Chrome)
+  // Check if already signed in (cookie persistence)
   if (await checkIfSignedIn(page)) {
     console.log('[AutoApply] ✅ Already signed in to Indeed — skipping login');
     return;
   }
 
-  // On server (Railway): no human can sign in manually.
-  // Try to proceed without sign-in — Indeed allows browsing and some
-  // Easy Apply jobs work without being logged in. If a specific apply
-  // action later requires auth, it will be caught per-job.
-  if (isServer) {
-    console.log('[AutoApply] ⚠️ SERVER MODE: No manual sign-in available.');
-    console.log('[AutoApply] Attempting to proceed without Indeed login…');
-    console.log('[AutoApply] (Jobs requiring auth will be skipped individually)');
-
-    // Try email/password sign-in if INDEED_EMAIL and INDEED_PASSWORD are set
-    const indeedEmail = process.env.INDEED_EMAIL || userEmail;
-    const indeedPassword = process.env.INDEED_PASSWORD;
-
-    if (indeedPassword) {
-      console.log('[AutoApply] Found INDEED_PASSWORD env var — attempting auto sign-in…');
-      try {
-        await page.goto('https://secure.indeed.com/auth', { waitUntil: 'networkidle2', timeout: 30000 });
-        await fastDelay(2000, 3000);
-
-        // Try to fill email
-        const emailInput = await page.$('input[type="email"], input[name="__email"]');
-        if (emailInput) {
-          await emailInput.click({ clickCount: 3 });
-          await emailInput.type(indeedEmail, { delay: 20 });
-          await fastDelay(500, 1000);
-
-          // Click continue/next
-          const continueBtn = await page.$('button[type="submit"]');
-          if (continueBtn) await continueBtn.click();
-          await fastDelay(2000, 3000);
-
-          // Fill password
-          const passInput = await page.$('input[type="password"]');
-          if (passInput) {
-            await passInput.click({ clickCount: 3 });
-            await passInput.type(indeedPassword, { delay: 20 });
-            await fastDelay(500, 1000);
-
-            const signInBtn = await page.$('button[type="submit"]');
-            if (signInBtn) await signInBtn.click();
-            await fastDelay(3000, 5000);
-
-            if (await checkIfSignedIn(page)) {
-              console.log('[AutoApply] ✅ Auto sign-in successful!');
-              return;
-            }
-          }
-        }
-        console.log('[AutoApply] Auto sign-in did not succeed — continuing without auth');
-      } catch (err) {
-        console.warn('[AutoApply] Auto sign-in error:', err);
-      }
-    }
-
-    // Navigate back to Indeed homepage and proceed without sign-in
-    try {
-      await page.goto('https://za.indeed.com/', { waitUntil: 'domcontentloaded', timeout: 20000 });
-      await fastDelay(1000, 2000);
-    } catch { /* ignore */ }
-    return;
-  }
-
-  // ── LOCAL MODE: Interactive sign-in flow ──────────────────────────────
-  // Navigate to auth page
-  console.log('[AutoApply] Not signed in yet — opening Indeed sign-in page…');
+  // Navigate to auth page so user can sign in
+  console.log('[AutoApply] Not signed in — opening Indeed sign-in page…');
   await page.goto('https://secure.indeed.com/auth', { waitUntil: 'networkidle2', timeout: 45000 });
   await fastDelay(2000, 3000);
 
-  // Try to click "Sign in with Google" and pre-fill email (best-effort)
+  // Try to pre-fill the email field (best-effort)
   try {
-    const googleBtn = await findGoogleSignInButton(page);
-    if (googleBtn) {
-      console.log('[AutoApply] Clicking "Sign in with Google"…');
-
-      // Listen for popup
-      const popupPromise = new Promise<Page>((resolve) => {
-        page.browser().once('targetcreated', async (target) => {
-          const p = await target.page();
-          if (p) resolve(p);
-        });
-      });
-
-      await googleBtn.click();
-      await fastDelay(2000, 4000);
-
-      // Find the Google sign-in surface (popup or same-tab redirect)
-      let googlePage: Page | null = null;
-      try {
-        googlePage = await Promise.race([
-          popupPromise,
-          new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 10000)),
-        ]);
-      } catch {
-        const currentUrl = page.url();
-        if (currentUrl.includes('accounts.google.com')) {
-          googlePage = page;
-        } else {
-          const allPages = await page.browser().pages();
-          googlePage = allPages.find((p) => p.url().includes('accounts.google.com')) || null;
-        }
-      }
-
-      // Pre-fill email
-      if (googlePage) {
-        try {
-          await googlePage.waitForSelector('input[type="email"]', { timeout: 8000 });
-          const emailInput = await googlePage.$('input[type="email"]');
-          if (emailInput) {
-            await emailInput.click({ clickCount: 3 });
-            await emailInput.type(userEmail, { delay: 30 });
-            console.log(`[AutoApply] Pre-filled email: ${userEmail}`);
-            await fastDelay(500, 1000);
-            const nextBtn = await googlePage.$('#identifierNext');
-            if (nextBtn) await nextBtn.click();
-            else await googlePage.keyboard.press('Enter');
-          }
-        } catch {
-          console.log('[AutoApply] Could not pre-fill email — user will enter it manually');
-        }
-      }
-    } else {
-      console.log('[AutoApply] No Google button found — user should sign in manually');
+    const emailInput = await page.$('input[type="email"], input[name="__email"]');
+    if (emailInput) {
+      await emailInput.click({ clickCount: 3 });
+      await emailInput.type(userEmail, { delay: 30 });
+      console.log(`[AutoApply] Pre-filled email: ${userEmail}`);
     }
-  } catch (err) {
-    console.warn('[AutoApply] Error during Google sign-in attempt:', err);
+  } catch {
+    console.log('[AutoApply] Could not pre-fill email');
   }
 
-  // ── Wait up to 5 minutes for the user to complete sign-in ──────────────
-  const LOGIN_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
-  const POLL_INTERVAL_MS = 4000;
+  // Wait up to 5 minutes for the user to complete sign-in
+  const LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
+  const POLL_INTERVAL_MS = 5000;
   const startTime = Date.now();
 
-  console.log('[AutoApply] ⏳ Waiting up to 5 minutes for you to sign in to Indeed in the browser…');
-  console.log('[AutoApply] 💡 Please complete sign-in (password / 2FA) in the Chrome window.');
+  console.log('[AutoApply] ⏳ Waiting up to 5 minutes for you to sign in to Indeed…');
 
   while (Date.now() - startTime < LOGIN_TIMEOUT_MS) {
     await fastDelay(POLL_INTERVAL_MS, POLL_INTERVAL_MS + 500);
@@ -568,17 +454,6 @@ async function signInWithGoogle(page: Page, userEmail: string): Promise<void> {
     console.log(`[AutoApply] ⏳ Waiting for sign-in… (${elapsed}s elapsed, ${remaining}s remaining)`);
 
     try {
-      // Check main page
-      await page.bringToFront();
-      const url = page.url();
-
-      if (url.includes('indeed.com') && !url.includes('secure.indeed.com/auth')) {
-        if (await checkIfSignedIn(page)) {
-          console.log('[AutoApply] ✅ Successfully signed in to Indeed!');
-          return;
-        }
-      }
-
       // Check all browser tabs for Indeed signed-in state
       const allPages = await page.browser().pages();
       for (const p of allPages) {
@@ -587,7 +462,11 @@ async function signInWithGoogle(page: Page, userEmail: string): Promise<void> {
           if (pUrl.includes('indeed.com') && !pUrl.includes('/auth')) {
             if (await checkIfSignedIn(p)) {
               console.log('[AutoApply] ✅ Successfully signed in to Indeed!');
-              await page.bringToFront();
+              // Make sure main page is on Indeed
+              if (page.url().includes('/auth')) {
+                await page.goto('https://za.indeed.com/', { waitUntil: 'domcontentloaded', timeout: 20000 });
+                await fastDelay(1000, 2000);
+              }
               return;
             }
           }
@@ -596,7 +475,7 @@ async function signInWithGoogle(page: Page, userEmail: string): Promise<void> {
     } catch { /* ignore transient navigation errors */ }
   }
 
-  // Final check after timeout
+  // Final check — navigate to Indeed and see if we're signed in now
   try {
     await page.goto('https://za.indeed.com/', { waitUntil: 'domcontentloaded', timeout: 20000 });
     await fastDelay(2000, 3000);
@@ -606,11 +485,8 @@ async function signInWithGoogle(page: Page, userEmail: string): Promise<void> {
     }
   } catch { /* ignore */ }
 
-  // Sign-in is REQUIRED — throw an error to stop the agent
-  throw new Error(
-    'Indeed sign-in required. You did not sign in within 5 minutes. ' +
-    'Please restart the auto-apply agent and sign in to your Indeed account in the Chrome window that opens.'
-  );
+  // Not signed in after 5 min — proceed anyway, jobs requiring auth will be skipped
+  console.log('[AutoApply] ⚠️ Sign-in timeout — proceeding without auth. Jobs requiring sign-in will be skipped.');
 }
 
 async function findGoogleSignInButton(page: Page): Promise<import('puppeteer').ElementHandle<Element> | null> {

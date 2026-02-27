@@ -158,7 +158,6 @@ export default function AutoApplyPage() {
       setError('Please enter a job search query');
       return;
     }
-
     setIsStarting(true);
     setError('');
 
@@ -428,14 +427,12 @@ export default function AutoApplyPage() {
                 <div className="text-xs text-gray-500 bg-slate-700/30 rounded-lg p-3 space-y-1">
                   <strong className="text-gray-400">💡 How it works:</strong>
                   <ol className="list-decimal list-inside space-y-0.5 text-gray-500">
-                    <li>The agent opens a Chrome window automatically</li>
-                    <li>It navigates to Indeed and checks if you&apos;re signed in</li>
-                    <li>If not signed in, you have up to 5 minutes to sign in manually</li>
+                    <li>The agent opens Indeed in a browser on the server</li>
+                    <li>You&apos;ll have <strong className="text-amber-300">up to 5 minutes</strong> to sign in to your Indeed account</li>
                     <li>Once signed in, the agent searches for jobs matching your criteria</li>
                     <li>AI evaluates each job against your profile</li>
-                    <li>For matching jobs, AI fills out the application form using your CV</li>
-                    <li>You can watch the entire process in the browser!</li>
-                    <li><strong className="text-yellow-400">Keep an eye on the browser</strong> — you may need to complete &quot;I am human&quot; / CAPTCHA challenges that appear during the process</li>
+                    <li>For matching jobs, AI fills out and submits the application</li>
+                    <li><strong className="text-yellow-400">Note:</strong> Some jobs may be skipped if they require re-authentication</li>
                   </ol>
                 </div>
               </div>
