@@ -37,6 +37,7 @@ model User {
   jobAlerts         JobAlert[]
   chatSessions      ChatSession[]
   autoApplySessions AutoApplySession[]
+  interviewSessions InterviewSession[]
 
   @@map("users")
 }
@@ -313,6 +314,7 @@ model Job {
   
   applications Application[]
   savedJobs    SavedJob[]
+  interviewSessions InterviewSession[]
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -485,4 +487,116 @@ model AutoApplyLog {
 
   @@index([sessionId])
   @@map("auto_apply_logs")
+}
+
+// ─── AI Video Interview Analysis ────────────────────────────────────────────
+
+model InterviewSession {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId           String?
+  job             Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  // Session config
+  title           String   @default("Practice Interview")
+  type            String   @default("behavioral") // behavioral, technical, situational, mixed
+  difficulty      String   @default("intermediate") // beginner, intermediate, advanced
+
+  // Progress
+  status          String   @default("pending") // pending, in_progress, analyzing, completed, failed
+  overallScore    Int?
+  startedAt       DateTime?
+  completedAt     DateTime?
+
+  // Relations
+  questions       InterviewQuestion[]
+  report          InterviewReport?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId, status])
+  @@map("interview_sessions")
+}
+
+model InterviewQuestion {
+  id              String   @id @default(cuid())
+  sessionId       String
+  session         InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  questionText    String
+  category        String?  // behavioral, technical, situational, motivational
+  order           Int      @default(0)
+  timeLimitSecs   Int      @default(120) // max recording time in seconds
+
+  // Response
+  response        InterviewResponse?
+
+  createdAt       DateTime @default(now())
+
+  @@index([sessionId])
+  @@map("interview_questions")
+}
+
+model InterviewResponse {
+  id                  String   @id @default(cuid())
+  questionId          String   @unique
+  question            InterviewQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  // Video / media
+  videoUrl            String?
+  audioUrl            String?
+  durationSecs        Int?
+
+  // Transcription
+  transcript          String?
+
+  // AI scores (0–100)
+  clarityScore        Int?
+  confidenceScore     Int?
+  relevanceScore      Int?
+  communicationScore  Int?
+  emotionScore        Int?
+  facialScore         Int?
+
+  // AI feedback
+  aiFeedback          String?
+  keywordsMatched     Json?    // array of matched keywords
+  detailedAnalysis    Json?    // full structured analysis from AI
+
+  // Processing
+  analysisStatus      String   @default("pending") // pending, processing, completed, failed
+  analysisError       String?
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("interview_responses")
+}
+
+model InterviewReport {
+  id                  String   @id @default(cuid())
+  sessionId           String   @unique
+  session             InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  // Scores
+  finalScore          Int
+  answerQualityScore  Int?     // 40% weight
+  communicationScore  Int?     // 20% weight
+  confidenceScore     Int?     // 15% weight
+  engagementScore     Int?     // 15% weight
+  relevanceScore      Int?     // 10% weight
+
+  // Recruiter report
+  strengths           Json     @default("[]") // array of strength strings
+  weaknesses          Json     @default("[]") // array of weakness strings
+  recruiterSummary    String?
+  hiringRecommendation String? // proceed, maybe, reject
+  aiGeneratedInsights Json?    // full structured insights
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("interview_reports")
 }
