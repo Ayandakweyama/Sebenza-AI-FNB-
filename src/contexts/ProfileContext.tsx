@@ -158,7 +158,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
         };
 
         setProfile(transformedProfile);
-        
+
         // Also update the profile data service
         profileDataService.setProfileData(transformedProfile);
       } else if (response.status === 401) {
@@ -173,7 +173,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
             'Content-Type': 'application/json'
           }
         });
-        
+
         if (syncResponse.ok) {
           console.log('User synced successfully, retrying profile load...');
           // Retry loading profile after sync
@@ -183,10 +183,10 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
               'Content-Type': 'application/json'
             }
           });
-          
+
           if (retryResponse.ok) {
             const data = await retryResponse.json();
-            
+
             // Transform API data to match ProfileFormData structure
             const transformedProfile: ProfileFormData = {
               // Personal info (flattened)
@@ -197,7 +197,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
               location: data.location || '',
               bio: data.bio || '',
               profilePhoto: data.profilePhoto || null,
-              
+
               // Education
               education: data.education || [{
                 institution: '',
@@ -208,7 +208,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
                 endDate: undefined,
                 description: ''
               }],
-              
+
               // Work Experience
               workExperience: data.workExperience || [{
                 company: '',
@@ -219,7 +219,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
                 current: false,
                 achievements: []
               }],
-              
+
               // Skills (flattened structure)
               technicalSkills: data.technicalSkills || [],
               softSkills: data.softSkills || [],
@@ -233,7 +233,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
               relocation: data.relocation || false,
               remotePreference: data.remotePreference || 'Flexible',
               careerGoals: data.careerGoals || '',
-              
+
               // CV preferences (flattened structure)
               template: data.template || 'Modern',
               colorScheme: data.colorScheme || '#2563eb',
@@ -241,14 +241,18 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
               showPhoto: data.showPhoto !== false,
               customSections: data.customSections || []
             };
-            
+
             setProfile(transformedProfile);
-            
+
             // Also update the profile data service
             profileDataService.setProfileData(transformedProfile);
           }
         }
+      } else if (response.status === 500) {
+        console.error('Server error while loading profile (likely database connectivity issue)');
+        setError('Unable to load profile due to server error. Please try again later.');
       } else {
+        console.error('Unexpected status code while loading profile:', response.status);
         throw new Error('Failed to load profile');
       }
     } catch (err) {

@@ -1,11 +1,11 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { auth, currentUser } from '@clerk/nextjs/server';
-import { scrapeIndeed, scrapePnet, scrapeCareer24, scrapeLinkedIn, scrapeJobMail } from '@/lib/scrapers';
+import { scrapeIndeed, scrapePnet, scrapeCareer24, scrapeLinkedIn, scrapeJobMail, scrapeCareerJunction } from '@/lib/scrapers';
 import type { ScraperConfig, Job } from '@/lib/scrapers/types';
 import { jobCache } from '@/lib/cache/jobCache';
 import { getAuth } from '@clerk/nextjs/server';
 
-export const maxDuration = 300; // 300 seconds (5 minutes) max for Vercel to allow 3 minute scraping
+export const maxDuration = 120; // 120 seconds (2 minutes) max for faster response
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -55,7 +55,7 @@ interface RequestBody {
   query: string;
   location: string;
   maxPages?: number;
-  sources?: ('indeed' | 'pnet' | 'career24' | 'linkedin' | 'jobmail')[];
+  sources?: ('indeed' | 'pnet' | 'career24' | 'linkedin' | 'jobmail' | 'careerjunction')[];
 }
 
 export async function POST(request: NextRequest) {
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
       
       // Create a timeout promise for each scraper
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error(`${source} scraper timed out after 180 seconds`)), 180000);
+        setTimeout(() => reject(new Error(`${source} scraper timed out after 60 seconds`)), 60000);
       });
       
       try {
@@ -138,6 +138,8 @@ export async function POST(request: NextRequest) {
           scraperPromise = scrapeLinkedIn(config);
         } else if (source === 'jobmail') {
           scraperPromise = scrapeJobMail(config);
+        } else if (source === 'careerjunction') {
+          scraperPromise = scrapeCareerJunction(config);
         } else {
           scraperPromise = Promise.resolve({
             jobs: [],
@@ -211,7 +213,8 @@ export async function POST(request: NextRequest) {
           pnet: 0,
           career24: 0,
           linkedin: 0,
-          jobmail: 0
+          jobmail: 0,
+          careerjunction: 0
         },
         errors: errors.length > 0 ? errors : ['No jobs found. Please try different search terms or location.'],
         cached: false
@@ -268,7 +271,8 @@ export async function POST(request: NextRequest) {
         pnet: 0,
         career24: 0,
         linkedin: 0,
-        jobmail: 0
+        jobmail: 0,
+        careerjunction: 0
       },
       errors: ['Unable to fetch jobs at this time. Please try again later.'],
       cached: false

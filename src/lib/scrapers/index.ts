@@ -6,5 +6,6 @@ export { scrapeJobMail } from './jobmail';
 export { scrapeJobsCoZa } from './jobs-co-za';
 export { scrapeBestJobs } from './bestjobs';
 export { scrapeCareers24 } from './careers24';
+export { scrapeCareerJunction } from './careerjunction';
 export * from './types';
 export * from './utils';

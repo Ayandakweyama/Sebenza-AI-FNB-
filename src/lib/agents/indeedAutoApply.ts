@@ -129,6 +129,22 @@ async function launchVisibleBrowser(): Promise<Browser> {
         '--disable-blink-features=AutomationControlled',
         '--single-process',
         '--no-zygote',
+        '--disable-web-security',
+        '--disable-features=IsolateOrigins,site-per-process',
+        '--disable-site-isolation-trials',
+        '--disable-features=VizDisplayCompositor',
+        '--disable-background-networking',
+        '--disable-default-apps',
+        '--disable-extensions',
+        '--disable-sync',
+        '--disable-translate',
+        '--hide-scrollbars',
+        '--metrics-recording-only',
+        '--mute-audio',
+        '--no-first-run',
+        '--safebrowsing-disable-auto-update',
+        '--disable-infobars',
+        '--window-size=1366,768',
       ],
     });
     console.log('[AutoApply] ✅ Launched headless Chromium (server mode)');
@@ -144,6 +160,16 @@ async function launchVisibleBrowser(): Promise<Browser> {
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-blink-features=AutomationControlled',
+        '--disable-web-security',
+        '--disable-features=IsolateOrigins,site-per-process',
+        '--disable-site-isolation-trials',
+        '--disable-features=VizDisplayCompositor',
+        '--disable-background-networking',
+        '--disable-default-apps',
+        '--disable-extensions',
+        '--disable-sync',
+        '--disable-translate',
+        '--disable-infobars',
       ],
     });
     console.log('[AutoApply] ✅ Launched visible Chrome browser (local mode)');
@@ -194,11 +220,52 @@ export async function runAutoApplyAgent(config: AutoApplyConfig): Promise<AutoAp
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
     );
     await page.evaluateOnNewDocument(() => {
+      // Hide webdriver property
       Object.defineProperty(navigator, 'webdriver', { get: () => false });
+
+      // Mock Chrome object
       // @ts-ignore
-      window.chrome = { runtime: {} };
-      Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-      Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+      window.chrome = {
+        runtime: {},
+        loadTimes: function() {},
+        csi: function() {},
+        app: {}
+      };
+
+      // Mock plugins
+      Object.defineProperty(navigator, 'plugins', {
+        get: () => [
+          { name: 'Chrome PDF Plugin', description: 'Portable Document Format', filename: 'internal-pdf-viewer' },
+          { name: 'Chrome PDF Viewer', description: '', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai' },
+          { name: 'Native Client', description: '', filename: 'internal-nacl-plugin' }
+        ]
+      });
+
+      // Mock languages
+      Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en', 'en-GB'] });
+
+      // Mock permissions
+      const originalQuery = window.navigator.permissions.query;
+      // @ts-ignore
+      window.navigator.permissions.query = (parameters) => (
+        parameters.name === 'notifications' ?
+          Promise.resolve({ state: Notification.permission }) :
+          originalQuery(parameters)
+      );
+
+      // Mock connection
+      Object.defineProperty(navigator, 'connection', {
+        get: () => ({ effectiveType: '4g', rtt: 100, downlink: 10, saveData: false })
+      });
+
+      // Mock hardware concurrency
+      Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
+
+      // Mock device memory
+      Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
+
+      // Remove automation indicators
+      delete navigator.__proto__.webdriver;
     });
 
     // Step 1: Navigate to Indeed and give user time to sign in
@@ -418,6 +485,16 @@ async function signInToIndeed(page: Page, userEmail: string): Promise<void> {
   await page.goto('https://za.indeed.com/', { waitUntil: 'domcontentloaded', timeout: 45000 });
   await fastDelay(2000, 3000);
 
+  // Check for Cloudflare challenge
+  if (await isCloudflareChallenge(page)) {
+    console.log('[AutoApply] Cloudflare challenge detected on initial navigation');
+    const passed = await waitForCloudflareChallenge(page, 90000); // 90 seconds for manual verification
+    if (!passed) {
+      console.log('[AutoApply] ⚠️ Cloudflare challenge failed - cannot proceed');
+      throw new Error('Cloudflare challenge failed - Indeed is blocking automated access. Please try again later or use manual job application.');
+    }
+  }
+
   // Check if already signed in (cookie persistence)
   if (await checkIfSignedIn(page)) {
     console.log('[AutoApply] ✅ Already signed in to Indeed — skipping login');
@@ -588,6 +665,62 @@ async function checkIfSignedIn(page: Page): Promise<boolean> {
   }
 }
 
+// ─── Cloudflare Challenge Detection ─────────────────────────────────────────
+
+async function isCloudflareChallenge(page: Page): Promise<boolean> {
+  try {
+    const url = page.url();
+    const title = await page.title();
+    const content = await page.content();
+
+    // Check for Cloudflare indicators
+    const isCloudflare =
+      url.includes('cf-challenge') ||
+      url.includes('challenge-platform') ||
+      title.includes('Just a moment') ||
+      title.includes('Attention Required') ||
+      title.includes('Access Denied') ||
+      title.includes('Additional Verification Required') ||
+      content.includes('cf-challenge') ||
+      content.includes('challenge-platform') ||
+      content.includes('ray id') ||
+      content.includes('Cloudflare') ||
+      content.includes('Please wait while we verify') ||
+      content.includes('Checking your browser');
+
+    if (isCloudflare) {
+      console.log('[AutoApply] ⚠️ Cloudflare challenge detected');
+    }
+
+    return isCloudflare;
+  } catch {
+    return false;
+  }
+}
+
+async function waitForCloudflareChallenge(page: Page, maxWaitMs: number = 60000): Promise<boolean> {
+  console.log('[AutoApply] Waiting for Cloudflare challenge to pass...');
+  const startTime = Date.now();
+  const checkInterval = 2000;
+
+  while (Date.now() - startTime < maxWaitMs) {
+    await fastDelay(checkInterval, checkInterval + 500);
+
+    const elapsed = Math.round((Date.now() - startTime) / 1000);
+    console.log(`[AutoApply] Cloudflare wait... (${elapsed}s elapsed)`);
+
+    const isChallenge = await isCloudflareChallenge(page);
+    if (!isChallenge) {
+      console.log('[AutoApply] ✅ Cloudflare challenge passed');
+      await fastDelay(2000, 3000);
+      return true;
+    }
+  }
+
+  console.log('[AutoApply] ⚠️ Cloudflare challenge timeout');
+  return false;
+}
+
 interface JobListing {
   title: string;
   company: string;
@@ -612,6 +745,16 @@ async function searchIndeedJobs(
   console.log(`[AutoApply] Searching: ${searchUrl.toString()}`);
   await page.goto(searchUrl.toString(), { waitUntil: 'domcontentloaded', timeout: 30000 });
   await fastDelay(2000, 3000);
+
+  // Check for Cloudflare challenge
+  if (await isCloudflareChallenge(page)) {
+    console.log('[AutoApply] Cloudflare challenge detected on job search');
+    const passed = await waitForCloudflareChallenge(page, 60000);
+    if (!passed) {
+      console.log('[AutoApply] ⚠️ Cloudflare challenge failed on search - returning empty results');
+      return [];
+    }
+  }
 
   // Scroll to load all jobs
   await page.evaluate(async () => {
@@ -692,6 +835,16 @@ async function getJobDescription(page: Page, jobUrl: string): Promise<string> {
     await page.goto(jobUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
     await fastDelay(1000, 2000);
 
+    // Check for Cloudflare challenge
+    if (await isCloudflareChallenge(page)) {
+      console.log('[AutoApply] Cloudflare challenge detected on job page');
+      const passed = await waitForCloudflareChallenge(page, 30000);
+      if (!passed) {
+        console.log('[AutoApply] ⚠️ Cloudflare challenge failed on job page');
+        return '';
+      }
+    }
+
     const description = await page.evaluate(() => {
       const descEl = document.querySelector(
         '#jobDescriptionText, .jobsearch-jobDescriptionText, div[id="jobDescriptionText"]'
@@ -754,6 +907,15 @@ async function applyToJob(
     console.log(`[AutoApply] Navigating to job page: ${job.url}`);
     await page.goto(job.url, { waitUntil: 'domcontentloaded', timeout: 25000 });
     await fastDelay(2000, 3000);
+
+    // Check for Cloudflare challenge
+    if (await isCloudflareChallenge(page)) {
+      console.log('[AutoApply] Cloudflare challenge detected on job application page');
+      const passed = await waitForCloudflareChallenge(page, 30000);
+      if (!passed) {
+        return { success: false, questionsFound: 0, questionsAnswered: 0, error: 'Cloudflare challenge failed on job page' };
+      }
+    }
 
     // Log what we see on the page for debugging
     const pageUrl = page.url();

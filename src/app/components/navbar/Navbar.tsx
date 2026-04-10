@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { UserButton, useUser, SignInButton, SignUpButton } from '@clerk/nextjs';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, Download } from 'lucide-react';
 
 // Client-side only components
 const ClientSideNavbar = dynamic(() => Promise.resolve(NavbarContent), { ssr: false });
@@ -22,6 +22,8 @@ const NavbarContent = () => {
   const [scrolled, setScrolled] = useState(false);
   const pathname = usePathname();
   const navRef = useRef<HTMLElement>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstallable, setIsInstallable] = useState(false);
 
   // Navigation links
   const navLinks = [
@@ -41,10 +43,41 @@ const NavbarContent = () => {
 
     // Set initial state
     handleScroll();
-    
+
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  // Handle PWA installation
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setIsInstallable(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) {
+      // If no deferred prompt, the app might already be installed
+      alert('The app is already installed or PWA installation is not available on this device.');
+      return;
+    }
+
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+      setIsInstallable(false);
+    }
+  };
 
   return (
     <header 
@@ -153,7 +186,18 @@ const NavbarContent = () => {
 
           {/* Auth Buttons - Mobile (only visible when menu is closed) */}
           {!isOpen && (
-            <div className="md:hidden">
+            <div className="md:hidden flex items-center gap-2">
+              {/* PWA Install Button - Mobile Only */}
+              {isInstallable && (
+                <button
+                  onClick={handleInstallClick}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg hover:from-purple-500 hover:to-blue-500 transition-all"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Get App</span>
+                </button>
+              )}
+
               {!isSignedIn ? (
                 <div className="flex items-center space-x-2">
                   <SignInButton mode="modal">
@@ -168,7 +212,7 @@ const NavbarContent = () => {
                   </SignUpButton>
                 </div>
               ) : (
-                <UserButton 
+                <UserButton
                   afterSignOutUrl="/"
                   appearance={{
                     elements: {
@@ -201,7 +245,23 @@ const NavbarContent = () => {
               </Link>
             ))}
           </div>
-          
+
+          {/* PWA Install Button - Mobile Menu */}
+          {isInstallable && (
+            <div className="px-2 sm:px-3 pt-2 pb-3">
+              <button
+                onClick={() => {
+                  handleInstallClick();
+                  setIsOpen(false);
+                }}
+                className="flex items-center justify-center gap-2 w-full px-4 py-3 text-base font-medium text-white bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg hover:from-purple-500 hover:to-blue-500 transition-all"
+              >
+                <Download className="w-5 h-5" />
+                <span>Install App</span>
+              </button>
+            </div>
+          )}
+
           {/* Auth Buttons - Mobile */}
           <div className="pt-4 pb-3 border-t border-gray-700">
             {!isSignedIn ? (

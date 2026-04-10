@@ -4,7 +4,25 @@ import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { TinderJobInterface } from '@/components/Jobs/TinderJobInterface';
 import { JobSearchResults } from '@/app/components/Jobs/JobSearchResults';
-import { LayoutGrid, Heart, Search, Bot, ArrowRight, Briefcase, Sparkles, Zap } from 'lucide-react';
+import {
+  Search,
+  Filter,
+  Briefcase,
+  Sparkles,
+  Zap,
+  Bot,
+  ArrowRight,
+  TrendingUp,
+  Clock,
+  MapPin,
+  DollarSign,
+  Building2,
+  X,
+  CheckCircle,
+  Lock,
+  Heart,
+  LayoutGrid
+} from 'lucide-react';
 import { useJobScraper } from '@/hooks/useJobScraper';
 import { useRouter } from 'next/navigation';
 
@@ -67,7 +85,7 @@ export default function AllJobsClient() {
         </div>
 
         {/* Cards */}
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
           {/* Job Portal Card */}
           <motion.div
             initial={{ opacity: 0, x: -30 }}
@@ -114,54 +132,104 @@ export default function AllJobsClient() {
             </div>
           </motion.div>
 
-          {/* Auto Apply AI Agent Card */}
+          {/* Job Matcher Card */}
           <motion.div
             initial={{ opacity: 0, x: 30 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.3 }}
             whileHover={{ scale: 1.02, y: -4 }}
-            onClick={() => router.push('/jobs/auto-apply')}
-            className="group cursor-pointer bg-gradient-to-br from-purple-600/20 via-slate-800/80 to-blue-600/20 border border-purple-500/30 hover:border-purple-400/60 rounded-2xl p-6 sm:p-8 transition-all duration-300 shadow-lg hover:shadow-purple-500/20 relative overflow-hidden"
+            onClick={() => router.push('/jobs/job-matcher')}
+            className="group cursor-pointer bg-gradient-to-br from-blue-600/20 via-slate-800/80 to-cyan-600/20 border border-blue-500/30 hover:border-blue-400/60 rounded-2xl p-6 sm:p-8 transition-all duration-300 shadow-lg hover:shadow-blue-500/20"
           >
-            {/* AI Badge */}
-            <div className="absolute top-3 right-3 sm:top-4 sm:right-4 bg-gradient-to-r from-purple-500 to-blue-500 text-white text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full shadow-lg">
-              AI Powered
-            </div>
-
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center shadow-lg shadow-purple-500/30">
-                <Bot className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
+                <Sparkles className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
               </div>
               <div>
-                <h2 className="text-xl sm:text-2xl font-bold text-white group-hover:text-purple-300 transition-colors">
-                  Auto Apply AI
+                <h2 className="text-xl sm:text-2xl font-bold text-white group-hover:text-blue-300 transition-colors">
+                  Job Matcher
                 </h2>
-                <p className="text-xs sm:text-sm text-purple-300/70">Hands-free applications</p>
+                <p className="text-xs sm:text-sm text-blue-300/70">AI-powered matching</p>
               </div>
             </div>
 
             <p className="text-gray-400 text-sm sm:text-base mb-6 leading-relaxed">
-              Let our AI agent search, evaluate, and apply to jobs for you automatically. It matches your profile and fills out applications using your CV.
+              Upload your CV and let AI find jobs from multiple sources where you have the highest likelihood of hearing back.
             </p>
 
             <div className="space-y-2.5 mb-6">
               <div className="flex items-center gap-2.5 text-sm text-gray-300">
-                <Sparkles className="w-4 h-4 text-purple-400 flex-shrink-0" />
-                <span>AI evaluates job match score</span>
+                <Sparkles className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                <span>CV-based intelligent matching</span>
               </div>
               <div className="flex items-center gap-2.5 text-sm text-gray-300">
-                <Zap className="w-4 h-4 text-yellow-400 flex-shrink-0" />
-                <span>Auto-fills application forms</span>
+                <Zap className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+                <span>Feedback likelihood prediction</span>
               </div>
               <div className="flex items-center gap-2.5 text-sm text-gray-300">
-                <Bot className="w-4 h-4 text-blue-400 flex-shrink-0" />
-                <span>Watch the agent work in real-time</span>
+                <Briefcase className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                <span>Scrapes from Indeed & Jobmail</span>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 text-purple-400 group-hover:text-purple-300 font-semibold text-sm sm:text-base transition-colors">
-              <span>Start Auto Apply</span>
+            <div className="flex items-center gap-2 text-blue-400 group-hover:text-blue-300 font-semibold text-sm sm:text-base transition-colors">
+              <span>Upload & Match</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </motion.div>
+
+          {/* Auto Apply AI Agent Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="group cursor-not-allowed bg-gradient-to-br from-purple-600/10 via-slate-800/60 to-blue-600/10 border border-purple-500/20 rounded-2xl p-6 sm:p-8 relative overflow-hidden md:col-span-2 opacity-60"
+          >
+            {/* Pro Badge */}
+            <div className="absolute top-3 right-3 sm:top-4 sm:right-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full shadow-lg flex items-center gap-1">
+              <Lock className="w-3 h-3" />
+              Pro Only
+            </div>
+
+            {/* Overlay to show it's locked */}
+            <div className="absolute inset-0 bg-black/20 backdrop-blur-[1px] pointer-events-none" />
+
+            <div className="relative">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-purple-500/50 to-blue-600/50 flex items-center justify-center shadow-lg">
+                  <Bot className="w-6 h-6 sm:w-7 sm:h-7 text-white/70" />
+                </div>
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-white/70">
+                    Auto Apply AI
+                  </h2>
+                  <p className="text-xs sm:text-sm text-purple-300/50">Hands-free applications</p>
+                </div>
+              </div>
+
+              <p className="text-gray-500 text-sm sm:text-base mb-6 leading-relaxed">
+                Let our AI agent search, evaluate, and apply to jobs for you automatically. It matches your profile and fills out applications using your CV.
+              </p>
+
+              <div className="space-y-2.5 mb-6">
+                <div className="flex items-center gap-2.5 text-sm text-gray-500">
+                  <Sparkles className="w-4 h-4 text-purple-400/50 flex-shrink-0" />
+                  <span>AI evaluates job match score</span>
+                </div>
+                <div className="flex items-center gap-2.5 text-sm text-gray-500">
+                  <Zap className="w-4 h-4 text-yellow-400/50 flex-shrink-0" />
+                  <span>Auto-fills application forms</span>
+                </div>
+                <div className="flex items-center gap-2.5 text-sm text-gray-500">
+                  <Bot className="w-4 h-4 text-blue-400/50 flex-shrink-0" />
+                  <span>Watch the agent work in real-time</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 text-purple-400/50 font-semibold text-sm sm:text-base">
+                <Lock className="w-4 h-4" />
+                <span>Upgrade to Pro to unlock</span>
+              </div>
             </div>
           </motion.div>
         </div>
