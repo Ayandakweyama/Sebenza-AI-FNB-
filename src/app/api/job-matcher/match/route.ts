@@ -189,7 +189,7 @@ export async function POST(req: Request) {
     // Using only jobmail and indeed for fastest and most reliable results
     const sources = ['jobmail', 'indeed'] as const;
     
-    const scrapeResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/scrape-multi`, {
+    const scrapeResponse = await fetch('/api/scrape-multi', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -204,10 +204,18 @@ export async function POST(req: Request) {
 
     if (!scrapeResponse.ok) {
       console.error('[Job Matcher] Failed to scrape jobs:', scrapeResponse.statusText);
-      return NextResponse.json({ error: 'Failed to scrape jobs' }, { status: 500 });
+      console.error('[Job Matcher] Response status:', scrapeResponse.status);
+      return NextResponse.json({ error: 'Failed to scrape jobs', details: scrapeResponse.statusText }, { status: 500 });
     }
 
-    const scrapeData = await scrapeResponse.json();
+    let scrapeData;
+    try {
+      scrapeData = await scrapeResponse.json();
+    } catch (parseError) {
+      console.error('[Job Matcher] Failed to parse scrape response:', parseError);
+      return NextResponse.json({ error: 'Failed to parse job data' }, { status: 500 });
+    }
+
     const jobs = scrapeData.jobs || [];
     
     console.log(`[Job Matcher] Scraped ${jobs.length} jobs from ${sources.length} sources`);
@@ -215,9 +223,14 @@ export async function POST(req: Request) {
     console.log('[Job Matcher] Errors:', scrapeData.errors);
 
     if (jobs.length === 0) {
+      console.log('[Job Matcher] No jobs found, returning empty result');
       return NextResponse.json({
         matchedJobs: [],
-        message: 'No jobs found matching your criteria',
+        message: scrapeData.errors && scrapeData.errors.length > 0 
+          ? `No jobs found. Errors: ${scrapeData.errors.join(', ')}` 
+          : 'No jobs found matching your criteria',
+        sourceCounts: scrapeData.sourceCounts,
+        errors: scrapeData.errors,
       });
     }
 
@@ -424,8 +437,13 @@ Be realistic and conservative with feedback likelihood scores.`;
     });
   } catch (error) {
     console.error('[Job Matcher] Error:', error);
+    console.error('[Job Matcher] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     return NextResponse.json(
-      { error: 'Failed to match jobs' },
+      { 
+        error: 'Failed to match jobs', 
+        details: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      },
       { status: 500 }
     );
   }
