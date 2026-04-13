@@ -3,6 +3,9 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 import { parseCV, extractSkillsFromCV } from '@/lib/cvParser';
 import { cvService } from '@/lib/ai/cvService';
+import { scrapeIndeed, scrapeJobMail } from '@/lib/scrapers';
+import type { ScraperConfig, Job } from '@/lib/scrapers/types';
+import { jobCache } from '@/lib/cache/jobCache';
 
 export const maxDuration = 120; // 120 seconds (2 minutes) max for faster response
 export const dynamic = 'force-dynamic';
@@ -184,59 +187,92 @@ export async function POST(req: Request) {
     console.log('[Job Matcher] Experience entries:', parsedCV.experience.length);
     console.log('[Job Matcher] Education entries:', parsedCV.education.length);
 
-    // Scrape jobs from multiple sources
-    console.log('[Job Matcher] Scraping jobs from multiple sources...');
-    // Using only jobmail and indeed for fastest and most reliable results
+    // Scrape jobs directly (no HTTP fetch — avoids Railway internal URL issues)
+    console.log('[Job Matcher] Scraping jobs directly from scrapers...');
     const sources = ['jobmail', 'indeed'] as const;
+    const scraperConfig: ScraperConfig = { query, location, maxPages: 1 };
     
-    // Construct absolute URL for server-side fetch (relative URLs don't work in Node.js)
-    const requestUrl = new URL(req.url);
-    const baseUrl = `${requestUrl.protocol}//${requestUrl.host}`;
-    const scrapeUrl = `${baseUrl}/api/scrape-multi`;
-    console.log('[Job Matcher] Scraping from:', scrapeUrl);
-    
-    const scrapeResponse = await fetch(scrapeUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        query,
-        location,
-        maxPages: 1, // Reduced to 1 page for faster loading
-        sources,
-      }),
-    });
+    // Check cache first
+    const cachedJobs = jobCache.get(query, location, sources as any);
+    let jobs: Job[] = [];
+    let sourceCounts: Record<string, number> = {};
+    let scrapeErrors: string[] = [];
 
-    if (!scrapeResponse.ok) {
-      console.error('[Job Matcher] Failed to scrape jobs:', scrapeResponse.statusText);
-      console.error('[Job Matcher] Response status:', scrapeResponse.status);
-      return NextResponse.json({ error: 'Failed to scrape jobs', details: scrapeResponse.statusText }, { status: 500 });
+    if (cachedJobs && cachedJobs.length > 0) {
+      console.log(`[Job Matcher] Cache hit! ${cachedJobs.length} cached jobs`);
+      jobs = cachedJobs;
+      sourceCounts = sources.reduce((acc, s) => {
+        acc[s] = cachedJobs.filter(j => j.source === s).length;
+        return acc;
+      }, {} as Record<string, number>);
+    } else {
+      // Run scrapers in parallel with timeout protection
+      const scraperPromises = sources.map(async (source) => {
+        const timeoutMs = 40000;
+        const timeoutPromise = new Promise<null>((_, reject) =>
+          setTimeout(() => reject(new Error(`${source} scraper timed out`)), timeoutMs)
+        );
+        try {
+          let result;
+          if (source === 'indeed') {
+            result = await Promise.race([scrapeIndeed(scraperConfig), timeoutPromise]);
+          } else if (source === 'jobmail') {
+            result = await Promise.race([scrapeJobMail(scraperConfig), timeoutPromise]);
+          } else {
+            return { jobs: [], success: false, error: `Unknown source: ${source}`, source, count: 0 };
+          }
+          return result;
+        } catch (error) {
+          return { jobs: [], success: false, error: error instanceof Error ? error.message : 'Unknown error', source, count: 0 };
+        }
+      });
+
+      const results = await Promise.allSettled(scraperPromises);
+      const allJobs: Job[] = [];
+
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value) {
+          const r = result.value as any;
+          if (r.success) {
+            allJobs.push(...r.jobs);
+            sourceCounts[r.source] = r.count;
+            console.log(`[Job Matcher] ✅ ${r.source}: ${r.count} jobs`);
+          } else {
+            scrapeErrors.push(`${r.source}: ${r.error}`);
+            console.error(`[Job Matcher] ❌ ${r.source}: ${r.error}`);
+          }
+        } else {
+          const source = sources[index];
+          scrapeErrors.push(`${source} failed`);
+          console.error(`[Job Matcher] ❌ ${source} failed:`, result.reason);
+        }
+      });
+
+      // Deduplicate
+      jobs = allJobs.filter((job, index, self) => {
+        const id = job.url || `${job.title}-${job.company}-${job.location}`;
+        return self.findIndex(j => (j.url || `${j.title}-${j.company}-${j.location}`) === id) === index;
+      });
+
+      // Cache results
+      if (jobs.length > 0) {
+        jobCache.set(query, location, sources as any, jobs);
+      }
     }
 
-    let scrapeData;
-    try {
-      scrapeData = await scrapeResponse.json();
-    } catch (parseError) {
-      console.error('[Job Matcher] Failed to parse scrape response:', parseError);
-      return NextResponse.json({ error: 'Failed to parse job data' }, { status: 500 });
-    }
-
-    const jobs = scrapeData.jobs || [];
-    
-    console.log(`[Job Matcher] Scraped ${jobs.length} jobs from ${sources.length} sources`);
-    console.log('[Job Matcher] Source breakdown:', scrapeData.sourceCounts);
-    console.log('[Job Matcher] Errors:', scrapeData.errors);
+    console.log(`[Job Matcher] Scraped ${jobs.length} unique jobs from ${sources.length} sources`);
+    console.log('[Job Matcher] Source breakdown:', sourceCounts);
+    if (scrapeErrors.length > 0) console.log('[Job Matcher] Errors:', scrapeErrors);
 
     if (jobs.length === 0) {
       console.log('[Job Matcher] No jobs found, returning empty result');
       return NextResponse.json({
         matchedJobs: [],
-        message: scrapeData.errors && scrapeData.errors.length > 0 
-          ? `No jobs found. Errors: ${scrapeData.errors.join(', ')}` 
+        message: scrapeErrors.length > 0 
+          ? `No jobs found. Errors: ${scrapeErrors.join(', ')}` 
           : 'No jobs found matching your criteria',
-        sourceCounts: scrapeData.sourceCounts,
-        errors: scrapeData.errors,
+        sourceCounts,
+        errors: scrapeErrors,
       });
     }
 
