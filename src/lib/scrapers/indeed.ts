@@ -2,6 +2,66 @@ import puppeteer from 'puppeteer';
 import type { Job, ScraperConfig, ScraperResult } from './types';
 import { autoScroll, configureRequestInterception, FAST_BROWSER_CONFIG, fastDelay, getBrowserFromPool, returnBrowserToPool } from './utils';
 
+// Parse job results from Indeed's mosaic provider data
+function parseMosaicResults(results: any[]): Job[] {
+  const jobs: Job[] = [];
+  for (const job of results) {
+    try {
+      const title = job.title || job.displayTitle || '';
+      const company = job.company || job.truncatedCompany || '';
+      if (!title || !company) continue;
+
+      const loc = job.formattedLocation || '';
+      const salary = job.salarySnippet?.salaryTextFormatted?.text ||
+                     (typeof job.salarySnippet?.salaryTextFormatted === 'string' ? job.salarySnippet.salaryTextFormatted : 'Not specified');
+      const postedDate = job.formattedRelativeTime || 'Recently';
+      const description = job.snippet ? job.snippet.replace(/<[^>]*>/g, '').trim() : '';
+      const jobkey = job.jobkey || '';
+      const url = jobkey ? `https://za.indeed.com/viewjob?jk=${jobkey}` : '';
+
+      let jobType = 'Full-time';
+      if (job.jobTypes && job.jobTypes.length > 0) {
+        const t = job.jobTypes.join(' ').toLowerCase();
+        if (t.includes('part-time')) jobType = 'Part-time';
+        else if (t.includes('contract')) jobType = 'Contract';
+        else if (t.includes('temporary')) jobType = 'Temporary';
+      }
+
+      jobs.push({ title, company, location: loc, salary: typeof salary === 'string' ? salary : 'Not specified', postedDate, description, url, jobType, source: 'indeed' as const });
+    } catch (e) { /* skip */ }
+  }
+  return jobs;
+}
+
+// Extract mosaic JSON from raw HTML using balanced-brace matching (handles nested JSON)
+function extractMosaicJsonFromHtml(html: string): any | null {
+  const marker = 'window.mosaic.providerData["mosaic-provider-jobcards"]=';
+  const idx = html.indexOf(marker);
+  if (idx === -1) return null;
+
+  const jsonStart = idx + marker.length;
+  if (html[jsonStart] !== '{') return null;
+
+  // Find the matching closing brace by counting depth
+  let depth = 0;
+  let jsonEnd = -1;
+  for (let i = jsonStart; i < html.length; i++) {
+    if (html[i] === '{') depth++;
+    else if (html[i] === '}') {
+      depth--;
+      if (depth === 0) { jsonEnd = i + 1; break; }
+    }
+  }
+  if (jsonEnd === -1) return null;
+
+  try {
+    return JSON.parse(html.substring(jsonStart, jsonEnd));
+  } catch (e) {
+    console.warn('⚠️ Failed to parse mosaic JSON from HTML:', (e as Error).message);
+    return null;
+  }
+}
+
 export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult> {
   const { query, location, maxPages = 3 } = config;
   let browser;
@@ -42,169 +102,120 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
         throw navError;
       }
       
-      const scrollStartTime = Date.now();
-      await fastDelay(2000, 3000);
+      // Wait for mosaic data to be available in the page
+      try {
+        await page.waitForFunction(
+          () => !!(window as any).mosaic?.providerData?.["mosaic-provider-jobcards"],
+          { timeout: 10000 }
+        );
+        console.log(`   ✓ Mosaic data available`);
+      } catch (waitError) {
+        console.warn(`   ⚠️ Mosaic data not found on window, will try HTML extraction`);
+      }
+
+      // Small delay + scroll to ensure all data is loaded
+      await fastDelay(1000, 2000);
       await autoScroll(page);
-      console.log(`   ✓ Auto-scroll completed in ${Date.now() - scrollStartTime}ms`);
       
       const extractStartTime = Date.now();
-      
-      // Primary method: Extract from Indeed's embedded JSON data
-      // Indeed stores job data in window.mosaic.providerData["mosaic-provider-jobcards"]
-      const jsonJobs = await page.evaluate((): Job[] => {
-        const extractedJobs: Job[] = [];
-        
-        try {
-          // Method 1: Extract from window.mosaic.providerData
+      let pageJobs: Job[] = [];
+
+      // === METHOD 1: Extract from window.mosaic.providerData (client-side JS) ===
+      try {
+        pageJobs = await page.evaluate((): Job[] => {
           const mosaicProviderData = (window as any).mosaic?.providerData;
-          if (mosaicProviderData) {
-            const jobCardsProvider = mosaicProviderData["mosaic-provider-jobcards"];
-            if (jobCardsProvider?.metaData?.mosaicProviderJobCardsModel?.results) {
-              const results = jobCardsProvider.metaData.mosaicProviderJobCardsModel.results;
-              
-              for (const job of results) {
-                try {
-                  const title = job.title || job.displayTitle || '';
-                  const company = job.company || job.truncatedCompany || '';
-                  const loc = job.formattedLocation || '';
-                  const salary = job.salarySnippet?.salaryTextFormatted?.text || 
-                                 job.salarySnippet?.salaryTextFormatted || 'Not specified';
-                  const postedDate = job.formattedRelativeTime || 'Recently';
-                  const description = job.snippet ? job.snippet.replace(/<[^>]*>/g, '').trim() : '';
-                  const jobkey = job.jobkey || '';
-                  const url = jobkey ? `https://za.indeed.com/viewjob?jk=${jobkey}` : '';
-                  
-                  // Determine job type from taxonomyAttributes
-                  let jobType = 'Full-time';
-                  if (job.jobTypes && job.jobTypes.length > 0) {
-                    const typesStr = job.jobTypes.join(' ').toLowerCase();
-                    if (typesStr.includes('part-time')) jobType = 'Part-time';
-                    else if (typesStr.includes('contract')) jobType = 'Contract';
-                    else if (typesStr.includes('temporary')) jobType = 'Temporary';
-                  }
-                  if (job.taxonomyAttributes) {
-                    for (const attr of job.taxonomyAttributes) {
-                      if (attr.label === 'job-types' && attr.attributes) {
-                        for (const sub of attr.attributes) {
-                          const label = (sub.label || '').toLowerCase();
-                          if (label.includes('part-time')) jobType = 'Part-time';
-                          else if (label.includes('contract')) jobType = 'Contract';
-                          else if (label.includes('temporary')) jobType = 'Temporary';
-                        }
-                      }
-                    }
-                  }
-                  
-                  if (title && company) {
-                    extractedJobs.push({
-                      title,
-                      company,
-                      location: loc,
-                      salary: typeof salary === 'string' ? salary : 'Not specified',
-                      postedDate,
-                      description,
-                      url,
-                      jobType,
-                      source: 'indeed' as const
-                    });
-                  }
-                } catch (e) {
-                  // Skip this job
-                }
+          if (!mosaicProviderData) return [];
+          const jobCardsProvider = mosaicProviderData["mosaic-provider-jobcards"];
+          if (!jobCardsProvider?.metaData?.mosaicProviderJobCardsModel?.results) return [];
+          const results = jobCardsProvider.metaData.mosaicProviderJobCardsModel.results;
+          const extracted: Job[] = [];
+          for (const job of results) {
+            try {
+              const title = job.title || job.displayTitle || '';
+              const company = job.company || job.truncatedCompany || '';
+              if (!title || !company) continue;
+              const loc = job.formattedLocation || '';
+              const salary = job.salarySnippet?.salaryTextFormatted?.text ||
+                             (typeof job.salarySnippet?.salaryTextFormatted === 'string' ? job.salarySnippet.salaryTextFormatted : 'Not specified');
+              const postedDate = job.formattedRelativeTime || 'Recently';
+              const description = job.snippet ? job.snippet.replace(/<[^>]*>/g, '').trim() : '';
+              const jobkey = job.jobkey || '';
+              const url = jobkey ? `https://za.indeed.com/viewjob?jk=${jobkey}` : '';
+              let jobType = 'Full-time';
+              if (job.jobTypes && job.jobTypes.length > 0) {
+                const t = job.jobTypes.join(' ').toLowerCase();
+                if (t.includes('part-time')) jobType = 'Part-time';
+                else if (t.includes('contract')) jobType = 'Contract';
+                else if (t.includes('temporary')) jobType = 'Temporary';
               }
-            }
+              extracted.push({ title, company, location: loc, salary: typeof salary === 'string' ? salary : 'Not specified', postedDate, description, url, jobType, source: 'indeed' as const });
+            } catch (e) { /* skip */ }
+          }
+          return extracted;
+        });
+        if (pageJobs.length > 0) {
+          console.log(`   ✓ Method 1 (window.mosaic): ${pageJobs.length} jobs`);
+        }
+      } catch (e) {
+        console.warn(`   ⚠️ Method 1 failed:`, (e as Error).message);
+      }
+
+      // === METHOD 2: Extract from raw HTML (server-side, more reliable) ===
+      if (pageJobs.length === 0) {
+        try {
+          const html = await page.content();
+          const mosaicData = extractMosaicJsonFromHtml(html);
+          if (mosaicData?.metaData?.mosaicProviderJobCardsModel?.results) {
+            pageJobs = parseMosaicResults(mosaicData.metaData.mosaicProviderJobCardsModel.results);
+            console.log(`   ✓ Method 2 (HTML extraction): ${pageJobs.length} jobs`);
+          } else {
+            console.log(`   ⚠️ Method 2: mosaic JSON not found in HTML`);
           }
         } catch (e) {
-          console.warn('Error extracting from mosaic provider data:', e);
+          console.warn(`   ⚠️ Method 2 failed:`, (e as Error).message);
         }
-        
-        // Method 2: Try _initialData if mosaic didn't work
-        if (extractedJobs.length === 0) {
-          try {
-            const scripts = document.querySelectorAll('script');
-            for (const script of scripts) {
-              const content = script.textContent || '';
-              if (content.includes('window.mosaic.providerData')) {
-                const match = content.match(/window\.mosaic\.providerData\["mosaic-provider-jobcards"\]=(\{.+?\});/);
-                if (match) {
-                  const data = JSON.parse(match[1]);
-                  const results = data?.metaData?.mosaicProviderJobCardsModel?.results || [];
-                  for (const job of results) {
-                    try {
-                      const title = job.title || job.displayTitle || '';
-                      const company = job.company || job.truncatedCompany || '';
-                      if (title && company) {
-                        extractedJobs.push({
-                          title,
-                          company,
-                          location: job.formattedLocation || '',
-                          salary: typeof job.salarySnippet?.salaryTextFormatted === 'string' 
-                            ? job.salarySnippet.salaryTextFormatted : 'Not specified',
-                          postedDate: job.formattedRelativeTime || 'Recently',
-                          description: job.snippet ? job.snippet.replace(/<[^>]*>/g, '').trim() : '',
-                          url: job.jobkey ? `https://za.indeed.com/viewjob?jk=${job.jobkey}` : '',
-                          jobType: 'Full-time',
-                          source: 'indeed' as const
-                        });
-                      }
-                    } catch (e2) {
-                      // Skip
-                    }
-                  }
-                  break;
+      }
+
+      // === METHOD 3: CSS selector fallback ===
+      if (pageJobs.length === 0) {
+        try {
+          pageJobs = await page.evaluate((): Job[] => {
+            const extracted: Job[] = [];
+            const jobElements = document.querySelectorAll('div.job_seen_beacon, div.jobsearch-SerpJobCard, div[data-jk], div.slider_container div.slider_item, table.jobsTable tr, li.css-5q9pi9, div.css-1kv8g8i, div.cardOutline, div.result');
+            jobElements.forEach((element) => {
+              try {
+                const titleElement = element.querySelector('h2.jobTitle a, h2.jobTitle span, a[data-jk] span[title], h2 a span[title], .jobTitle a, h2 a, a[data-jk]');
+                const title = titleElement?.textContent?.trim() || titleElement?.getAttribute('title')?.trim() || '';
+                const companyElement = element.querySelector('span[data-testid="company-name"], span.companyName, a[data-testid="company-name"], .companyName a, span.css-1x7z9ps');
+                const company = companyElement?.textContent?.trim() || '';
+                const locationElement = element.querySelector('div[data-testid="text-location"], div.companyLocation, .companyLocation, div.css-1v15gqr');
+                const loc = locationElement?.textContent?.trim() || '';
+                const salaryElement = element.querySelector('div.salary-snippet, div[data-testid="attribute_snippet_testid"], .salaryText, span.salaryText, span.css-1ih8o30');
+                const salary = salaryElement?.textContent?.trim() || 'Not specified';
+                const dateElement = element.querySelector('span.date, span[data-testid="myJobsStateDate"], .date, span.css-1cvi9m2');
+                const postedDate = dateElement?.textContent?.trim() || 'Recently';
+                const snippetElement = element.querySelector('div.job-snippet, div[class*="snippet"], .summary, div.jobsearch-jobDescriptionText');
+                const description = snippetElement?.textContent?.trim() || '';
+                const linkElement = element.querySelector('a[data-jk], h2.jobTitle a, .jobTitle a, a[href*="/viewjob"], a[id^="job_"]');
+                const href = linkElement?.getAttribute('href') || '';
+                const url = href.startsWith('http') ? href : `https://za.indeed.com${href}`;
+                if (title && company) {
+                  extracted.push({ title, company, location: loc, salary, postedDate, description, url, jobType: 'Full-time', source: 'indeed' as const });
                 }
-              }
-            }
-          } catch (e) {
-            console.warn('Error extracting from script tags:', e);
-          }
-        }
-        
-        // Method 3: Fallback to CSS selectors if JSON methods failed
-        if (extractedJobs.length === 0) {
-          const jobElements = document.querySelectorAll('div.job_seen_beacon, div.jobsearch-SerpJobCard, div[data-jk], div.slider_container div.slider_item, table.jobsTable tr, li.css-5q9pi9, div.css-1kv8g8i, div.cardOutline, div.result');
-          jobElements.forEach((element) => {
-            try {
-              const titleElement = element.querySelector('h2.jobTitle a, h2.jobTitle span, a[data-jk] span[title], h2 a span[title], .jobTitle a, h2 a, a[data-jk]');
-              const title = titleElement?.textContent?.trim() || titleElement?.getAttribute('title')?.trim() || '';
-              const companyElement = element.querySelector('span[data-testid="company-name"], span.companyName, a[data-testid="company-name"], .companyName a, span.css-1x7z9ps');
-              const company = companyElement?.textContent?.trim() || '';
-              const locationElement = element.querySelector('div[data-testid="text-location"], div.companyLocation, .companyLocation, div.css-1v15gqr');
-              const loc = locationElement?.textContent?.trim() || '';
-              const salaryElement = element.querySelector('div.salary-snippet, div[data-testid="attribute_snippet_testid"], .salaryText, span.salaryText, span.css-1ih8o30');
-              const salary = salaryElement?.textContent?.trim() || 'Not specified';
-              const dateElement = element.querySelector('span.date, span[data-testid="myJobsStateDate"], .date, span.css-1cvi9m2');
-              const postedDate = dateElement?.textContent?.trim() || 'Recently';
-              const snippetElement = element.querySelector('div.job-snippet, div[class*="snippet"], .summary, div.jobsearch-jobDescriptionText');
-              const description = snippetElement?.textContent?.trim() || '';
-              const linkElement = element.querySelector('a[data-jk], h2.jobTitle a, .jobTitle a, a[href*="/viewjob"], a[id^="job_"]');
-              const href = linkElement?.getAttribute('href') || '';
-              const url = href.startsWith('http') ? href : `https://za.indeed.com${href}`;
-              
-              if (title && company) {
-                extractedJobs.push({
-                  title,
-                  company,
-                  location: loc,
-                  salary,
-                  postedDate,
-                  description,
-                  url,
-                  jobType: 'Full-time',
-                  source: 'indeed' as const
-                });
-              }
-            } catch (error) {
-              // Skip
-            }
+              } catch (e) { /* skip */ }
+            });
+            return extracted;
           });
+          if (pageJobs.length > 0) {
+            console.log(`   ✓ Method 3 (CSS selectors): ${pageJobs.length} jobs`);
+          }
+        } catch (e) {
+          console.warn(`   ⚠️ Method 3 failed:`, (e as Error).message);
         }
-        
-        return extractedJobs;
-      });
-      
-      console.log(`✅ Indeed - Found ${jsonJobs.length} jobs on page ${pageNum + 1} (extraction took ${Date.now() - extractStartTime}ms)`);
-      allJobs.push(...jsonJobs);
+      }
+
+      console.log(`✅ Indeed - Found ${pageJobs.length} jobs on page ${pageNum + 1} (extraction took ${Date.now() - extractStartTime}ms)`);
+      allJobs.push(...pageJobs);
       
       if (pageNum < maxPages - 1) {
         await fastDelay(2000, 4000);
