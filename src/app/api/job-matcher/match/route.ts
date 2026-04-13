@@ -189,7 +189,13 @@ export async function POST(req: Request) {
     // Using only jobmail and indeed for fastest and most reliable results
     const sources = ['jobmail', 'indeed'] as const;
     
-    const scrapeResponse = await fetch('/api/scrape-multi', {
+    // Construct absolute URL for server-side fetch (relative URLs don't work in Node.js)
+    const requestUrl = new URL(req.url);
+    const baseUrl = `${requestUrl.protocol}//${requestUrl.host}`;
+    const scrapeUrl = `${baseUrl}/api/scrape-multi`;
+    console.log('[Job Matcher] Scraping from:', scrapeUrl);
+    
+    const scrapeResponse = await fetch(scrapeUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -234,166 +240,110 @@ export async function POST(req: Request) {
       });
     }
 
-    // Match each job against the CV using AI
-    console.log('[Job Matcher] Matching jobs against CV...');
+    // Match each job against the CV using heuristic matching (fast, no per-job AI calls)
+    console.log('[Job Matcher] Matching jobs against CV using heuristic analysis...');
     const matchedJobs: MatchedJob[] = [];
     
-    // Process jobs in batches to avoid overwhelming the AI
-    const batchSize = 5;
-    for (let i = 0; i < jobs.length; i += batchSize) {
-      const batch = jobs.slice(i, i + batchSize);
-      
-      const matchPromises = batch.map(async (job: any) => {
-        try {
-          // Use AI to evaluate match and feedback likelihood
-          const matchPrompt = `You are an expert job matching AI. Evaluate how well this candidate matches the job and estimate their likelihood of receiving feedback from the employer.
-
-Candidate CV Summary:
-Name: ${parsedCV.personalInfo.name || 'Unknown'}
-Skills: ${extractedSkills.join(', ')}
-Experience: ${parsedCV.experience.map(e => `${e.position} at ${e.company}`).join('; ')}
-Education: ${parsedCV.education.map(e => `${e.degree} from ${e.institution}`).join('; ')}
-
-Job Details:
-Title: ${job.title}
-Company: ${job.company}
-Description: ${job.description || 'No description available'}
-
-Evaluate the match and provide a JSON response with:
-- matchScore: A score from 0-100 indicating how well the candidate matches the job
-- feedbackLikelihood: A score from 0-100 estimating the likelihood of hearing back from the employer (consider factors like skill match, experience level, job market competition)
-- matchReason: A brief explanation (2-3 sentences) of why this is a good or bad match
-- matchingSkills: Array of skills from the candidate that match the job requirements
-- missingSkills: Array of important skills mentioned in the job that the candidate lacks
-
-Be realistic and conservative with feedback likelihood scores.`;
-
-          const aiResponse = await cvService.analyzeResume(
-            cvText,
-            job.title
-          );
-
-          // Extract additional matching skills from job description
-          const jobDescLower = (job.description || '').toLowerCase();
-          
-          // Enhanced matching skills with context
-          const matchingSkillsWithDetails = extractedSkills
-            .filter(skill => jobDescLower.includes(skill.toLowerCase()))
-            .map(skill => ({
-              name: skill,
-              description: skillDescriptions[skill]?.description || 'Technical skill',
-              category: skillDescriptions[skill]?.category || 'General',
-              context: `Found in job requirements`,
-            }));
-          
-          // Find skills in job description that candidate doesn't have
-          const allTechSkills = Object.keys(skillDescriptions);
-          const missingSkillsWithDetails = allTechSkills
-            .filter(skill => 
-              jobDescLower.includes(skill.toLowerCase()) && 
-              !extractedSkills.some(s => s.toLowerCase() === skill.toLowerCase())
-            )
-            .map(skill => ({
-              name: skill,
-              description: skillDescriptions[skill]?.description || 'Technical skill required for this role',
-              category: skillDescriptions[skill]?.category || 'General',
-              importance: 'high',
-              reason: `This skill is mentioned in the job description and is important for success in this role`,
-            }));
-
-          // Calculate heuristic score based on skill matching
-          const skillMatchRatio = matchingSkillsWithDetails.length > 0 
-            ? Math.min((matchingSkillsWithDetails.length / Math.max(matchingSkillsWithDetails.length + missingSkillsWithDetails.length, 1)) * 100, 100)
-            : 30; // Default 30% if no skills detected
-          
-          const heuristicScore = Math.round(skillMatchRatio);
-          
-          // Calculate experience match
-          const experienceMatch = calculateExperienceMatch(job.description || '');
-          
-          // Use AI score if it's reasonable (20+), otherwise use heuristic
-          let finalMatchScore = aiResponse.score;
-          if (finalMatchScore < 20) {
-            finalMatchScore = Math.max(heuristicScore, 25); // Minimum 25%
-            console.log(`[Job Matcher] AI score too low (${aiResponse.score}), using heuristic: ${finalMatchScore}`);
-          } else {
-            // Blend AI score with heuristic for more balanced result
-            finalMatchScore = Math.round((aiResponse.score * 0.5) + (heuristicScore * 0.3) + (experienceMatch * 0.2));
-          }
-
-          // Ensure score is within valid range
-          finalMatchScore = Math.max(25, Math.min(100, finalMatchScore));
-          
-          // Calculate feedback likelihood based on match score with some optimism
-          const feedbackLikelihood = Math.min(finalMatchScore + 15, 95);
-
-          console.log(`[Job Matcher] Score calculation for "${job.title}":`, {
-            aiScore: aiResponse.score,
-            heuristicScore,
-            experienceMatch,
-            finalMatchScore,
-            feedbackLikelihood,
-            matchingSkills: matchingSkillsWithDetails.length,
-            missingSkills: missingSkillsWithDetails.length
-          });
-
-          return {
-            ...job,
-            matchScore: finalMatchScore,
-            feedbackLikelihood,
-            matchReason: aiResponse.strengths.length > 0 
-              ? aiResponse.strengths.slice(0, 2).join('; ') 
-              : matchingSkillsWithDetails.length > 0
-              ? `${matchingSkillsWithDetails.length} matching skills found`
-              : 'Skills and experience may align with job requirements',
-            matchingSkills: matchingSkillsWithDetails,
-            missingSkills: missingSkillsWithDetails.slice(0, 5),
-          };
-        } catch (error) {
-          console.error('[Job Matcher] Error matching job:', job.title, error);
-          
-          // Calculate basic skill match as fallback
-          const jobDescLower = (job.description || '').toLowerCase();
-          const matchingSkillsSimple = extractedSkills.filter(skill => 
-            jobDescLower.includes(skill.toLowerCase())
-          );
-          
-          // Convert to detailed format
-          const matchingSkillsWithDetails = matchingSkillsSimple.map(skill => ({
+    // Optionally call AI once for overall CV assessment (non-blocking, used as enhancement if available)
+    let aiCvAssessment: { strengths: string[]; areasForImprovement: string[] } | null = null;
+    try {
+      console.log('[Job Matcher] Requesting AI CV assessment (single call)...');
+      const aiResponse = await Promise.race([
+        cvService.analyzeResume(cvText, query),
+        new Promise<null>((_, reject) => setTimeout(() => reject(new Error('AI assessment timed out')), 15000))
+      ]) as any;
+      if (aiResponse && aiResponse.strengths) {
+        aiCvAssessment = { strengths: aiResponse.strengths, areasForImprovement: aiResponse.areasForImprovement };
+        console.log('[Job Matcher] AI CV assessment received');
+      }
+    } catch (aiError) {
+      console.warn('[Job Matcher] AI assessment unavailable, using heuristic-only matching:', aiError instanceof Error ? aiError.message : 'Unknown');
+    }
+    
+    // Match all jobs using fast heuristic scoring
+    for (let jobIdx = 0; jobIdx < jobs.length; jobIdx++) {
+      const job = jobs[jobIdx];
+      try {
+        const jobDescLower = (job.description || job.title || '').toLowerCase();
+        
+        // Enhanced matching skills with context
+        const matchingSkillsWithDetails = extractedSkills
+          .filter(skill => jobDescLower.includes(skill.toLowerCase()))
+          .map(skill => ({
             name: skill,
             description: skillDescriptions[skill]?.description || 'Technical skill',
             category: skillDescriptions[skill]?.category || 'General',
-            context: 'Found in job requirements',
+            context: `Found in job requirements`,
           }));
-          
-          // Calculate experience match
-          const experienceMatch = calculateExperienceMatch(job.description || '');
-          
-          // Calculate fallback score based on skill matching and experience
-          const skillScore = matchingSkillsSimple.length > 0 
-            ? Math.min(30 + (matchingSkillsSimple.length * 10), 75)
-            : 35;
-          
-          const fallbackScore = Math.round((skillScore * 0.6) + (experienceMatch * 0.4));
-          
-          // Return a default match with calculated fallback scores
-          return {
-            ...job,
-            matchScore: fallbackScore,
-            feedbackLikelihood: Math.min(fallbackScore + 10, 80),
-            matchReason: 'Basic skill and experience match analysis performed',
-            matchingSkills: matchingSkillsWithDetails,
-            missingSkills: [],
-          };
-        }
-      });
+        
+        // Find skills in job description that candidate doesn't have
+        const allTechSkills = Object.keys(skillDescriptions);
+        const missingSkillsWithDetails = allTechSkills
+          .filter(skill => 
+            jobDescLower.includes(skill.toLowerCase()) && 
+            !extractedSkills.some(s => s.toLowerCase() === skill.toLowerCase())
+          )
+          .map(skill => ({
+            name: skill,
+            description: skillDescriptions[skill]?.description || 'Technical skill required for this role',
+            category: skillDescriptions[skill]?.category || 'General',
+            importance: 'high' as const,
+            reason: `This skill is mentioned in the job description and is important for success in this role`,
+          }));
 
-      const batchResults = await Promise.all(matchPromises);
-      matchedJobs.push(...batchResults);
-      
-      // Small delay between batches
-      if (i + batchSize < jobs.length) {
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Calculate heuristic score based on skill matching
+        const skillMatchRatio = matchingSkillsWithDetails.length > 0 
+          ? Math.min((matchingSkillsWithDetails.length / Math.max(matchingSkillsWithDetails.length + missingSkillsWithDetails.length, 1)) * 100, 100)
+          : 30; // Default 30% if no skills detected
+        
+        const heuristicScore = Math.round(skillMatchRatio);
+        
+        // Calculate experience match
+        const experienceMatch = calculateExperienceMatch(job.description || '');
+        
+        // Calculate title relevance bonus (0-100 scale)
+        const titleLower = (job.title || '').toLowerCase();
+        const queryLower = query.toLowerCase();
+        const titleRelevance = titleLower.includes(queryLower) ? 100 : 
+          queryLower.split(/\s+/).some(word => titleLower.includes(word)) ? 50 : 0;
+        
+        // Blend heuristic score with experience match
+        let finalMatchScore = Math.round((heuristicScore * 0.6) + (experienceMatch * 0.3) + (titleRelevance * 0.1));
+        
+        // Ensure score is within valid range
+        finalMatchScore = Math.max(25, Math.min(100, finalMatchScore));
+        
+        // Calculate feedback likelihood based on match score
+        const feedbackLikelihood = Math.min(finalMatchScore + 10, 95);
+
+        // Build match reason
+        const matchReason = matchingSkillsWithDetails.length > 0
+          ? `${matchingSkillsWithDetails.length} matching skill${matchingSkillsWithDetails.length > 1 ? 's' : ''} found${aiCvAssessment ? '; ' + aiCvAssessment.strengths.slice(0, 1).join(', ') : ''}`
+          : aiCvAssessment 
+            ? aiCvAssessment.strengths.slice(0, 2).join('; ') || 'Skills and experience may align with job requirements'
+            : 'Skills and experience may align with job requirements';
+
+        matchedJobs.push({
+          ...job,
+          id: job.id || `${job.source}-${jobIdx}`,
+          matchScore: finalMatchScore,
+          feedbackLikelihood,
+          matchReason,
+          matchingSkills: matchingSkillsWithDetails,
+          missingSkills: missingSkillsWithDetails.slice(0, 5),
+        });
+      } catch (error) {
+        console.error('[Job Matcher] Error matching job:', job.title, error);
+        // Still include the job with a default score
+        matchedJobs.push({
+          ...job,
+          id: job.id || `${job.source}-${jobIdx}`,
+          matchScore: 35,
+          feedbackLikelihood: 45,
+          matchReason: 'Basic match analysis performed',
+          matchingSkills: [],
+          missingSkills: [],
+        });
       }
     }
 
