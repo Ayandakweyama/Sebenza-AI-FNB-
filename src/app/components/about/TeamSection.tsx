@@ -9,7 +9,7 @@ const team = [
     bio: 'Passionate about using technology to solve real-world problems.'
   },
   {
-    name: 'Calivin Lubambo',
+    name: 'Calvin Lubambo',
     role: 'Lead Developer',
     image: '/team/placeholder-2.jpg',
     bio: 'Full-stack developer with expertise in AI and machine learning.'
