@@ -189,7 +189,7 @@ export async function POST(req: Request) {
 
     // Scrape jobs directly (no HTTP fetch — avoids Railway internal URL issues)
     console.log('[Job Matcher] Scraping jobs directly from scrapers...');
-    const sources = ['jobmail', 'indeed'] as const;
+    const sources = ['indeed', 'jobmail'] as const;
     const scraperConfig: ScraperConfig = { query, location, maxPages: 1 };
     
     // Check cache first
@@ -198,7 +198,10 @@ export async function POST(req: Request) {
     let sourceCounts: Record<string, number> = {};
     let scrapeErrors: string[] = [];
 
-    if (cachedJobs && cachedJobs.length > 0) {
+    // Skip cache if any requested source has 0 jobs (stale cache from failed scrape)
+    const cacheHasAllSources = cachedJobs && cachedJobs.length > 0 && 
+      sources.every(s => cachedJobs.some(j => j.source === s));
+    if (cacheHasAllSources) {
       console.log(`[Job Matcher] Cache hit! ${cachedJobs.length} cached jobs`);
       jobs = cachedJobs;
       sourceCounts = sources.reduce((acc, s) => {
@@ -206,9 +209,12 @@ export async function POST(req: Request) {
         return acc;
       }, {} as Record<string, number>);
     } else {
-      // Run scrapers in parallel with timeout protection
-      const scraperPromises = sources.map(async (source) => {
-        const timeoutMs = 40000;
+      // Run scrapers SEQUENTIALLY to avoid Puppeteer browser resource conflicts
+      const allJobs: Job[] = [];
+      const timeoutMs = 60000;
+
+      for (const source of sources) {
+        console.log(`[Job Matcher] Starting ${source} scraper...`);
         const timeoutPromise = new Promise<null>((_, reject) =>
           setTimeout(() => reject(new Error(`${source} scraper timed out`)), timeoutMs)
         );
@@ -219,34 +225,25 @@ export async function POST(req: Request) {
           } else if (source === 'jobmail') {
             result = await Promise.race([scrapeJobMail(scraperConfig), timeoutPromise]);
           } else {
-            return { jobs: [], success: false, error: `Unknown source: ${source}`, source, count: 0 };
+            scrapeErrors.push(`Unknown source: ${source}`);
+            continue;
           }
-          return result;
-        } catch (error) {
-          return { jobs: [], success: false, error: error instanceof Error ? error.message : 'Unknown error', source, count: 0 };
-        }
-      });
-
-      const results = await Promise.allSettled(scraperPromises);
-      const allJobs: Job[] = [];
-
-      results.forEach((result, index) => {
-        if (result.status === 'fulfilled' && result.value) {
-          const r = result.value as any;
-          if (r.success) {
+          const r = result as any;
+          if (r && r.success) {
             allJobs.push(...r.jobs);
             sourceCounts[r.source] = r.count;
             console.log(`[Job Matcher] ✅ ${r.source}: ${r.count} jobs`);
           } else {
-            scrapeErrors.push(`${r.source}: ${r.error}`);
-            console.error(`[Job Matcher] ❌ ${r.source}: ${r.error}`);
+            scrapeErrors.push(`${source}: ${r?.error || 'Unknown error'}`);
+            console.error(`[Job Matcher] ❌ ${source}: ${r?.error}`);
           }
-        } else {
-          const source = sources[index];
-          scrapeErrors.push(`${source} failed`);
-          console.error(`[Job Matcher] ❌ ${source} failed:`, result.reason);
+        } catch (error) {
+          scrapeErrors.push(`${source}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          console.error(`[Job Matcher] ❌ ${source} failed:`, error instanceof Error ? error.message : error);
         }
-      });
+        // Brief pause between scrapers for browser cleanup
+        await new Promise(r => setTimeout(r, 2000));
+      }
 
       // Deduplicate
       jobs = allJobs.filter((job, index, self) => {

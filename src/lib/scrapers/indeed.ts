@@ -93,20 +93,23 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
       try {
         const pageStartTime = Date.now();
         await page.goto(searchUrl, { 
-          waitUntil: 'networkidle2',
+          waitUntil: 'domcontentloaded',
           timeout: 60000 
         });
         console.log(`   ✓ Page loaded in ${Date.now() - pageStartTime}ms`);
+        // Wait for network to settle after domcontentloaded
+        await fastDelay(2000, 3000);
       } catch (navError) {
         console.error(`   ✗ Navigation failed:`, navError);
-        throw navError;
+        // Don't throw - try to continue with whatever loaded
+        continue;
       }
       
       // Wait for mosaic data to be available in the page
       try {
         await page.waitForFunction(
           () => !!(window as any).mosaic?.providerData?.["mosaic-provider-jobcards"],
-          { timeout: 10000 }
+          { timeout: 15000 }
         );
         console.log(`   ✓ Mosaic data available`);
       } catch (waitError) {
