@@ -23,6 +23,11 @@ ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 ARG CLERK_SECRET_KEY
 ENV CLERK_SECRET_KEY=$CLERK_SECRET_KEY
+
+# Dummy DATABASE_URL for prisma generate during build (real value injected at runtime by Railway)
+ARG DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy
+ENV DATABASE_URL=$DATABASE_URL
+
 # Generate Prisma client and build Next.js
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npx prisma generate
@@ -93,4 +98,5 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 # Push schema at startup (internal DB only reachable at runtime, not build time)
-CMD node ./node_modules/prisma/build/index.js db push --skip-generate && node server.js
+# Use shell form so we can log and handle errors gracefully
+CMD sh -c 'echo "DATABASE_URL is ${DATABASE_URL:+set}${DATABASE_URL:-NOT SET}" && node ./node_modules/prisma/build/index.js db push --skip-generate 2>&1 || echo "⚠️ Prisma db push failed, continuing anyway" && node server.js'

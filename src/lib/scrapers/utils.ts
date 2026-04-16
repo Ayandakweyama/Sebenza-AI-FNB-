@@ -155,8 +155,8 @@ export const BROWSER_CONFIG = {
     '--disable-features=VizDisplayCompositor',
     '--disable-extensions',
     '--disable-plugins',
-    '--disable-images', // Skip loading images for faster scraping
-    '--disable-javascript', // We'll enable only when needed
+    '--disable-images',
+    '--disable-css',
     '--disable-default-apps',
     '--disable-background-timer-throttling',
     '--disable-backgrounding-occluded-windows',
@@ -165,11 +165,12 @@ export const BROWSER_CONFIG = {
     '--no-first-run',
     '--no-default-browser-check',
     '--memory-pressure-off',
+    '--disable-blink-features=AutomationControlled',
     '--max_old_space_size=4096'
   ],
-  defaultViewport: { width: 1280, height: 720 }, // Smaller viewport for speed
+  defaultViewport: { width: 1280, height: 720 },
   ignoreHTTPSErrors: true,
-  timeout: 30000 // Reduced timeout
+  timeout: 60000
 };
 
 // Lightweight config for faster scraping
@@ -184,34 +185,36 @@ export const FAST_BROWSER_CONFIG = {
     '--disable-css',
     '--disable-plugins',
     '--disable-extensions',
-    // Removed --disable-javascript - scrapers need JS
     '--no-first-run',
-    '--memory-pressure-off'
+    '--memory-pressure-off',
+    '--disable-blink-features=AutomationControlled'
   ],
   defaultViewport: { width: 1024, height: 600 },
   ignoreHTTPSErrors: true,
-  timeout: 15000,
-  protocolTimeout: 120000 // 2 minutes for protocol operations
+  timeout: 60000,
+  protocolTimeout: 120000
 };
 
 // Server/Railway-safe config with container-compatible args
 export const SERVER_BROWSER_CONFIG = {
-  headless: true,
+  headless: 'new' as any,
   args: [
     '--no-sandbox',
     '--disable-setuid-sandbox',
     '--disable-dev-shm-usage',
     '--disable-gpu',
-    '--single-process',
     '--no-zygote',
     '--disable-extensions',
     '--disable-plugins',
+    '--disable-images',
+    '--disable-css',
     '--no-first-run',
     '--memory-pressure-off',
     '--disable-blink-features=AutomationControlled',
+    '--window-size=1366,768',
   ],
   defaultViewport: { width: 1366, height: 768 },
   ignoreHTTPSErrors: true,
-  timeout: 30000,
+  timeout: 60000,
   protocolTimeout: 180000 // 3 minutes for server environments
 };

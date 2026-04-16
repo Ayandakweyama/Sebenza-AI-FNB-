@@ -93,12 +93,10 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
       try {
         const pageStartTime = Date.now();
         await page.goto(searchUrl, { 
-          waitUntil: 'domcontentloaded',
+          waitUntil: 'networkidle2',
           timeout: 60000 
         });
         console.log(`   ✓ Page loaded in ${Date.now() - pageStartTime}ms`);
-        // Wait for network to settle after domcontentloaded
-        await fastDelay(2000, 3000);
       } catch (navError) {
         console.error(`   ✗ Navigation failed:`, navError);
         // Don't throw - try to continue with whatever loaded

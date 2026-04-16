@@ -214,32 +214,48 @@ export async function POST(req: Request) {
       const timeoutMs = 60000;
 
       for (const source of sources) {
-        console.log(`[Job Matcher] Starting ${source} scraper...`);
-        const timeoutPromise = new Promise<null>((_, reject) =>
-          setTimeout(() => reject(new Error(`${source} scraper timed out`)), timeoutMs)
-        );
-        try {
-          let result;
-          if (source === 'indeed') {
-            result = await Promise.race([scrapeIndeed(scraperConfig), timeoutPromise]);
-          } else if (source === 'jobmail') {
-            result = await Promise.race([scrapeJobMail(scraperConfig), timeoutPromise]);
-          } else {
-            scrapeErrors.push(`Unknown source: ${source}`);
-            continue;
+        const maxAttempts = source === 'indeed' ? 2 : 1; // Retry Indeed once if it fails
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          console.log(`[Job Matcher] Starting ${source} scraper (attempt ${attempt}/${maxAttempts})...`);
+          const timeoutPromise = new Promise<null>((_, reject) =>
+            setTimeout(() => reject(new Error(`${source} scraper timed out`)), timeoutMs)
+          );
+          try {
+            let result;
+            if (source === 'indeed') {
+              result = await Promise.race([scrapeIndeed(scraperConfig), timeoutPromise]);
+            } else if (source === 'jobmail') {
+              result = await Promise.race([scrapeJobMail(scraperConfig), timeoutPromise]);
+            } else {
+              scrapeErrors.push(`Unknown source: ${source}`);
+              break;
+            }
+            const r = result as any;
+            if (r && r.success && r.jobs?.length > 0) {
+              allJobs.push(...r.jobs);
+              sourceCounts[r.source] = r.count;
+              console.log(`[Job Matcher] ✅ ${r.source}: ${r.count} jobs`);
+              break; // Success, no retry needed
+            } else {
+              const errMsg = `${source}: ${r?.error || (r?.jobs?.length === 0 ? '0 jobs returned' : 'Unknown error')}`;
+              if (attempt < maxAttempts) {
+                console.warn(`[Job Matcher] ⚠️ ${errMsg} — retrying...`);
+                await new Promise(r => setTimeout(r, 3000));
+              } else {
+                scrapeErrors.push(errMsg);
+                console.error(`[Job Matcher] ❌ ${errMsg}`);
+              }
+            }
+          } catch (error) {
+            const errMsg = `${source}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+            if (attempt < maxAttempts) {
+              console.warn(`[Job Matcher] ⚠️ ${errMsg} — retrying...`);
+              await new Promise(r => setTimeout(r, 3000));
+            } else {
+              scrapeErrors.push(errMsg);
+              console.error(`[Job Matcher] ❌ ${source} failed:`, error instanceof Error ? error.message : error);
+            }
           }
-          const r = result as any;
-          if (r && r.success) {
-            allJobs.push(...r.jobs);
-            sourceCounts[r.source] = r.count;
-            console.log(`[Job Matcher] ✅ ${r.source}: ${r.count} jobs`);
-          } else {
-            scrapeErrors.push(`${source}: ${r?.error || 'Unknown error'}`);
-            console.error(`[Job Matcher] ❌ ${source}: ${r?.error}`);
-          }
-        } catch (error) {
-          scrapeErrors.push(`${source}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-          console.error(`[Job Matcher] ❌ ${source} failed:`, error instanceof Error ? error.message : error);
         }
         // Brief pause between scrapers for browser cleanup
         await new Promise(r => setTimeout(r, 2000));
