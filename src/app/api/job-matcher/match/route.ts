@@ -7,7 +7,7 @@ import { scrapeIndeed, scrapeJobMail } from '@/lib/scrapers';
 import type { ScraperConfig, Job } from '@/lib/scrapers/types';
 import { jobCache } from '@/lib/cache/jobCache';
 
-export const maxDuration = 120; // 120 seconds (2 minutes) max for faster response
+export const maxDuration = 300; // 5 minutes - needed for sequential scrapers with retries on Railway
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 

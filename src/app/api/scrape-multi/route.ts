@@ -5,7 +5,7 @@ import type { ScraperConfig, Job } from '@/lib/scrapers/types';
 import { jobCache } from '@/lib/cache/jobCache';
 import { getAuth } from '@clerk/nextjs/server';
 
-export const maxDuration = 120; // 120 seconds (2 minutes) max for faster response
+export const maxDuration = 300; // 5 minutes - needed for scrapers on Railway
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 

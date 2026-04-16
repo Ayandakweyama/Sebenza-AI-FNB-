@@ -195,25 +195,24 @@ export const FAST_BROWSER_CONFIG = {
   protocolTimeout: 120000
 };
 
-// Server/Railway-safe config with container-compatible args
+// Server/Railway-safe config - aligned with FAST_BROWSER_CONFIG (which works)
+// Removed --single-process (breaks JS), --no-zygote (breaks process spawning), headless:'new' (breaks launch)
 export const SERVER_BROWSER_CONFIG = {
-  headless: 'new' as any,
+  headless: true,
   args: [
     '--no-sandbox',
     '--disable-setuid-sandbox',
     '--disable-dev-shm-usage',
     '--disable-gpu',
-    '--no-zygote',
-    '--disable-extensions',
-    '--disable-plugins',
     '--disable-images',
     '--disable-css',
+    '--disable-plugins',
+    '--disable-extensions',
     '--no-first-run',
     '--memory-pressure-off',
     '--disable-blink-features=AutomationControlled',
-    '--window-size=1366,768',
   ],
-  defaultViewport: { width: 1366, height: 768 },
+  defaultViewport: { width: 1280, height: 720 },
   ignoreHTTPSErrors: true,
   timeout: 60000,
   protocolTimeout: 180000 // 3 minutes for server environments
