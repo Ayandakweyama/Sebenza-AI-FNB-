@@ -98,5 +98,5 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 # Push schema at startup (internal DB only reachable at runtime, not build time)
-# Use shell form so we can log and handle errors gracefully
-CMD sh -c 'echo "DATABASE_URL is ${DATABASE_URL:+set}${DATABASE_URL:-NOT SET}" && node ./node_modules/prisma/build/index.js db push --skip-generate 2>&1 || echo "⚠️ Prisma db push failed, continuing anyway" && node server.js'
+# Strip surrounding quotes from DATABASE_URL (Railway may wrap values in literal quotes)
+CMD sh -c 'export DATABASE_URL=$(echo "$DATABASE_URL" | sed "s/^\"//;s/\"$//") && echo "DATABASE_URL is ${DATABASE_URL:+set}${DATABASE_URL:-NOT SET}" && node ./node_modules/prisma/build/index.js db push --skip-generate 2>&1 || echo "⚠️ Prisma db push failed, continuing anyway" && node server.js'

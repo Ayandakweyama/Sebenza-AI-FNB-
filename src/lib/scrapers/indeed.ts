@@ -85,9 +85,16 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
     
     for (let pageNum = 0; pageNum < maxPages; pageNum++) {
       const start = pageNum * 10;
-      const searchUrl = `https://za.indeed.com/jobs?q=${encodeURIComponent(query)}&l=${encodeURIComponent(location)}&start=${start}`;
+      // Try za.indeed.com first (South Africa), fallback to www.indeed.com with SA location
+      const zaUrl = `https://za.indeed.com/jobs?q=${encodeURIComponent(query)}&l=${encodeURIComponent(location)}&start=${start}`;
+      const wwwUrl = `https://www.indeed.com/jobs?q=${encodeURIComponent(query)}&l=${encodeURIComponent(location + ', South Africa')}&start=${start}&vjk=`;
       
       console.log(`📄 Indeed - Processing page ${pageNum + 1}/${maxPages}`);
+      
+      let searchUrl = zaUrl;
+      let redirected = false;
+      
+      // First attempt with za.indeed.com
       console.log(`   URL: ${searchUrl}`);
       
       try {
@@ -101,6 +108,43 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
         console.error(`   ✗ Navigation failed:`, navError);
         // Don't throw - try to continue with whatever loaded
         continue;
+      }
+      
+      // Diagnostic: log actual URL, title, and page state for Railway debugging
+      const actualUrl = page.url();
+      const pageTitle = await page.title();
+      console.log(`   📍 Actual URL: ${actualUrl}`);
+      console.log(`   📝 Page title: ${pageTitle}`);
+      if (actualUrl !== searchUrl) {
+        console.warn(`   ⚠️ REDIRECTED: expected ${searchUrl} but got ${actualUrl}`);
+      }
+      // Check for common block/captcha indicators
+      const pageIndicator = await page.evaluate(() => {
+        const body = document.body?.innerText?.substring(0, 300) || '';
+        const hasCaptcha = !!document.querySelector('#captcha, .captcha, iframe[src*="captcha"], .challenge-form');
+        const hasBlock = body.toLowerCase().includes('access denied') || body.toLowerCase().includes('blocked') || body.toLowerCase().includes('unusual traffic');
+        const hasMosaic = !!(window as any).mosaic?.providerData?.["mosaic-provider-jobcards"];
+        return { hasCaptcha, hasBlock, hasMosaic, bodyPreview: body.substring(0, 200) };
+      });
+      console.log(`   🔍 Page state: captcha=${pageIndicator.hasCaptcha}, blocked=${pageIndicator.hasBlock}, mosaic=${pageIndicator.hasMosaic}`);
+      if (pageIndicator.hasCaptcha || pageIndicator.hasBlock) {
+        console.warn(`   ⚠️ Page appears blocked! Body preview: ${pageIndicator.bodyPreview}`);
+      }
+      
+      // Fallback: if redirected away from za.indeed.com or blocked, try www.indeed.com with SA location
+      if ((actualUrl !== searchUrl && !actualUrl.includes('za.indeed.com')) || pageIndicator.hasCaptcha || pageIndicator.hasBlock) {
+        console.log(`   🔄 Retrying with www.indeed.com (za.indeed.com blocked/redirected from US server)`);
+        try {
+          await page.goto(wwwUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+          const fallbackUrl = page.url();
+          const fallbackTitle = await page.title();
+          console.log(`   📍 Fallback URL: ${fallbackUrl}`);
+          console.log(`   📝 Fallback title: ${fallbackTitle}`);
+          const fallbackMosaic = await page.evaluate(() => !!(window as any).mosaic?.providerData?.["mosaic-provider-jobcards"]);
+          console.log(`   🔍 Fallback mosaic: ${fallbackMosaic}`);
+        } catch (fallbackError) {
+          console.warn(`   ⚠️ Fallback also failed:`, (fallbackError as Error).message);
+        }
       }
       
       // Wait for mosaic data to be available in the page
