@@ -7,7 +7,6 @@ import {
   File,
   Search, 
   MapPin, 
-  Sparkles, 
   TrendingUp,
   CheckCircle,
   XCircle,
@@ -368,17 +367,17 @@ export default function JobMatcherPage() {
                 <p className="text-red-400 text-sm mb-4">{error}</p>
               )}
 
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={() => setStep('upload')}
-                  className="flex-1 bg-slate-700 text-white font-semibold py-3 rounded-xl hover:bg-slate-600 transition-all"
+                  className="sm:flex-1 bg-slate-700 text-white font-semibold py-3 px-6 rounded-xl hover:bg-slate-600 transition-all"
                 >
                   Back
                 </button>
                 <button
                   onClick={handleSearch}
                   disabled={!query.trim() || isLoading}
-                  className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold py-3 rounded-xl hover:from-purple-500 hover:to-blue-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="sm:flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold py-3 px-6 rounded-xl hover:from-purple-500 hover:to-blue-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isLoading ? (
                     <>
@@ -386,10 +385,7 @@ export default function JobMatcherPage() {
                       Matching...
                     </>
                   ) : (
-                    <>
-                      <Sparkles className="w-4 h-4" />
-                      Find Matches
-                    </>
+                    'Find Matches'
                   )}
                 </button>
               </div>
