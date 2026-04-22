@@ -279,7 +279,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Separate profile and job preferences
-      const { education, workExperience, skills, jobTypes, industries, ...profileData } = data;
+      const { education, workExperience, technicalSkills, softSkills, languages, jobTypes, industries, ...profileData } = data;
       const jobPreferences = {
         jobTitle: data.jobTitle,
         industries: data.industries,
@@ -461,8 +461,8 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
       bio: profile?.bio || '',
       profilePhoto: profile?.profilePhoto || null
     } : null,
-    education: getProfileSection('education'),
-    workExperience: getProfileSection('workExperience'),
+    education: getProfileSection('education') ? { education: getProfileSection('education')! } : null,
+    workExperience: getProfileSection('workExperience') ? { workExperience: getProfileSection('workExperience')! } : null,
     skills: getProfileSection('technicalSkills') ? {
       technicalSkills: profile?.technicalSkills || [],
       softSkills: profile?.softSkills || [],
