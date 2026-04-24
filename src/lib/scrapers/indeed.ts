@@ -1,4 +1,5 @@
 import type { Job, ScraperConfig, ScraperResult } from './types';
+import { getBrowserFromPool, returnBrowserToPool, autoScroll, configureRequestInterception, fastDelay } from './utils';
 
 // Fetch jobs via Adzuna API (most reliable - aggregates Indeed + other SA job boards)
 // Requires ADZUNA_APP_ID and ADZUNA_APP_KEY env vars (free at https://developer.adzuna.com)
@@ -196,26 +197,89 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
       }
     }
 
-    if (!xmlData) {
-      console.error('❌ All Indeed RSS URLs failed');
-      diagnostics.error = 'All RSS URLs returned no valid XML';
-      diagnostics.hasBlock = true;
-      return { jobs: [], success: false, error: 'Indeed RSS unavailable', source: 'indeed', count: 0, diagnostics };
+    if (xmlData) {
+      const rssJobs = parseIndeedRss(xmlData, location);
+      if (rssJobs.length > 0) {
+        const totalTime = Date.now() - startTime;
+        console.log(`🎉 Indeed RSS scraper completed in ${totalTime}ms - Total jobs: ${rssJobs.length} from ${successUrl}`);
+        diagnostics.loadTimeMs = totalTime;
+        diagnostics.hasMosaic = true;
+        return { jobs: rssJobs, success: true, source: 'indeed', count: rssJobs.length, diagnostics };
+      }
     }
 
-    const jobs = parseIndeedRss(xmlData, location);
-    const totalTime = Date.now() - startTime;
-    console.log(`🎉 Indeed RSS scraper completed in ${totalTime}ms - Total jobs: ${jobs.length} from ${successUrl}`);
-    diagnostics.loadTimeMs = totalTime;
-    diagnostics.hasMosaic = jobs.length > 0;
+    // === STRATEGY 3: PNet via Puppeteer (SA job board, no Cloudflare on EU servers) ===
+    console.log(`   🤖 Falling back to PNet Puppeteer scraper (SA job board)`);
+    let pnetBrowser;
+    try {
+      pnetBrowser = await getBrowserFromPool();
+      const page = await pnetBrowser.newPage();
+      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+      await configureRequestInterception(page, true);
 
-    return {
-      jobs,
-      success: true,
-      source: 'indeed',
-      count: jobs.length,
-      diagnostics
-    };
+      const pnetUrl = `https://www.pnet.co.za/jobs/search-results.html?s=${encodeURIComponent(query)}&l=${encodeURIComponent(location)}&p=1`;
+      console.log(`   📄 PNet URL: ${pnetUrl}`);
+      await page.goto(pnetUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      const pnetTitle = await page.title();
+      console.log(`   📝 PNet title: ${pnetTitle}`);
+
+      if (pnetTitle.toLowerCase().includes('just a moment') || pnetTitle.toLowerCase().includes('cloudflare')) {
+        console.warn(`   ⚠️ PNet also behind Cloudflare`);
+      } else {
+        await fastDelay(1500, 2500);
+        await autoScroll(page);
+
+        const pnetJobs = await page.evaluate((loc: string): Job[] => {
+          const results: Job[] = [];
+          const seen = new Set<string>();
+          // PNet job cards
+          const cards = document.querySelectorAll('article, div[class*="job"], div[class*="listing"], div[class*="result"]');
+          cards.forEach(card => {
+            const link = card.querySelector('a[href*="/jobs/"], a[href*="/job/"]') as HTMLAnchorElement | null;
+            const h = card.querySelector('h2, h3, h4');
+            const title = h?.textContent?.trim() || link?.textContent?.trim() || '';
+            if (!title || title.length < 4 || seen.has(title)) return;
+            seen.add(title);
+            const href = link?.getAttribute('href') || '';
+            const url = href.startsWith('http') ? href : `https://www.pnet.co.za${href}`;
+            const company = card.querySelector('[class*="company"], [class*="employer"], [class*="advertiser"]')?.textContent?.trim() || 'See job details';
+            const location = card.querySelector('[class*="location"], [class*="area"]')?.textContent?.trim() || loc;
+            const salary = card.querySelector('[class*="salary"], [class*="pay"]')?.textContent?.trim() || 'Not specified';
+            const description = card.querySelector('[class*="desc"], [class*="summary"], p')?.textContent?.trim()?.substring(0, 300) || '';
+            if (title && url) {
+              results.push({ title, company, location, salary, postedDate: 'Recently', description, url, jobType: 'Full-time', source: 'indeed' as const });
+            }
+          });
+          return results;
+        }, location);
+
+        console.log(`   ✅ PNet jobs found: ${pnetJobs.length}`);
+        if (pnetJobs.length > 0) {
+          const totalTime = Date.now() - startTime;
+          diagnostics.browserType = 'puppeteer-pnet';
+          diagnostics.actualUrl = pnetUrl;
+          diagnostics.pageTitle = pnetTitle;
+          diagnostics.loadTimeMs = totalTime;
+          diagnostics.hasMosaic = true;
+          diagnostics.hasBlock = false;
+          return { jobs: pnetJobs, success: true, source: 'indeed', count: pnetJobs.length, diagnostics };
+        }
+      }
+    } catch (pnetErr) {
+      console.warn(`   ⚠️ PNet scraper failed: ${(pnetErr as Error).message}`);
+    } finally {
+      if (pnetBrowser) {
+        try { await returnBrowserToPool(pnetBrowser); } catch (e) { /* ignore */ }
+      }
+    }
+
+    // All strategies exhausted
+    console.error('❌ All Indeed strategies failed (Adzuna: no keys, RSS: 403, PNet: no results)');
+    diagnostics.error = 'All strategies failed: add ADZUNA_APP_ID + ADZUNA_APP_KEY to Railway env vars';
+    diagnostics.hasBlock = true;
+    const totalTime = Date.now() - startTime;
+    diagnostics.loadTimeMs = totalTime;
+    return { jobs: [], success: false, error: 'All job sources unavailable', source: 'indeed', count: 0, diagnostics };
 
   } catch (error) {
     console.error('❌ Indeed scraper error:', error);
