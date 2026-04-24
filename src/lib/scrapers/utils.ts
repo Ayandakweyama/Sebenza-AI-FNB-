@@ -113,7 +113,12 @@ export async function getBrowserFromPool(): Promise<Browser> {
   };
   
   try {
-    const browser = await puppeteer.default.launch(config);
+    // Handle both ESM and CJS interop - puppeteer.default might not exist in some environments
+    const puppeteerLib = (puppeteer as any).default || puppeteer;
+    if (!puppeteerLib || !puppeteerLib.launch) {
+      throw new Error('Puppeteer launch function not found. Module structure: ' + Object.keys(puppeteer as any).join(', '));
+    }
+    const browser = await puppeteerLib.launch(config);
     console.log(`✅ Browser created successfully with unique profile: ${uniqueDir}`);
     return browser;
   } catch (error) {

@@ -197,6 +197,7 @@ export async function POST(req: Request) {
     let jobs: Job[] = [];
     let sourceCounts: Record<string, number> = {};
     let scrapeErrors: string[] = [];
+    let scraperDiagnostics: Record<string, any> = {};
 
     // Skip cache if any requested source has 0 jobs (stale cache from failed scrape)
     const cacheHasAllSources = cachedJobs && cachedJobs.length > 0 && 
@@ -231,6 +232,9 @@ export async function POST(req: Request) {
               break;
             }
             const r = result as any;
+            if (r && r.diagnostics) {
+              scraperDiagnostics[r.source || source] = r.diagnostics;
+            }
             if (r && r.success && r.jobs?.length > 0) {
               allJobs.push(...r.jobs);
               sourceCounts[r.source] = r.count;
@@ -286,6 +290,7 @@ export async function POST(req: Request) {
           : 'No jobs found matching your criteria',
         sourceCounts,
         errors: scrapeErrors,
+        diagnostics: scraperDiagnostics,
       });
     }
 
@@ -427,6 +432,7 @@ export async function POST(req: Request) {
       matchedJobs: topMatches,
       totalScraped: jobs.length,
       sourcesUsed: ['jobmail', 'indeed'],
+      diagnostics: scraperDiagnostics,
       candidateProfile: {
         skills: extractedSkills,
         experienceCount: parsedCV.experience.length,

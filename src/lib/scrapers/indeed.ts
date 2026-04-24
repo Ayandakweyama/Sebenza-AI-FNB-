@@ -66,12 +66,14 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
   const { query, location, maxPages = 3 } = config;
   let browser;
   const startTime = Date.now();
+  const diagnostics: import('./types').ScraperDiagnostics = { url: `https://za.indeed.com/jobs?q=${encodeURIComponent(query)}&l=${encodeURIComponent(location)}` };
   
   try {
     console.log(`🔍 Starting Indeed scraper for "${query}" in "${location}"`);
     
     browser = await getBrowserFromPool();
     console.log(`⏱️ Browser acquired in ${Date.now() - startTime}ms`);
+    diagnostics.browserType = 'puppeteer';
     
     const page = await browser.newPage();
     console.log(`⏱️ Page created in ${Date.now() - startTime}ms`);
@@ -113,6 +115,9 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
       // Diagnostic: log actual URL, title, and page state for Railway debugging
       const actualUrl = page.url();
       const pageTitle = await page.title();
+      diagnostics.actualUrl = actualUrl;
+      diagnostics.pageTitle = pageTitle;
+      diagnostics.loadTimeMs = Date.now() - startTime;
       console.log(`   📍 Actual URL: ${actualUrl}`);
       console.log(`   📝 Page title: ${pageTitle}`);
       if (actualUrl !== searchUrl) {
@@ -120,18 +125,23 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
       }
       // Check for common block/captcha indicators
       const pageIndicator = await page.evaluate(() => {
-        const body = document.body?.innerText?.substring(0, 300) || '';
+        const body = document.body?.innerText?.substring(0, 500) || '';
         const hasCaptcha = !!document.querySelector('#captcha, .captcha, iframe[src*="captcha"], .challenge-form');
-        const hasBlock = body.toLowerCase().includes('access denied') || body.toLowerCase().includes('blocked') || body.toLowerCase().includes('unusual traffic');
+        const hasBlock = body.toLowerCase().includes('access denied') || body.toLowerCase().includes('blocked') || body.toLowerCase().includes('unusual traffic') || body.toLowerCase().includes('verify you are human');
         const hasMosaic = !!(window as any).mosaic?.providerData?.["mosaic-provider-jobcards"];
-        return { hasCaptcha, hasBlock, hasMosaic, bodyPreview: body.substring(0, 200) };
+        return { hasCaptcha, hasBlock, hasMosaic, bodyPreview: body.substring(0, 300) };
       });
+      diagnostics.hasCaptcha = pageIndicator.hasCaptcha;
+      diagnostics.hasBlock = pageIndicator.hasBlock;
+      diagnostics.hasMosaic = pageIndicator.hasMosaic;
       console.log(`   🔍 Page state: captcha=${pageIndicator.hasCaptcha}, blocked=${pageIndicator.hasBlock}, mosaic=${pageIndicator.hasMosaic}`);
       if (pageIndicator.hasCaptcha || pageIndicator.hasBlock) {
         console.warn(`   ⚠️ Page appears blocked! Body preview: ${pageIndicator.bodyPreview}`);
+        diagnostics.htmlPreview = pageIndicator.bodyPreview;
       }
       
       // Fallback: if redirected away from za.indeed.com or blocked, try www.indeed.com with SA location
+      let usedFallback = false;
       if ((actualUrl !== searchUrl && !actualUrl.includes('za.indeed.com')) || pageIndicator.hasCaptcha || pageIndicator.hasBlock) {
         console.log(`   🔄 Retrying with www.indeed.com (za.indeed.com blocked/redirected from US server)`);
         try {
@@ -140,8 +150,51 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
           const fallbackTitle = await page.title();
           console.log(`   📍 Fallback URL: ${fallbackUrl}`);
           console.log(`   📝 Fallback title: ${fallbackTitle}`);
-          const fallbackMosaic = await page.evaluate(() => !!(window as any).mosaic?.providerData?.["mosaic-provider-jobcards"]);
-          console.log(`   🔍 Fallback mosaic: ${fallbackMosaic}`);
+          const fallbackIndicator = await page.evaluate(() => {
+            const body = document.body?.innerText?.substring(0, 500) || '';
+            const hasCaptcha = !!document.querySelector('#captcha, .captcha, iframe[src*="captcha"], .challenge-form');
+            const hasBlock = body.toLowerCase().includes('access denied') || body.toLowerCase().includes('blocked') || body.toLowerCase().includes('unusual traffic');
+            const hasMosaic = !!(window as any).mosaic?.providerData?.["mosaic-provider-jobcards"];
+            return { hasCaptcha, hasBlock, hasMosaic };
+          });
+          console.log(`   🔍 Fallback state: captcha=${fallbackIndicator.hasCaptcha}, blocked=${fallbackIndicator.hasBlock}, mosaic=${fallbackIndicator.hasMosaic}`);
+          if (!fallbackIndicator.hasCaptcha && !fallbackIndicator.hasBlock) {
+            usedFallback = true;
+            diagnostics.actualUrl = fallbackUrl;
+            diagnostics.pageTitle = fallbackTitle;
+            diagnostics.hasMosaic = fallbackIndicator.hasMosaic;
+            diagnostics.hasCaptcha = fallbackIndicator.hasCaptcha;
+            diagnostics.hasBlock = fallbackIndicator.hasBlock;
+          } else {
+            // Try indeed.co.za as third fallback
+            const cozaUrl = `https://indeed.co.za/jobs?q=${encodeURIComponent(query)}&l=${encodeURIComponent(location)}&start=${start}`;
+            console.log(`   🔄 Retrying with indeed.co.za (third fallback)`);
+            try {
+              await page.goto(cozaUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+              const cozaActual = page.url();
+              const cozaTitle = await page.title();
+              const cozaIndicator = await page.evaluate(() => {
+                const body = document.body?.innerText?.substring(0, 500) || '';
+                const hasCaptcha = !!document.querySelector('#captcha, .captcha, iframe[src*="captcha"], .challenge-form');
+                const hasBlock = body.toLowerCase().includes('access denied') || body.toLowerCase().includes('blocked');
+                const hasMosaic = !!(window as any).mosaic?.providerData?.["mosaic-provider-jobcards"];
+                return { hasCaptcha, hasBlock, hasMosaic };
+              });
+              if (!cozaIndicator.hasCaptcha && !cozaIndicator.hasBlock) {
+                usedFallback = true;
+                diagnostics.actualUrl = cozaActual;
+                diagnostics.pageTitle = cozaTitle;
+                diagnostics.hasMosaic = cozaIndicator.hasMosaic;
+                diagnostics.hasCaptcha = cozaIndicator.hasCaptcha;
+                diagnostics.hasBlock = cozaIndicator.hasBlock;
+                console.log(`   ✅ indeed.co.za fallback succeeded`);
+              } else {
+                console.warn(`   ⚠️ indeed.co.za also blocked`);
+              }
+            } catch (cozaErr) {
+              console.warn(`   ⚠️ indeed.co.za fallback failed:`, (cozaErr as Error).message);
+            }
+          }
         } catch (fallbackError) {
           console.warn(`   ⚠️ Fallback also failed:`, (fallbackError as Error).message);
         }
@@ -274,17 +327,20 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
       jobs: allJobs,
       success: true,
       source: 'indeed',
-      count: allJobs.length
+      count: allJobs.length,
+      diagnostics
     };
     
   } catch (error) {
     console.error('❌ Indeed scraper error:', error);
+    diagnostics.error = error instanceof Error ? error.message : 'Unknown error';
     return {
       jobs: [],
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
       source: 'indeed',
-      count: 0
+      count: 0,
+      diagnostics
     };
   } finally {
     if (browser) {
