@@ -1,5 +1,74 @@
 import type { Job, ScraperConfig, ScraperResult } from './types';
 
+// Fetch jobs via Adzuna API (most reliable - aggregates Indeed + other SA job boards)
+// Requires ADZUNA_APP_ID and ADZUNA_APP_KEY env vars (free at https://developer.adzuna.com)
+async function fetchAdzunaJobs(query: string, location: string, maxPages: number): Promise<{ jobs: Job[]; error?: string }> {
+  const appId = process.env.ADZUNA_APP_ID;
+  const appKey = process.env.ADZUNA_APP_KEY;
+  if (!appId || !appKey) {
+    return { jobs: [], error: 'Adzuna credentials not configured' };
+  }
+
+  const allJobs: Job[] = [];
+  const resultsPerPage = 20;
+
+  for (let page = 1; page <= Math.min(maxPages, 3); page++) {
+    const url = `https://api.adzuna.com/v1/api/jobs/za/search/${page}?app_id=${appId}&app_key=${appKey}&results_per_page=${resultsPerPage}&what=${encodeURIComponent(query)}&where=${encodeURIComponent(location)}&content-type=application/json`;
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        console.warn(`   ⚠️ Adzuna HTTP ${response.status} on page ${page}`);
+        if (page === 1) return { jobs: [], error: `Adzuna API returned ${response.status}` };
+        break;
+      }
+
+      const data = await response.json();
+      const results = data.results || [];
+      console.log(`   ✓ Adzuna page ${page}: ${results.length} jobs`);
+
+      for (const job of results) {
+        try {
+          const salaryMin = job.salary_min;
+          const salaryMax = job.salary_max;
+          let salary = 'Not specified';
+          if (salaryMin && salaryMax) {
+            salary = `R${Math.round(salaryMin).toLocaleString()} - R${Math.round(salaryMax).toLocaleString()}`;
+          } else if (salaryMin) {
+            salary = `From R${Math.round(salaryMin).toLocaleString()}`;
+          }
+
+          const postedDate = job.created ? new Date(job.created).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Recently';
+
+          allJobs.push({
+            title: job.title || 'Untitled',
+            company: job.company?.display_name || 'Company not specified',
+            location: job.location?.display_name || location,
+            salary,
+            postedDate,
+            description: (job.description || '').substring(0, 300),
+            url: job.redirect_url || '',
+            jobType: job.contract_type || job.contract_time || 'Full-time',
+            industry: job.category?.label,
+            source: 'indeed' as const,
+          });
+        } catch (e) { /* skip malformed */ }
+      }
+
+      if (results.length < resultsPerPage) break;
+    } catch (err) {
+      console.warn(`   ⚠️ Adzuna fetch failed: ${(err as Error).message}`);
+      if (page === 1) return { jobs: [], error: (err as Error).message };
+      break;
+    }
+  }
+
+  return { jobs: allJobs };
+}
+
 // Parse Indeed RSS XML into Job objects
 function parseIndeedRss(xml: string, defaultLocation: string): Job[] {
   const jobs: Job[] = [];
@@ -62,9 +131,36 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
     'Cache-Control': 'no-cache',
   };
 
-  console.log(`🔍 Starting Indeed RSS scraper for "${query}" in "${location}"`);
+  console.log(`🔍 Starting Indeed scraper for "${query}" in "${location}"`);
 
   try {
+    // === STRATEGY 1: Adzuna API (most reliable, aggregates Indeed jobs) ===
+    console.log(`   📡 Trying Adzuna API (aggregates Indeed + SA job boards)`);
+    const adzunaResult = await fetchAdzunaJobs(query, location, maxPages);
+    if (adzunaResult.jobs.length > 0) {
+      const totalTime = Date.now() - startTime;
+      console.log(`🎉 Indeed (via Adzuna) completed in ${totalTime}ms - Total jobs: ${adzunaResult.jobs.length}`);
+      diagnostics.browserType = 'adzuna-api';
+      diagnostics.actualUrl = 'https://api.adzuna.com/v1/api/jobs/za/search';
+      diagnostics.pageTitle = 'Adzuna API';
+      diagnostics.hasBlock = false;
+      diagnostics.hasCaptcha = false;
+      diagnostics.hasMosaic = true;
+      diagnostics.loadTimeMs = totalTime;
+      return {
+        jobs: adzunaResult.jobs,
+        success: true,
+        source: 'indeed',
+        count: adzunaResult.jobs.length,
+        diagnostics,
+      };
+    } else if (adzunaResult.error) {
+      console.warn(`   ⚠️ Adzuna skipped: ${adzunaResult.error}`);
+      diagnostics.error = `Adzuna: ${adzunaResult.error}`;
+    }
+
+    // === STRATEGY 2: Indeed RSS feed fallback ===
+    console.log(`   📡 Falling back to Indeed RSS feeds`);
     let xmlData = '';
     let successUrl = '';
 
