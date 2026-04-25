@@ -318,11 +318,13 @@ export async function POST(req: Request) {
     for (let jobIdx = 0; jobIdx < jobs.length; jobIdx++) {
       const job = jobs[jobIdx];
       try {
-        const jobDescLower = (job.description || job.title || '').toLowerCase();
+        // Always combine title + description for maximum matching surface
+        const jobTextLower = ((job.title || '') + ' ' + (job.description || '')).toLowerCase();
+        const hasRichDescription = (job.description || '').trim().length > 100;
         
-        // Enhanced matching skills with context
+        // Enhanced matching skills with context (title + description)
         const matchingSkillsWithDetails = extractedSkills
-          .filter(skill => jobDescLower.includes(skill.toLowerCase()))
+          .filter(skill => jobTextLower.includes(skill.toLowerCase()))
           .map(skill => ({
             name: skill,
             description: skillDescriptions[skill]?.description || 'Technical skill',
@@ -330,11 +332,11 @@ export async function POST(req: Request) {
             context: `Found in job requirements`,
           }));
         
-        // Find skills in job description that candidate doesn't have
+        // Find skills in job text that candidate doesn't have
         const allTechSkills = Object.keys(skillDescriptions);
         const missingSkillsWithDetails = allTechSkills
           .filter(skill => 
-            jobDescLower.includes(skill.toLowerCase()) && 
+            jobTextLower.includes(skill.toLowerCase()) && 
             !extractedSkills.some(s => s.toLowerCase() === skill.toLowerCase())
           )
           .map(skill => ({
@@ -346,26 +348,40 @@ export async function POST(req: Request) {
           }));
 
         // Calculate heuristic score based on skill matching
-        const skillMatchRatio = matchingSkillsWithDetails.length > 0 
-          ? Math.min((matchingSkillsWithDetails.length / Math.max(matchingSkillsWithDetails.length + missingSkillsWithDetails.length, 1)) * 100, 100)
-          : 30; // Default 30% if no skills detected
-        
+        const totalSkillsInJob = matchingSkillsWithDetails.length + missingSkillsWithDetails.length;
+        const skillMatchRatio = totalSkillsInJob > 0
+          ? Math.min((matchingSkillsWithDetails.length / totalSkillsInJob) * 100, 100)
+          : 0;
         const heuristicScore = Math.round(skillMatchRatio);
         
         // Calculate experience match
         const experienceMatch = calculateExperienceMatch(job.description || '');
         
-        // Calculate title relevance bonus (0-100 scale)
+        // Richer title relevance: score by query word coverage ratio
         const titleLower = (job.title || '').toLowerCase();
         const queryLower = query.toLowerCase();
-        const titleRelevance = titleLower.includes(queryLower) ? 100 : 
-          queryLower.split(/\s+/).some(word => titleLower.includes(word)) ? 50 : 0;
+        const queryWords = queryLower.split(/\s+/).filter(w => w.length > 2);
+        const matchedQueryWords = queryWords.filter(word => titleLower.includes(word)).length;
+        const queryWordCoverage = queryWords.length > 0 ? matchedQueryWords / queryWords.length : 0;
+        const titleRelevance = titleLower.includes(queryLower) ? 100
+          : queryWordCoverage >= 0.75 ? 85
+          : queryWordCoverage >= 0.5 ? 70
+          : queryWordCoverage >= 0.25 ? 45
+          : 0;
         
-        // Blend heuristic score with experience match
-        let finalMatchScore = Math.round((heuristicScore * 0.6) + (experienceMatch * 0.3) + (titleRelevance * 0.1));
+        let finalMatchScore: number;
+        if (hasRichDescription && totalSkillsInJob > 0) {
+          // Rich description + skill data: proper weighted blend
+          finalMatchScore = Math.round((heuristicScore * 0.55) + (experienceMatch * 0.25) + (titleRelevance * 0.20));
+        } else {
+          // Sparse description: rely heavily on title/query relevance + experience
+          const hasAnySkills = matchingSkillsWithDetails.length > 0;
+          const skillBonus = hasAnySkills ? Math.min(matchingSkillsWithDetails.length * 10, 30) : 0;
+          finalMatchScore = Math.round((titleRelevance * 0.65) + (experienceMatch * 0.25) + skillBonus);
+        }
         
-        // Ensure score is within valid range
-        finalMatchScore = Math.max(25, Math.min(100, finalMatchScore));
+        // Ensure score is within valid range (no artificial floor — let relevance speak)
+        finalMatchScore = Math.max(5, Math.min(100, finalMatchScore));
         
         // Calculate feedback likelihood based on match score
         const feedbackLikelihood = Math.min(finalMatchScore + 10, 95);
@@ -409,8 +425,9 @@ export async function POST(req: Request) {
       return b.matchScore - a.matchScore;
     });
 
-    // Return top results
-    const topMatches = matchedJobs.slice(0, maxResults);
+    // Filter out clearly irrelevant results (score below 30%), then return top N
+    const relevantJobs = matchedJobs.filter(j => j.matchScore >= 30);
+    const topMatches = (relevantJobs.length > 0 ? relevantJobs : matchedJobs).slice(0, maxResults);
 
     console.log(`[Job Matcher] Returning ${topMatches.length} matched jobs`);
 
