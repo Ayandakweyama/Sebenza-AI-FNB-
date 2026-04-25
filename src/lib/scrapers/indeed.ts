@@ -278,7 +278,18 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
             continue;
           }
 
-          await fastDelay(1500, 2500);
+          // Wait for job cards to render (CJ uses JS rendering)
+          try {
+            await page.waitForSelector(site.cardSel, { timeout: 8000 });
+          } catch { /* cards may not appear — try anyway */ }
+
+          // Dismiss cookie consent if present
+          try {
+            const cookieBtn = await page.$('#cookie-consent-accept-all, button[data-testid="cookie-banner-accept-all"], button[id*="cookie"], button[class*="cookie-accept"], .cc-accept, #accept-cookies');
+            if (cookieBtn) { await cookieBtn.click(); await fastDelay(500, 800); }
+          } catch { /* ignore */ }
+
+          await fastDelay(1000, 1800);
           await autoScroll(page);
 
           const siteJobs = await page.evaluate((
