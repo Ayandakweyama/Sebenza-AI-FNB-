@@ -211,18 +211,44 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
     // === STRATEGY 3: SA job boards via Puppeteer (CareerJunction, Careers24) ===
     console.log(`   🤖 Falling back to SA job board Puppeteer scrapers`);
 
+    // CareerJunction individual job URLs have a numeric suffix: /jobs/some-title-12345/
+    // Careers24 job URLs have similar pattern: /jobs/12345/some-title or /job/12345
+    const isJobListingUrl = (href: string): boolean => {
+      // Must not be a generic navigation/category link
+      const clean = href.replace(/\?.*$/, '').replace(/\/$/, '');
+      const segments = clean.split('/').filter(Boolean);
+      if (segments.length < 2) return false;
+      const lastSegment = segments[segments.length - 1];
+      // Individual job listings have a numeric ID in their slug
+      return /\d{4,}/.test(lastSegment) || /\d{4,}/.test(segments[segments.length - 2] || '');
+    };
+
     const saSites = [
       {
         name: 'CareerJunction',
         url: `https://www.careerjunction.co.za/jobs?keywords=${encodeURIComponent(query)}&location=${encodeURIComponent(location)}`,
         baseUrl: 'https://www.careerjunction.co.za',
-        linkSelector: 'a[href*="/jobs/"]',
+        source: 'careerjunction' as const,
+        cardSel: 'article.job, div.job-item, div[data-job-id], div.result-item, li.job-result, article, div[class*="job-card"]',
+        titleSel: 'h2 a, h3 a, a.job-title, .job-title a',
+        companySel: '.company, .company-name, span.employer, div.employer-name, [class*="company"]',
+        locationSel: '.location, .job-location, span.location, [class*="location"]',
+        salarySel: '.salary, .remuneration, span.salary, [class*="salary"]',
+        descSel: '.description, .job-description, .snippet, [class*="desc"]',
+        linkSel: 'a[href*="/jobs/"]',
       },
       {
         name: 'Careers24',
         url: `https://www.careers24.com/jobs/results?quicksearch=${encodeURIComponent(query)}&location=${encodeURIComponent(location)}&page=1`,
         baseUrl: 'https://www.careers24.com',
-        linkSelector: 'a[href*="/job/"], a[href*="/jobs/"]',
+        source: 'careers24' as const,
+        cardSel: 'article.job, div.listing, div.job-card, div.vacancy, article, div[class*="job"]',
+        titleSel: 'h2 a, h3 a, a.title, .job-title a',
+        companySel: '.company, .company-name, .advertiser, [class*="company"]',
+        locationSel: '.location, .area, .region, [class*="location"]',
+        salarySel: '.salary, .package, .remuneration, [class*="salary"]',
+        descSel: '.description, .summary, .snippet, [class*="desc"]',
+        linkSel: 'a[href*="/job/"], a[href*="/jobs/"]',
       },
     ];
 
@@ -255,48 +281,80 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
           await fastDelay(1500, 2500);
           await autoScroll(page);
 
-          const siteJobs = await page.evaluate((loc: string, baseUrl: string, linkSel: string): Job[] => {
+          const siteJobs = await page.evaluate((
+            loc: string, baseUrl: string, siteSrc: string,
+            cardSel: string, titleSel: string, companySel: string,
+            locationSel: string, salarySel: string, descSel: string,
+            linkSel: string
+          ): Job[] => {
             const results: Job[] = [];
             const seen = new Set<string>();
 
-            // Try structured job cards first
-            const cards = document.querySelectorAll('article, li[class*="result"], div[class*="job-card"], div[class*="job-item"], div[class*="listing"], div[class*="result-item"]');
-
-            const extractFromCard = (card: Element) => {
-              const link = card.querySelector(linkSel) as HTMLAnchorElement | null;
-              const h = card.querySelector('h2, h3, h4');
-              const title = h?.textContent?.trim() || link?.textContent?.trim() || '';
-              if (!title || title.length < 4 || seen.has(title)) return;
-              seen.add(title);
-              const href = link?.getAttribute('href') || '';
-              const url = href.startsWith('http') ? href : `${baseUrl}${href}`;
-              const company = card.querySelector('[class*="company"], [class*="employer"], [class*="advertiser"]')?.textContent?.trim() || 'See job details';
-              const jobLoc = card.querySelector('[class*="location"], [class*="area"], [class*="region"]')?.textContent?.trim() || loc;
-              const salary = card.querySelector('[class*="salary"], [class*="pay"], [class*="remuneration"]')?.textContent?.trim() || 'Not specified';
-              const description = card.querySelector('[class*="desc"], [class*="summary"], [class*="snippet"], p')?.textContent?.trim()?.substring(0, 300) || '';
-              if (title && url && url.length > 10) {
-                results.push({ title, company, location: jobLoc, salary, postedDate: 'Recently', description, url, jobType: 'Full-time', source: 'indeed' as const });
-              }
+            const isJobUrl = (href: string): boolean => {
+              const clean = href.replace(/\?.*$/, '').replace(/\/$/, '');
+              const segs = clean.split('/').filter(Boolean);
+              if (segs.length < 2) return false;
+              const last = segs[segs.length - 1];
+              const prev = segs[segs.length - 2] || '';
+              return /\d{4,}/.test(last) || /\d{4,}/.test(prev);
             };
 
-            cards.forEach(extractFromCard);
+            // Primary: extract from structured job cards
+            document.querySelectorAll(cardSel).forEach((card) => {
+              try {
+                const linkEl = card.querySelector(linkSel) as HTMLAnchorElement | null;
+                const href = linkEl?.getAttribute('href') || '';
+                if (!href || !isJobUrl(href)) return;
+                const url = href.startsWith('http') ? href : `${baseUrl}${href}`;
 
-            // Fallback: collect all job links on the page
+                const titleEl = card.querySelector(titleSel) || card.querySelector('h2, h3, h4');
+                const title = titleEl?.textContent?.trim() || linkEl?.textContent?.trim() || '';
+                if (!title || title.length < 4 || seen.has(title)) return;
+                seen.add(title);
+
+                const company = card.querySelector(companySel)?.textContent?.trim() || '';
+                const jobLoc = card.querySelector(locationSel)?.textContent?.trim() || loc;
+                const salary = card.querySelector(salarySel)?.textContent?.trim() || 'Not specified';
+                const description = card.querySelector(descSel)?.textContent?.trim()?.substring(0, 300) || '';
+                const date = card.querySelector('.date, time, [class*="date"], [class*="posted"]')?.textContent?.trim() || 'Recently';
+                const jobType = card.querySelector('[class*="type"], [class*="employment"]')?.textContent?.trim() || 'Full-time';
+
+                results.push({
+                  title, company: company || 'See job details', location: jobLoc,
+                  salary, postedDate: date, description, url, jobType,
+                  source: siteSrc as any,
+                });
+              } catch (e) { /* skip */ }
+            });
+
+            // Fallback: collect individual job links only (filter out nav/category links)
             if (results.length === 0) {
               document.querySelectorAll(linkSel).forEach((el) => {
                 const link = el as HTMLAnchorElement;
                 const href = link.getAttribute('href') || '';
-                if (!href || href === '#' || href.includes('search') || href.includes('alert')) return;
+                if (!href || !isJobUrl(href)) return;
                 const title = link.textContent?.trim() || link.getAttribute('title') || '';
                 if (!title || title.length < 4 || seen.has(title)) return;
                 seen.add(title);
                 const url = href.startsWith('http') ? href : `${baseUrl}${href}`;
-                results.push({ title, company: 'See job details', location: loc, salary: 'Not specified', postedDate: 'Recently', description: '', url, jobType: 'Full-time', source: 'indeed' as const });
+                // Try to get company from parent context
+                const parent = link.closest('article, li, div[class*="job"], div[class*="result"]');
+                const company = parent?.querySelector(companySel)?.textContent?.trim() || '';
+                const jobLoc = parent?.querySelector(locationSel)?.textContent?.trim() || loc;
+                const description = parent?.querySelector(descSel)?.textContent?.trim()?.substring(0, 300) || '';
+                results.push({
+                  title, company: company || 'See job details', location: jobLoc,
+                  salary: 'Not specified', postedDate: 'Recently', description,
+                  url, jobType: 'Full-time', source: siteSrc as any,
+                });
               });
             }
 
             return results;
-          }, location, site.baseUrl, site.linkSelector);
+          }, location, site.baseUrl, site.source,
+            site.cardSel, site.titleSel, site.companySel,
+            site.locationSel, site.salarySel, site.descSel,
+            site.linkSel);
 
           console.log(`   ✅ ${site.name} jobs found: ${siteJobs.length}`);
           if (siteJobs.length > 0) {
