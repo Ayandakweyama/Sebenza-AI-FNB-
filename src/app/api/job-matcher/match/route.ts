@@ -199,9 +199,8 @@ export async function POST(req: Request) {
     let scrapeErrors: string[] = [];
     let scraperDiagnostics: Record<string, any> = {};
 
-    // Skip cache if any requested source has 0 jobs (stale cache from failed scrape)
-    const cacheHasAllSources = cachedJobs && cachedJobs.length > 0 && 
-      sources.every(s => cachedJobs.some(j => j.source === s));
+    // Use cache if it has a meaningful number of jobs (scraper sources may return careerjunction/careers24 labels)
+    const cacheHasAllSources = cachedJobs && cachedJobs.length > 0;
     if (cacheHasAllSources) {
       console.log(`[Job Matcher] Cache hit! ${cachedJobs.length} cached jobs`);
       jobs = cachedJobs;
