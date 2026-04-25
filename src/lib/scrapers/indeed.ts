@@ -226,7 +226,7 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
     const saSites = [
       {
         name: 'CareerJunction',
-        url: `https://www.careerjunction.co.za/jobs?keywords=${encodeURIComponent(query)}&location=${encodeURIComponent(location)}`,
+        url: `https://www.careerjunction.co.za/jobs?keywords=${encodeURIComponent(query)}&location=${encodeURIComponent(location)}&pagesize=20&page=1`,
         baseUrl: 'https://www.careerjunction.co.za',
         source: 'careerjunction' as const,
         cardSel: 'article.job, div.job-item, div[data-job-id], div.result-item, li.job-result, article, div[class*="job-card"]',

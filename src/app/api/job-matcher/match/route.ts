@@ -297,9 +297,9 @@ export async function POST(req: Request) {
     // Combines extracted skills + position titles from experience + first 600 chars of CV (usually summary)
     const cvProfileText = [
       ...extractedSkills,
-      ...parsedCV.experience.map(e => e.position || ''),
+      ...parsedCV.experience.map(e => `${e.position || ''} ${e.description || ''}`),
       parsedCV.summary || '',
-      cvText.substring(0, 600),
+      cvText,
     ].join(' ').toLowerCase();
 
     // Stop-words to ignore when comparing job title words to CV
