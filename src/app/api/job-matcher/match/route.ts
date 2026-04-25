@@ -420,12 +420,24 @@ export async function POST(req: Request) {
         // Calculate feedback likelihood based on match score
         const feedbackLikelihood = Math.min(finalMatchScore + 10, 95);
 
-        // Build match reason
-        const matchReason = matchingSkillsWithDetails.length > 0
-          ? `${matchingSkillsWithDetails.length} matching skill${matchingSkillsWithDetails.length > 1 ? 's' : ''} found${aiCvAssessment ? '; ' + aiCvAssessment.strengths.slice(0, 1).join(', ') : ''}`
-          : aiCvAssessment 
-            ? aiCvAssessment.strengths.slice(0, 2).join('; ') || 'Skills and experience may align with job requirements'
-            : 'Skills and experience may align with job requirements';
+        // Build match reason — be specific about what drove the score
+        const topMatchedSkills = matchingSkillsWithDetails.slice(0, 4).map(s => s.name).join(', ');
+        const cvAlignLabel = cvTitleAlignment >= 75 ? 'strong' : cvTitleAlignment >= 40 ? 'good' : 'partial';
+        let matchReason: string;
+        if (matchingSkillsWithDetails.length > 0 && cvTitleAlignment >= 40) {
+          matchReason = `${matchingSkillsWithDetails.length} matching skill${matchingSkillsWithDetails.length > 1 ? 's' : ''} (${topMatchedSkills}) · ${cvAlignLabel} CV-title alignment`;
+        } else if (matchingSkillsWithDetails.length > 0) {
+          matchReason = `Matched skills: ${topMatchedSkills}`;
+        } else if (cvTitleAlignment >= 50) {
+          const expTitle = parsedCV.experience[0]?.position;
+          matchReason = `${cvAlignLabel} title alignment with your ${expTitle ? expTitle + ' ' : ''}background (${Math.round(cvTitleAlignment)}% keyword overlap)`;
+        } else if (titleRelevance >= 70) {
+          matchReason = `Job title matches your search query`;
+        } else if (aiCvAssessment) {
+          matchReason = aiCvAssessment.strengths.slice(0, 2).join('; ') || 'May align with your background';
+        } else {
+          matchReason = 'Limited overlap with CV — review job details';
+        }
 
         matchedJobs.push({
           ...job,
