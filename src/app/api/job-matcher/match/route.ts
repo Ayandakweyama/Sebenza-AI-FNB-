@@ -294,6 +294,21 @@ export async function POST(req: Request) {
       });
     }
 
+    // Build a CV profile keyword set for cross-referencing against job titles
+    // Combines extracted skills + position titles from experience + first 600 chars of CV (usually summary)
+    const cvProfileText = [
+      ...extractedSkills,
+      ...parsedCV.experience.map(e => e.position || ''),
+      parsedCV.summary || '',
+      cvText.substring(0, 600),
+    ].join(' ').toLowerCase();
+
+    // Stop-words to ignore when comparing job title words to CV
+    const stopWords = new Set(['with', 'from', 'this', 'that', 'have', 'will', 'your', 'their',
+      'they', 'been', 'were', 'about', 'into', 'over', 'after', 'under', 'each', 'both',
+      'more', 'also', 'than', 'then', 'only', 'some', 'such', 'when', 'while', 'where',
+      'jobs', 'role', 'position', 'vacancy', 'opportunity', 'based']);
+
     // Match each job against the CV using heuristic matching (fast, no per-job AI calls)
     console.log('[Job Matcher] Matching jobs against CV using heuristic analysis...');
     const matchedJobs: MatchedJob[] = [];
@@ -369,15 +384,34 @@ export async function POST(req: Request) {
           : queryWordCoverage >= 0.25 ? 45
           : 0;
         
+        // Score job title words against the CV profile text
+        // This ranks jobs by CV relevance, not just by query match
+        const jobTitleWords = titleLower
+          .split(/[\s\-\/,]+/)
+          .filter(w => w.length > 3 && !stopWords.has(w));
+        const titleWordsInCV = jobTitleWords.filter(word => cvProfileText.includes(word)).length;
+        const cvTitleAlignment = jobTitleWords.length > 0
+          ? (titleWordsInCV / jobTitleWords.length) * 100
+          : 0;
+
         let finalMatchScore: number;
         if (hasRichDescription && totalSkillsInJob > 0) {
           // Rich description + skill data: proper weighted blend
-          finalMatchScore = Math.round((heuristicScore * 0.55) + (experienceMatch * 0.25) + (titleRelevance * 0.20));
+          finalMatchScore = Math.round(
+            (heuristicScore * 0.45) +
+            (cvTitleAlignment * 0.25) +
+            (experienceMatch * 0.20) +
+            (titleRelevance * 0.10)
+          );
         } else {
-          // Sparse description: rely heavily on title/query relevance + experience
-          const hasAnySkills = matchingSkillsWithDetails.length > 0;
-          const skillBonus = hasAnySkills ? Math.min(matchingSkillsWithDetails.length * 10, 30) : 0;
-          finalMatchScore = Math.round((titleRelevance * 0.65) + (experienceMatch * 0.25) + skillBonus);
+          // Sparse description: heavily weight CV-title alignment
+          const skillBonus = Math.min(matchingSkillsWithDetails.length * 12, 35);
+          finalMatchScore = Math.round(
+            (cvTitleAlignment * 0.50) +
+            (titleRelevance * 0.25) +
+            (experienceMatch * 0.15) +
+            skillBonus
+          );
         }
         
         // Ensure score is within valid range (no artificial floor — let relevance speak)
