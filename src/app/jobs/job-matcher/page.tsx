@@ -92,33 +92,38 @@ export default function JobMatcherPage() {
     setError('');
     setIsProcessingFile(true);
 
-    // Handle different file types
-    if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.name.endsWith('.docx')) {
-      // Handle .docx files using mammoth
-      try {
+    try {
+      if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.name.endsWith('.docx')) {
         const mammoth = await import('mammoth');
         const arrayBuffer = await file.arrayBuffer();
         const result = await mammoth.extractRawText({ arrayBuffer });
         setCvText(result.value);
-      } catch (err) {
-        setError('Failed to read Word document');
-        console.error('Error reading .docx file:', err);
-      } finally {
-        setIsProcessingFile(false);
-      }
-    } else {
-      // Handle .txt and other text-based files
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const text = e.target?.result as string;
+      } else if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+        // Use pdfjs-dist for proper binary PDF text extraction
+        const pdfjsLib = await import('pdfjs-dist');
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const pages: string[] = [];
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          const pageText = content.items
+            .map((item: any) => ('str' in item ? item.str : ''))
+            .join(' ');
+          pages.push(pageText);
+        }
+        setCvText(pages.join('\n'));
+      } else {
+        // Plain text files
+        const text = await file.text();
         setCvText(text);
-        setIsProcessingFile(false);
-      };
-      reader.onerror = () => {
-        setError('Failed to read file');
-        setIsProcessingFile(false);
-      };
-      reader.readAsText(file);
+      }
+    } catch (err) {
+      setError('Failed to read file. Try pasting your CV text directly below.');
+      console.error('Error reading file:', err);
+    } finally {
+      setIsProcessingFile(false);
     }
   };
 
