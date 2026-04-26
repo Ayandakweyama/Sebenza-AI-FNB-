@@ -254,6 +254,7 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
     ];
 
     let sasBrowser;
+    const allSaJobs: Job[] = [];
     try {
       sasBrowser = await getBrowserFromPool();
       const page = await sasBrowser.newPage();
@@ -382,18 +383,22 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
 
           console.log(`   ✅ ${site.name} jobs found: ${siteJobs.length}`);
           if (siteJobs.length > 0) {
-            const totalTime = Date.now() - startTime;
-            diagnostics.browserType = `puppeteer-${site.name.toLowerCase()}`;
-            diagnostics.actualUrl = site.url;
-            diagnostics.pageTitle = siteTitle;
-            diagnostics.loadTimeMs = totalTime;
-            diagnostics.hasMosaic = true;
-            diagnostics.hasBlock = false;
-            return { jobs: siteJobs, success: true, source: 'indeed', count: siteJobs.length, diagnostics };
+            allSaJobs.push(...siteJobs);
+            diagnostics.browserType = (diagnostics.browserType ? diagnostics.browserType + '+' : '') + `puppeteer-${site.name.toLowerCase()}`;
           }
         } catch (siteErr) {
           console.warn(`   ⚠️ ${site.name} failed: ${(siteErr as Error).message}`);
         }
+      }
+
+      if (allSaJobs.length > 0) {
+        const totalTime = Date.now() - startTime;
+        diagnostics.actualUrl = saSites.map(s => s.url).join(' | ');
+        diagnostics.loadTimeMs = totalTime;
+        diagnostics.hasMosaic = true;
+        diagnostics.hasBlock = false;
+        console.log(`   🎉 SA boards total: ${allSaJobs.length} jobs from ${diagnostics.browserType}`);
+        return { jobs: allSaJobs, success: true, source: 'indeed', count: allSaJobs.length, diagnostics };
       }
     } catch (sasErr) {
       console.warn(`   ⚠️ SA job board browser error: ${(sasErr as Error).message}`);
