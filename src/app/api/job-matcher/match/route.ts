@@ -262,8 +262,11 @@ export async function POST(req: Request) {
             }
             if (r && r.success && r.jobs?.length > 0) {
               allJobs.push(...r.jobs);
-              sourceCounts[r.source] = r.count;
-              console.log(`[Job Matcher] ✅ ${r.source}: ${r.count} jobs`);
+              // Count by actual job.source labels (CJ/C24 differ from ScraperResult.source 'indeed')
+              for (const j of r.jobs as Job[]) {
+                sourceCounts[j.source] = (sourceCounts[j.source] || 0) + 1;
+              }
+              console.log(`[Job Matcher] ✅ ${r.source}: ${r.count} jobs (sources: ${JSON.stringify(sourceCounts)})`);
               break; // Success, no retry needed
             } else {
               const errMsg = `${source}: ${r?.error || (r?.jobs?.length === 0 ? '0 jobs returned' : 'Unknown error')}`;
