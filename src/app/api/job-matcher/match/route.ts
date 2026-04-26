@@ -464,6 +464,8 @@ export async function POST(req: Request) {
           matchReason = 'Limited overlap with CV — review job details';
         }
 
+        console.log(`[Match] "${job.title}" (${job.source}): score=${finalMatchScore}% cvAlign=${Math.round(cvTitleAlignment)}% titleRel=${titleRelevance}% exp=${experienceMatch}% skills=${matchingSkillsWithDetails.length}`);
+
         matchedJobs.push({
           ...job,
           id: job.id || `${job.source}-${jobIdx}`,
@@ -500,7 +502,10 @@ export async function POST(req: Request) {
     const relevantJobs = matchedJobs.filter(j => j.matchScore >= 30);
     const topMatches = (relevantJobs.length > 0 ? relevantJobs : matchedJobs).slice(0, maxResults);
 
-    console.log(`[Job Matcher] Returning ${topMatches.length} matched jobs`);
+    console.log(`[Job Matcher] Returning ${topMatches.length} matched jobs (filtered from ${matchedJobs.length}, ${matchedJobs.length - (relevantJobs?.length ?? matchedJobs.length)} below 30% threshold)`);
+    if (topMatches.length > 0) {
+      console.log('[Job Matcher] Top 5 scores:', topMatches.slice(0, 5).map(j => `"${j.title}" ${j.matchScore}%`).join(' | '));
+    }
 
     // Save matching results to database (optional)
     try {
