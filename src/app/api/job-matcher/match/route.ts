@@ -394,8 +394,8 @@ export async function POST(req: Request) {
           : 0;
         const heuristicScore = Math.round(skillMatchRatio);
         
-        // Calculate experience match
-        const experienceMatch = calculateExperienceMatch(job.description || '');
+        // Calculate experience match — combine title + description so "Senior" in title counts
+        const experienceMatch = calculateExperienceMatch(`${job.title || ''} ${job.description || ''}`);
         
         // Richer title relevance: score by query word coverage ratio
         const titleLower = (job.title || '').toLowerCase();
