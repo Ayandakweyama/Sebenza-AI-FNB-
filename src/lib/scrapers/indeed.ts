@@ -257,7 +257,7 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
       sasBrowser = await getBrowserFromPool();
       const page = await sasBrowser.newPage();
       await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-      await configureRequestInterception(page, true);
+      await configureRequestInterception(page, false); // Non-aggressive: don't block stylesheets (needed for CJ React SPA)
 
       for (const site of saSites) {
         try {
@@ -291,6 +291,17 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
 
           await fastDelay(1000, 1800);
           await autoScroll(page);
+
+          // Debug: log what card selectors are matching on this page
+          const selectorCounts = await page.evaluate((cardSel: string) => {
+            const counts: Record<string, number> = {};
+            cardSel.split(',').map(s => s.trim()).forEach(sel => {
+              try { counts[sel] = document.querySelectorAll(sel).length; } catch { counts[sel] = -1; }
+            });
+            counts['_total_elements'] = document.querySelectorAll('*').length;
+            return counts;
+          }, site.cardSel);
+          console.log(`   🔍 ${site.name} selector counts:`, JSON.stringify(selectorCounts));
 
           const siteJobs = await page.evaluate((
             loc: string, baseUrl: string, siteSrc: string,
