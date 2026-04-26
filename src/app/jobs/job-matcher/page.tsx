@@ -67,6 +67,7 @@ export default function JobMatcherPage() {
   const [yearsOfExperience, setYearsOfExperience] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
   const [matchedJobs, setMatchedJobs] = useState<MatchedJob[]>([]);
   const [candidateProfile, setCandidateProfile] = useState<CandidateProfile | null>(null);
   const [error, setError] = useState('');
@@ -144,6 +145,22 @@ export default function JobMatcherPage() {
     setIsLoading(true);
     setError('');
 
+    // Cycle through descriptive loading messages
+    const loadingSteps = [
+      'Searching CareerJunction & job boards...',
+      'Browsing live SA job listings...',
+      'Analysing your CV skills...',
+      'Matching jobs to your profile...',
+      'Ranking by relevance...',
+      'Almost done — finalising matches...',
+    ];
+    let stepIdx = 0;
+    setLoadingMessage(loadingSteps[0]);
+    const msgInterval = setInterval(() => {
+      stepIdx = (stepIdx + 1) % loadingSteps.length;
+      setLoadingMessage(loadingSteps[stepIdx]);
+    }, 10000);
+
     try {
       const response = await fetch('/api/job-matcher/match', {
         method: 'POST',
@@ -179,6 +196,7 @@ export default function JobMatcherPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
+      clearInterval(msgInterval);
       setIsLoading(false);
     }
   };
@@ -387,7 +405,7 @@ export default function JobMatcherPage() {
                   {isLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Matching...
+                      <span className="truncate">{loadingMessage || 'Matching...'}</span>
                     </>
                   ) : (
                     'Find Matches'
