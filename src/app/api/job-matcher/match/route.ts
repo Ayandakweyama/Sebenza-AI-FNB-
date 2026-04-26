@@ -237,7 +237,7 @@ export async function POST(req: Request) {
     } else {
       // Run scrapers SEQUENTIALLY to avoid Puppeteer browser resource conflicts
       const allJobs: Job[] = [];
-      const timeoutMs = 60000;
+      const timeoutMs = 120000; // 120s — indeed tries 3 SA sites (CJ + C24 + Jobs.co.za) before falling back
 
       for (const source of sources) {
         const maxAttempts = source === 'indeed' ? 2 : 1; // Retry Indeed once if it fails
