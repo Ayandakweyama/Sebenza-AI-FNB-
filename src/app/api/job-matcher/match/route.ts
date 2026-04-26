@@ -23,8 +23,8 @@ interface MatchedJob {
   matchScore: number;
   feedbackLikelihood: number;
   matchReason: string;
-  missingSkills?: string[];
-  matchingSkills?: string[];
+  missingSkills?: Array<{ name: string; description: string; category: string; importance: string; reason: string; }>;
+  matchingSkills?: Array<{ name: string; description: string; category: string; context: string; }>;
 }
 
 export async function POST(req: Request) {
@@ -418,8 +418,8 @@ export async function POST(req: Request) {
         // Richer title relevance: score by query word coverage ratio
         const titleLower = (job.title || '').toLowerCase();
         const queryLower = query.toLowerCase();
-        const queryWords = queryLower.split(/\s+/).filter(w => w.length > 2);
-        const matchedQueryWords = queryWords.filter(word => titleLower.includes(word)).length;
+        const queryWords = queryLower.split(/\s+/).filter((w: string) => w.length > 2);
+        const matchedQueryWords = queryWords.filter((word: string) => titleLower.includes(word)).length;
         const queryWordCoverage = queryWords.length > 0 ? matchedQueryWords / queryWords.length : 0;
         const titleRelevance = titleLower.includes(queryLower) ? 100
           : queryWordCoverage >= 0.75 ? 85
