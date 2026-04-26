@@ -496,7 +496,7 @@ export default function JobMatcherPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            <div className="mb-6 flex items-center justify-between">
+            <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <button
                 onClick={() => setStep('search')}
                 className="text-gray-400 hover:text-white transition-colors flex items-center gap-2"
@@ -504,9 +504,17 @@ export default function JobMatcherPage() {
                 <ArrowRight className="w-4 h-4 rotate-180" />
                 Back to Search
               </button>
-              <p className="text-gray-400">
-                Found {matchedJobs.length} jobs with high match potential
-              </p>
+              <div className="text-right">
+                <p className="text-white font-medium">
+                  {matchedJobs.length} matched job{matchedJobs.length !== 1 ? 's' : ''}
+                </p>
+                {scraperInfo && scraperInfo.totalScraped > 0 && (
+                  <p className="text-gray-500 text-xs mt-0.5">
+                    from {scraperInfo.totalScraped} scraped &middot;{' '}
+                    {scraperInfo.sourcesUsed.map(formatSourceLabel).join(', ')}
+                  </p>
+                )}
+              </div>
             </div>
 
             <div className="grid gap-4">
