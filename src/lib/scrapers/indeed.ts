@@ -266,9 +266,10 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
             continue;
           }
 
-          // Wait for job cards to render (CJ uses JS rendering)
+          // Brief pause then wait for job cards to appear (CJ is server-rendered but JS may update DOM)
+          await fastDelay(1500, 2500);
           try {
-            await page.waitForSelector(site.cardSel, { timeout: 8000 });
+            await page.waitForSelector(site.cardSel, { timeout: 10000 });
           } catch { /* cards may not appear — try anyway */ }
 
           // Dismiss cookie consent if present
