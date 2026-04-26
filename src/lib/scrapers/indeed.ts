@@ -245,7 +245,7 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
       sasBrowser = await getBrowserFromPool();
       const page = await sasBrowser.newPage();
       await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-      await configureRequestInterception(page, false); // Non-aggressive: don't block stylesheets (needed for CJ React SPA)
+      await configureRequestInterception(page, false); // Non-aggressive: blocks images/fonts/media but not 'other' resources
 
       for (const site of saSites) {
         try {
