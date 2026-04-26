@@ -524,7 +524,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       matchedJobs: topMatches,
       totalScraped: jobs.length,
-      sourcesUsed: ['jobmail', 'indeed'],
+      sourcesUsed: [...new Set(topMatches.map(j => j.source))],
       diagnostics: scraperDiagnostics,
       candidateProfile: {
         skills: extractedSkills,
