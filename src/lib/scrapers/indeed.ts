@@ -310,12 +310,12 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
               return /\d{4,}/.test(last) || /\d{4,}/.test(prev);
             };
 
-            // Primary: extract from structured job cards
+            // Primary: extract from structured job cards (trust card structure, no URL filtering)
             document.querySelectorAll(cardSel).forEach((card) => {
               try {
                 const linkEl = card.querySelector(linkSel) as HTMLAnchorElement | null;
                 const href = linkEl?.getAttribute('href') || '';
-                if (!href || !isJobUrl(href)) return;
+                if (!href || href === '#') return;
                 const url = href.startsWith('http') ? href : `${baseUrl}${href}`;
 
                 const titleEl = card.querySelector(titleSel) || card.querySelector('h2, h3, h4');
