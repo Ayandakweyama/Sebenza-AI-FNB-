@@ -413,7 +413,7 @@ export async function POST(req: Request) {
         // This ranks jobs by CV relevance, not just by query match
         const jobTitleWords = titleLower
           .split(/[\s\-\/,]+/)
-          .filter(w => w.length > 3 && !stopWords.has(w));
+          .filter(w => w.length > 2 && !stopWords.has(w));
         const titleWordsInCV = jobTitleWords.filter(word => cvProfileText.includes(word)).length;
         const cvTitleAlignment = jobTitleWords.length > 0
           ? (titleWordsInCV / jobTitleWords.length) * 100
