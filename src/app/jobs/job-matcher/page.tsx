@@ -148,11 +148,11 @@ export default function JobMatcherPage() {
 
     // Cycle through descriptive loading messages
     const loadingSteps = [
-      'Searching CareerJunction & job boards...',
-      'Browsing live SA job listings...',
-      'Analysing your CV skills...',
+      'Searching CareerJunction, Careers24 & Jobs.co.za...',
+      'Browsing live SA job listings & JobMail...',
+      'Analysing your CV skills and experience...',
       'Matching jobs to your profile...',
-      'Ranking by relevance...',
+      'Ranking by relevance and fit...',
       'Almost done — finalising matches...',
     ];
     let stepIdx = 0;
