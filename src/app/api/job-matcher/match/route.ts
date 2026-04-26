@@ -313,12 +313,20 @@ export async function POST(req: Request) {
       console.log('[Job Matcher] No jobs found, returning empty result');
       return NextResponse.json({
         matchedJobs: [],
+        totalScraped: 0,
+        sourcesUsed: [],
         message: scrapeErrors.length > 0 
           ? `No jobs found. Errors: ${scrapeErrors.join(', ')}` 
           : 'No jobs found matching your criteria',
         sourceCounts,
         errors: scrapeErrors,
         diagnostics: scraperDiagnostics,
+        candidateProfile: {
+          skills: extractedSkills,
+          experienceCount: parsedCV.experience.length,
+          educationCount: parsedCV.education.length,
+          yearsOfExperience: yearsOfExperience || 'Not specified',
+        },
       });
     }
 
