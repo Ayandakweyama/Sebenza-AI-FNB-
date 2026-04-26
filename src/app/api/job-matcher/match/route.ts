@@ -294,7 +294,7 @@ export async function POST(req: Request) {
     }
 
     // Build a CV profile keyword set for cross-referencing against job titles
-    // Combines extracted skills + position titles from experience + first 600 chars of CV (usually summary)
+    // Combines extracted skills + experience position titles + experience descriptions + CV summary + full CV text
     const cvProfileText = [
       ...extractedSkills,
       ...parsedCV.experience.map(e => `${e.position || ''} ${e.description || ''}`),

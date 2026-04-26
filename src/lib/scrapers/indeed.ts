@@ -211,18 +211,6 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
     // === STRATEGY 3: SA job boards via Puppeteer (CareerJunction, Careers24) ===
     console.log(`   🤖 Falling back to SA job board Puppeteer scrapers`);
 
-    // CareerJunction individual job URLs have a numeric suffix: /jobs/some-title-12345/
-    // Careers24 job URLs have similar pattern: /jobs/12345/some-title or /job/12345
-    const isJobListingUrl = (href: string): boolean => {
-      // Must not be a generic navigation/category link
-      const clean = href.replace(/\?.*$/, '').replace(/\/$/, '');
-      const segments = clean.split('/').filter(Boolean);
-      if (segments.length < 2) return false;
-      const lastSegment = segments[segments.length - 1];
-      // Individual job listings have a numeric ID in their slug
-      return /\d{4,}/.test(lastSegment) || /\d{4,}/.test(segments[segments.length - 2] || '');
-    };
-
     const saSites = [
       {
         name: 'CareerJunction',
