@@ -562,7 +562,10 @@ export default function JobMatcherPage() {
                     </div>
                   </div>
 
-                  <p className="text-gray-400 text-sm mb-4">{job.matchReason}</p>
+                  <p className="text-gray-400 text-sm mb-2 italic">{job.matchReason}</p>
+                  {job.description && (
+                    <p className="text-gray-500 text-xs mb-4 line-clamp-2">{job.description}</p>
+                  )}
 
                   {/* Skills Analysis */}
                   <div className="grid md:grid-cols-2 gap-4 mb-4">
