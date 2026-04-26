@@ -72,6 +72,7 @@ export default function JobMatcherPage() {
   const [candidateProfile, setCandidateProfile] = useState<CandidateProfile | null>(null);
   const [error, setError] = useState('');
   const [expandedSkills, setExpandedSkills] = useState<Set<string>>(new Set());
+  const [scraperInfo, setScraperInfo] = useState<{ totalScraped: number; sourcesUsed: string[] } | null>(null);
 
   const toggleSkillExpansion = (skillName: string) => {
     setExpandedSkills(prev => {
@@ -192,6 +193,7 @@ export default function JobMatcherPage() {
       
       setMatchedJobs(validatedJobs);
       setCandidateProfile(data.candidateProfile || null);
+      setScraperInfo({ totalScraped: data.totalScraped || 0, sourcesUsed: data.sourcesUsed || [] });
       setStep('results');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -199,6 +201,20 @@ export default function JobMatcherPage() {
       clearInterval(msgInterval);
       setIsLoading(false);
     }
+  };
+
+  const formatSourceLabel = (src: string) => {
+    const labels: Record<string, string> = {
+      careerjunction: 'CareerJunction',
+      careers24: 'Careers24',
+      jobmail: 'JobMail',
+      indeed: 'Indeed',
+      pnet: 'PNet',
+      linkedin: 'LinkedIn',
+      adzuna: 'Adzuna',
+      'jobs-co-za': 'Jobs.co.za',
+    };
+    return labels[src] || src;
   };
 
   const getScoreColor = (score: number) => {
@@ -513,9 +529,12 @@ export default function JobMatcherPage() {
                         </span>
                         <span className="flex items-center gap-1">
                           <Briefcase className="w-4 h-4" />
-                          {job.source}
+                          <span className="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-full">{formatSourceLabel(job.source)}</span>
                         </span>
-                        {job.salary && <span>{job.salary}</span>}
+                        {job.salary && job.salary !== 'Not specified' && <span>{job.salary}</span>}
+                        {job.postedDate && job.postedDate !== 'Recently' && (
+                          <span className="text-gray-600">· {job.postedDate}</span>
+                        )}
                       </div>
                     </div>
 
@@ -640,15 +659,20 @@ export default function JobMatcherPage() {
                     )}
                   </div>
 
-                  <a
-                    href={job.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-semibold text-sm transition-colors"
-                  >
-                    View Job
-                    <ArrowRight className="w-4 h-4" />
-                  </a>
+                  <div className="flex items-center gap-3">
+                    <a
+                      href={job.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
+                    >
+                      View & Apply
+                      <ArrowRight className="w-4 h-4" />
+                    </a>
+                    {job.postedDate && (
+                      <span className="text-gray-600 text-xs">{job.postedDate}</span>
+                    )}
+                  </div>
                 </motion.div>
               ))}
             </div>
@@ -656,9 +680,19 @@ export default function JobMatcherPage() {
             {matchedJobs.length === 0 && (
               <div className="text-center py-12">
                 <Search className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-white mb-2">No Jobs Found</h3>
-                <p className="text-gray-400 mb-6">
-                  Try adjusting your search criteria or check back later
+                <h3 className="text-xl font-semibold text-white mb-2">No Matching Jobs Found</h3>
+                {scraperInfo && scraperInfo.totalScraped > 0 ? (
+                  <p className="text-gray-400 mb-2">
+                    Scraped <span className="text-white font-medium">{scraperInfo.totalScraped}</span> jobs from{' '}
+                    {scraperInfo.sourcesUsed.map(formatSourceLabel).join(', ')} — none met the 30% relevance threshold for your CV.
+                  </p>
+                ) : (
+                  <p className="text-gray-400 mb-2">
+                    No jobs were retrieved from the job boards. The scrapers may be temporarily unavailable.
+                  </p>
+                )}
+                <p className="text-gray-500 text-sm mb-6">
+                  Try a broader query (e.g. &quot;developer&quot; instead of &quot;senior react developer&quot;) or paste more of your CV.
                 </p>
                 <button
                   onClick={() => setStep('search')}
