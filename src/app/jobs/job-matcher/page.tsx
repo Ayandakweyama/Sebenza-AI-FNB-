@@ -161,11 +161,11 @@ export default function JobMatcherPage() {
 
       const data = await response.json();
       
-      // Validate and normalize scores to ensure they're within reasonable range
+      // Normalize scores to valid range (no artificial floor — API already filters at 30%)
       const validatedJobs = (data.matchedJobs || []).map((job: MatchedJob) => ({
         ...job,
-        matchScore: Math.max(25, Math.min(100, job.matchScore || 35)),
-        feedbackLikelihood: Math.max(25, Math.min(95, job.feedbackLikelihood || 40)),
+        matchScore: Math.max(0, Math.min(100, job.matchScore || 0)),
+        feedbackLikelihood: Math.max(0, Math.min(95, job.feedbackLikelihood || 0)),
       }));
       
       setMatchedJobs(validatedJobs);
