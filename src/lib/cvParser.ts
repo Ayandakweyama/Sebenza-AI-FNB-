@@ -236,22 +236,46 @@ export const extractSkillsFromCV = (cvText: string): string[] => {
     // Data & Analytics
     'TensorFlow', 'PyTorch', 'Keras', 'Scikit-learn', 'Pandas', 'NumPy', 'Apache Spark',
     'Tableau', 'Power BI', 'Looker', 'Google Analytics', 'Mixpanel', 'Segment',
-    
+
+    // AI / Machine Learning (expanded)
+    'Machine Learning', 'Deep Learning', 'Neural Networks', 'NLP', 'Natural Language Processing',
+    'Computer Vision', 'Generative AI', 'LLM', 'OpenAI', 'GPT', 'LangChain', 'Hugging Face',
+    'Reinforcement Learning', 'Data Science', 'Data Analysis', 'Data Engineering',
+    'Databricks', 'MLflow', 'Weights & Biases', 'ONNX', 'XGBoost', 'LightGBM',
+    'Feature Engineering', 'Model Deployment', 'A/B Testing', 'Statistical Analysis',
+    'Business Intelligence', 'ETL', 'Data Warehouse', 'Data Pipeline', 'Spark',
+    'Hadoop', 'Hive', 'Kafka', 'Airflow', 'dbt',
+
     // Security
     'OAuth', 'JWT', 'SSL', 'TLS', 'HTTPS', 'Encryption', 'Authentication', 'Authorization',
     'OWASP', 'Penetration Testing', 'Security Auditing', 'Vulnerability Assessment',
-    
+    'Cybersecurity', 'SIEM', 'SOC', 'Incident Response', 'Firewall', 'VPN',
+
     // Testing
     'Jest', 'Mocha', 'Chai', 'Jasmine', 'Karma', 'Selenium', 'Cypress', 'Playwright',
     'Unit Testing', 'Integration Testing', 'E2E Testing', 'Test-Driven Development',
-    
+
     // Architecture & Design
     'Microservices', 'Serverless', 'REST API', 'GraphQL', 'gRPC', 'WebSockets',
     'Event-Driven Architecture', 'CQRS', 'Domain-Driven Design', 'Clean Architecture',
-    
-    // Performance & Optimization
+    'System Design', 'Solution Architecture', 'Enterprise Architecture',
+
+    // Performance & Monitoring
     'Caching', 'CDN', 'Lazy Loading', 'Code Splitting', 'Tree Shaking', 'Minification',
-    'Performance Monitoring', 'APM', 'New Relic', 'DataDog', 'Splunk', 'ELK Stack'
+    'Performance Monitoring', 'APM', 'New Relic', 'DataDog', 'Splunk', 'ELK Stack',
+    'Prometheus', 'Grafana',
+
+    // Enterprise & SA-relevant
+    'SAP', 'Salesforce', 'Dynamics 365', 'Power Platform', 'Power Automate',
+    'SharePoint', 'ServiceNow', 'COBOL', 'Delphi', 'Visual Basic', 'VBA',
+    'Mainframe', 'AS400', 'PL/SQL', 'T-SQL',
+
+    // Mobile
+    'React Native', 'Flutter', 'Ionic', 'Xamarin', 'Android', 'iOS',
+
+    // Project & Soft Skills (domain keywords)
+    'Project Management', 'Team Lead', 'Technical Lead', 'Stakeholder Management',
+    'Business Analysis', 'Requirements Gathering', 'System Analysis',
   ];
 
   const foundSkills: string[] = [];
