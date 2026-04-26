@@ -293,8 +293,12 @@ export async function POST(req: Request) {
         await new Promise(r => setTimeout(r, 2000));
       }
 
-      // Deduplicate
-      jobs = allJobs.filter((job, index, self) => {
+      // Filter out jobs with no usable URL, then deduplicate
+      const validJobs = allJobs.filter(job => {
+        const u = (job.url || '').trim();
+        return u && u !== '#' && u.startsWith('http') && u.length > 15;
+      });
+      jobs = validJobs.filter((job, index, self) => {
         const id = job.url || `${job.title}-${job.company}-${job.location}`;
         return self.findIndex(j => (j.url || `${j.title}-${j.company}-${j.location}`) === id) === index;
       });
