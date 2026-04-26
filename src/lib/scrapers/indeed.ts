@@ -264,7 +264,7 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
       for (const site of saSites) {
         try {
           console.log(`   📄 ${site.name} URL: ${site.url}`);
-          await page.goto(site.url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+          await page.goto(site.url, { waitUntil: 'domcontentloaded', timeout: 30000 });
           const siteTitle = await page.title();
           console.log(`   📝 ${site.name} title: ${siteTitle}`);
 
