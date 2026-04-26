@@ -230,8 +230,8 @@ export async function POST(req: Request) {
     if (cacheHasAllSources) {
       console.log(`[Job Matcher] Cache hit! ${cachedJobs.length} cached jobs`);
       jobs = cachedJobs;
-      sourceCounts = sources.reduce((acc, s) => {
-        acc[s] = cachedJobs.filter(j => j.source === s).length;
+      sourceCounts = cachedJobs.reduce((acc, j) => {
+        acc[j.source] = (acc[j.source] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
     } else {
