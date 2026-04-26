@@ -238,6 +238,19 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
         descSel: '.description, .summary, .snippet',
         linkSel: 'a.title, h2 a, h3 a, a[href*="/job/"]',
       },
+      {
+        name: 'Jobs.co.za',
+        url: `https://www.jobs.co.za/jobs?q=${encodeURIComponent(query)}&l=${encodeURIComponent(location)}&page=1`,
+        baseUrl: 'https://www.jobs.co.za',
+        source: 'jobs-co-za' as const,
+        cardSel: 'article.job-listing, div.job-card, div[data-job-id], div.listing',
+        titleSel: 'h2 a, h3 a, a.job-title, .listing-title',
+        companySel: '.company, .company-name, .employer',
+        locationSel: '.location, .job-location, .locality',
+        salarySel: '.salary, .remuneration, .pay',
+        descSel: '.description, .job-description, .snippet',
+        linkSel: 'h2 a, h3 a, a.job-title, a.listing-title, a[href*="/job"]',
+      },
     ];
 
     let sasBrowser;
