@@ -64,7 +64,7 @@ export async function scrapeJobMail(config: ScraperConfig): Promise<ScraperResul
       }
 
       const scrollStartTime = Date.now();
-      await fastDelay(1000, 2000);
+      await fastDelay(300, 600);
       await autoScroll(page);
       console.log(`   ✓ Auto-scroll completed in ${Date.now() - scrollStartTime}ms`);
 

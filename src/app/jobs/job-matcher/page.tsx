@@ -67,6 +67,7 @@ export default function JobMatcherPage() {
   const [yearsOfExperience, setYearsOfExperience] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState<{ current: number; total: number } | null>(null);
   const [loadingMessage, setLoadingMessage] = useState('');
   const [matchedJobs, setMatchedJobs] = useState<MatchedJob[]>([]);
   const [candidateProfile, setCandidateProfile] = useState<CandidateProfile | null>(null);
@@ -90,9 +91,17 @@ export default function JobMatcherPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Guard: 10MB max to avoid OOM on mobile
+    if (file.size > 10 * 1024 * 1024) {
+      setError('File is larger than 10MB. Please use a smaller file or paste your CV text below.');
+      return;
+    }
+
     setCvFile(file);
+    setCvText('');
     setError('');
     setIsProcessingFile(true);
+    setPdfProgress(null);
 
     try {
       if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.name.endsWith('.docx')) {
@@ -107,6 +116,7 @@ export default function JobMatcherPage() {
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
         const pages: string[] = [];
+        setPdfProgress({ current: 0, total: pdf.numPages });
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
           const content = await page.getTextContent();
@@ -114,6 +124,7 @@ export default function JobMatcherPage() {
             .map((item: any) => ('str' in item ? item.str : ''))
             .join(' ');
           pages.push(pageText);
+          setPdfProgress({ current: i, total: pdf.numPages });
         }
         setCvText(pages.join('\n'));
       } else {
@@ -126,7 +137,14 @@ export default function JobMatcherPage() {
       console.error('Error reading file:', err);
     } finally {
       setIsProcessingFile(false);
+      setPdfProgress(null);
     }
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   const handleCVSubmit = () => {
@@ -258,61 +276,104 @@ export default function JobMatcherPage() {
             animate={{ opacity: 1, y: 0 }}
             className="max-w-2xl mx-auto"
           >
-            <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-8">
+            <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-5 sm:p-8">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center shrink-0">
                   <File className="w-6 h-6 text-blue-400" />
                 </div>
                 <div>
                   <h2 className="text-xl font-bold text-white">Upload Your CV</h2>
-                  <p className="text-sm text-gray-400">Paste your CV text or upload a file</p>
+                  <p className="text-sm text-gray-400">Upload a file or paste your CV text</p>
                 </div>
               </div>
 
               {/* File Upload */}
               <div className="mb-6">
-                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-600 rounded-xl cursor-pointer hover:border-blue-500 hover:bg-slate-700/50 transition-all">
-                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                    <Upload className="w-8 h-8 text-gray-400 mb-2" />
-                    <p className="text-sm text-gray-400">
-                      <span className="font-semibold">Click to upload</span> or drag and drop
-                    </p>
-                    <p className="text-xs text-gray-500">TXT, DOCX, PDF (text extraction)</p>
+                <label
+                  className={`flex flex-col items-center justify-center w-full min-h-[140px] sm:min-h-[128px] border-2 border-dashed rounded-xl transition-all px-4 py-6 ${
+                    isProcessingFile
+                      ? 'border-blue-500 bg-blue-500/5 cursor-wait'
+                      : cvFile && !error
+                        ? 'border-green-500/60 bg-green-500/5 cursor-pointer active:scale-[0.99]'
+                        : 'border-slate-600 hover:border-blue-500 hover:bg-slate-700/50 cursor-pointer active:scale-[0.99]'
+                  }`}
+                >
+                  <div className="flex flex-col items-center justify-center text-center">
+                    {isProcessingFile ? (
+                      <>
+                        <Loader2 className="w-9 h-9 text-blue-400 mb-3 animate-spin" />
+                        <p className="text-sm text-gray-200 font-medium break-all max-w-full">
+                          Processing {cvFile?.name}
+                        </p>
+                        {pdfProgress && pdfProgress.total > 0 && (
+                          <div className="w-full max-w-xs mt-3">
+                            <div className="flex justify-between text-xs text-gray-400 mb-1">
+                              <span>Page {pdfProgress.current} of {pdfProgress.total}</span>
+                              <span>{Math.round((pdfProgress.current / pdfProgress.total) * 100)}%</span>
+                            </div>
+                            <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-blue-500 transition-all"
+                                style={{ width: `${(pdfProgress.current / pdfProgress.total) * 100}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : cvFile && !error ? (
+                      <>
+                        <CheckCircle className="w-9 h-9 text-green-400 mb-2" />
+                        <p className="text-sm text-gray-200 font-medium break-all max-w-full">
+                          {cvFile.name}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {formatFileSize(cvFile.size)}
+                          {cvText && ` · ${cvText.length.toLocaleString()} characters extracted`}
+                        </p>
+                        <p className="text-xs text-blue-400 mt-2">Tap to replace</p>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-9 h-9 text-gray-400 mb-2" />
+                        <p className="text-sm text-gray-300">
+                          <span className="font-semibold sm:hidden">Tap to upload your CV</span>
+                          <span className="font-semibold hidden sm:inline">Click to upload</span>
+                          <span className="hidden sm:inline"> or drag and drop</span>
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">TXT, DOCX or PDF · max 10MB</p>
+                      </>
+                    )}
                   </div>
                   <input
                     type="file"
                     className="hidden"
-                    accept=".txt,.pdf,.docx"
+                    accept=".txt,.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
                     onChange={handleFileUpload}
+                    disabled={isProcessingFile}
                   />
                 </label>
-                {cvFile && (
-                  <p className="mt-2 text-sm text-green-400 flex items-center gap-2">
-                    {isProcessingFile ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Processing {cvFile.name}...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="w-4 h-4" />
-                        {cvFile.name}
-                      </>
-                    )}
-                  </p>
-                )}
               </div>
 
               {/* Text Area */}
               <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Or paste your CV text
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-300">
+                    Or paste your CV text
+                  </label>
+                  {cvText && (
+                    <span className="text-xs text-gray-500">
+                      {cvText.length.toLocaleString()} chars
+                    </span>
+                  )}
+                </div>
                 <textarea
                   value={cvText}
                   onChange={(e) => setCvText(e.target.value)}
                   placeholder="Paste your CV content here..."
-                  className="w-full h-48 bg-slate-900/50 border border-slate-600 rounded-xl p-4 text-gray-300 placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none"
+                  className="w-full h-56 sm:h-48 bg-slate-900/50 border border-slate-600 rounded-xl p-4 text-gray-300 placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-y text-base"
+                  autoCapitalize="sentences"
+                  autoCorrect="on"
+                  spellCheck={true}
                 />
               </div>
 
@@ -323,7 +384,7 @@ export default function JobMatcherPage() {
               <button
                 onClick={handleCVSubmit}
                 disabled={!cvText.trim() || isProcessingFile}
-                className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-semibold py-3 rounded-xl hover:from-blue-500 hover:to-cyan-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-semibold py-4 sm:py-3 rounded-xl hover:from-blue-500 hover:to-cyan-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-base"
               >
                 Continue
                 <ArrowRight className="w-4 h-4" />

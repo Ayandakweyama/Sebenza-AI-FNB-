@@ -238,63 +238,53 @@ export async function POST(req: Request) {
         return acc;
       }, {} as Record<string, number>);
     } else {
-      // Run scrapers SEQUENTIALLY to avoid Puppeteer browser resource conflicts
+      // Run scrapers IN PARALLEL — each uses its own browser instance from the pool, safe to concurrent.
       const allJobs: Job[] = [];
-      const timeoutMs = 120000; // 120s — indeed tries 3 SA sites (CJ + C24 + Jobs.co.za) before falling back
+      const timeoutMs = 120000; // 120s budget per scraper
 
-      for (const source of sources) {
-        const maxAttempts = source === 'indeed' ? 2 : 1; // Retry Indeed once if it fails
-        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-          console.log(`[Job Matcher] Starting ${source} scraper (attempt ${attempt}/${maxAttempts})...`);
-          const timeoutPromise = new Promise<null>((_, reject) =>
-            setTimeout(() => reject(new Error(`${source} scraper timed out`)), timeoutMs)
-          );
-          try {
-            let result;
-            if (source === 'indeed') {
-              result = await Promise.race([scrapeIndeed(scraperConfig), timeoutPromise]);
-            } else if (source === 'jobmail') {
-              result = await Promise.race([scrapeJobMail(scraperConfig), timeoutPromise]);
-            } else {
-              scrapeErrors.push(`Unknown source: ${source}`);
-              break;
-            }
-            const r = result as any;
-            if (r && r.diagnostics) {
-              scraperDiagnostics[r.source || source] = r.diagnostics;
-            }
-            if (r && r.success && r.jobs?.length > 0) {
-              allJobs.push(...r.jobs);
-              // Count by actual job.source labels (CJ/C24 differ from ScraperResult.source 'indeed')
-              for (const j of r.jobs as Job[]) {
-                sourceCounts[j.source] = (sourceCounts[j.source] || 0) + 1;
-              }
-              console.log(`[Job Matcher] ✅ ${r.source}: ${r.count} jobs (sources: ${JSON.stringify(sourceCounts)})`);
-              break; // Success, no retry needed
-            } else {
-              const errMsg = `${source}: ${r?.error || (r?.jobs?.length === 0 ? '0 jobs returned' : 'Unknown error')}`;
-              if (attempt < maxAttempts) {
-                console.warn(`[Job Matcher] ⚠️ ${errMsg} — retrying...`);
-                await new Promise(r => setTimeout(r, 3000));
-              } else {
-                scrapeErrors.push(errMsg);
-                console.error(`[Job Matcher] ❌ ${errMsg}`);
-              }
-            }
-          } catch (error) {
-            const errMsg = `${source}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-            if (attempt < maxAttempts) {
-              console.warn(`[Job Matcher] ⚠️ ${errMsg} — retrying...`);
-              await new Promise(r => setTimeout(r, 3000));
-            } else {
-              scrapeErrors.push(errMsg);
-              console.error(`[Job Matcher] ❌ ${source} failed:`, error instanceof Error ? error.message : error);
-            }
-          }
+      const wrapWithTimeout = <T>(p: Promise<T>, label: string): Promise<T | null> =>
+        Promise.race([
+          p,
+          new Promise<null>((_, reject) =>
+            setTimeout(() => reject(new Error(`${label} scraper timed out`)), timeoutMs)
+          ),
+        ]);
+
+      console.log(`[Job Matcher] Starting ${sources.length} scrapers in parallel: ${sources.join(', ')}`);
+      const parallelStart = Date.now();
+      const settled = await Promise.allSettled(
+        sources.map(source => {
+          if (source === 'indeed') return wrapWithTimeout(scrapeIndeed(scraperConfig), 'indeed');
+          if (source === 'jobmail') return wrapWithTimeout(scrapeJobMail(scraperConfig), 'jobmail');
+          return Promise.resolve(null);
+        })
+      );
+      console.log(`[Job Matcher] All scrapers settled in ${Date.now() - parallelStart}ms`);
+
+      settled.forEach((outcome, idx) => {
+        const source = sources[idx];
+        if (outcome.status === 'rejected') {
+          const errMsg = `${source}: ${outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason)}`;
+          scrapeErrors.push(errMsg);
+          console.error(`[Job Matcher] ❌ ${errMsg}`);
+          return;
         }
-        // Brief pause between scrapers for browser cleanup
-        await new Promise(r => setTimeout(r, 2000));
-      }
+        const r = outcome.value as any;
+        if (r && r.diagnostics) {
+          scraperDiagnostics[r.source || source] = r.diagnostics;
+        }
+        if (r && r.success && r.jobs?.length > 0) {
+          allJobs.push(...r.jobs);
+          for (const j of r.jobs as Job[]) {
+            sourceCounts[j.source] = (sourceCounts[j.source] || 0) + 1;
+          }
+          console.log(`[Job Matcher] ✅ ${source}: ${r.count} jobs`);
+        } else {
+          const errMsg = `${source}: ${r?.error || (r?.jobs?.length === 0 ? '0 jobs returned' : 'Unknown error')}`;
+          scrapeErrors.push(errMsg);
+          console.error(`[Job Matcher] ❌ ${errMsg}`);
+        }
+      });
 
       // Filter out jobs with no usable URL, then deduplicate
       const validJobs = allJobs.filter(job => {

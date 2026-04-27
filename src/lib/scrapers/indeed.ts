@@ -213,6 +213,19 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
 
     const saSites = [
       {
+        name: 'Indeed',
+        url: `https://za.indeed.com/jobs?q=${encodeURIComponent(query)}&l=${encodeURIComponent(location)}&sort=date`,
+        baseUrl: 'https://za.indeed.com',
+        source: 'indeed' as const,
+        cardSel: 'div.job_seen_beacon, div.jobsearch-SerpJobCard, li[data-testid*="job"], div.cardOutline, div.tapItem, [data-testid="job-card"]',
+        titleSel: 'h2.jobTitle a, h2.jobTitle span[title], a.jcs-JobTitle, a[data-jk]',
+        companySel: '[data-testid="company-name"], .companyName, span.companyName',
+        locationSel: '[data-testid="text-location"], .companyLocation, div.companyLocation',
+        salarySel: '.salary-snippet, .estimated-salary, [data-testid="attribute_snippet_compensation"], .metadata.salary-snippet-container',
+        descSel: '.job-snippet, [data-testid="job-snippet"]',
+        linkSel: 'h2.jobTitle a, a.jcs-JobTitle, a[data-jk]',
+      },
+      {
         name: 'CareerJunction',
         url: `https://www.careerjunction.co.za/jobs?keywords=${encodeURIComponent(query)}&location=${encodeURIComponent(location)}&pagesize=20&page=1`,
         baseUrl: 'https://www.careerjunction.co.za',
@@ -281,18 +294,18 @@ export async function scrapeIndeed(config: ScraperConfig): Promise<ScraperResult
           }
 
           // Brief pause then wait for job cards to appear (CJ is server-rendered but JS may update DOM)
-          await fastDelay(1500, 2500);
+          await fastDelay(500, 800);
           try {
-            await page.waitForSelector(site.cardSel, { timeout: 10000 });
+            await page.waitForSelector(site.cardSel, { timeout: 5000 });
           } catch { /* cards may not appear — try anyway */ }
 
           // Dismiss cookie consent if present
           try {
             const cookieBtn = await page.$('#cookie-consent-accept-all, button[data-testid="cookie-banner-accept-all"], button[id*="cookie"], button[class*="cookie-accept"], .cc-accept, #accept-cookies');
-            if (cookieBtn) { await cookieBtn.click(); await fastDelay(500, 800); }
+            if (cookieBtn) { await cookieBtn.click(); await fastDelay(200, 400); }
           } catch { /* ignore */ }
 
-          await fastDelay(1000, 1800);
+          await fastDelay(300, 600);
           await autoScroll(page);
 
           // Debug: log what card selectors are matching on this page
