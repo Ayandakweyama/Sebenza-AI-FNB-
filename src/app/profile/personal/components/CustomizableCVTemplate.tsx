@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { ProfileFormData } from '../profile.schema';
+import { Link2, Mail, Phone } from 'lucide-react';
 
 export interface CVCustomizationOptions {
   // Layout Options
@@ -304,7 +305,7 @@ export function CustomizableCVTemplate({ data, customization }: CustomizableCVTe
         
         {hasTechnicalSkills && (
           <div className="mb-4">
-            <h3 className="font-semibold mb-2" style={{ color: textColor }}>Technical Skills</h3>
+            <h3 className="font-semibold mb-2" style={{ color: textColor }}>Core Skills</h3>
             {skillDisplay === 'tags' ? (
               <div className="flex flex-wrap gap-2">
                 {data.technicalSkills!.map((skill, index) => (
@@ -392,6 +393,99 @@ export function CustomizableCVTemplate({ data, customization }: CustomizableCVTe
     );
   };
 
+  const renderReferences = () => {
+    if (!visibleSections.references || !data.references?.length) return null;
+
+    return (
+      <section className="mb-6">
+        {renderSectionHeader('References')}
+        <div className="space-y-4">
+          {data.references.map((ref, index) => {
+            const meta = [ref.title, ref.company].filter(Boolean).join(' • ');
+            return (
+              <div key={index}>
+                <div className="flex justify-between items-start gap-4">
+                  <div>
+                    <h3 className="font-semibold" style={{ color: textColor }}>
+                      {ref.name}
+                    </h3>
+                    {meta && <p style={{ color: secondaryColor }}>{meta}</p>}
+                    <p className="text-sm" style={{ color: secondaryColor }}>
+                      {ref.relationship}
+                    </p>
+                  </div>
+                  <div className="text-sm text-right" style={{ color: secondaryColor }}>
+                    {ref.email && (
+                      <div className="flex items-center justify-end gap-2">
+                        <Mail className="h-4 w-4" />
+                        <span>{ref.email}</span>
+                      </div>
+                    )}
+                    {ref.phone && (
+                      <div className="flex items-center justify-end gap-2">
+                        <Phone className="h-4 w-4" />
+                        <span>{ref.phone}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {ref.recommendation && (
+                  <p className="mt-2 text-sm" style={{ color: textColor }}>
+                    “{ref.recommendation}”
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    );
+  };
+
+  const renderProjects = () => {
+    if (!visibleSections.projects || !data.projects?.length) return null;
+
+    return (
+      <section className="mb-6">
+        {renderSectionHeader('Projects')}
+        <div className="space-y-4">
+          {data.projects.map((project, index) => {
+            const meta = [project.technologies].filter(Boolean).join(' • ');
+            return (
+              <div key={index}>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="font-semibold" style={{ color: textColor }}>
+                      {project.name}
+                    </h3>
+                    {meta && <p className="text-sm" style={{ color: secondaryColor }}>{meta}</p>}
+                    {project.description && (
+                      <p className="mt-1 text-sm" style={{ color: textColor }}>
+                        {project.description}
+                      </p>
+                    )}
+                  </div>
+                  {project.link && (
+                    <a
+                      href={project.link}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-sm flex items-center gap-2"
+                      style={{ color: accentColor }}
+                    >
+                      <Link2 className="h-4 w-4" />
+                      <span>Link</span>
+                    </a>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    );
+  };
+
   // Render sections in custom order
   const renderSection = (sectionName: string) => {
     switch (sectionName) {
@@ -399,6 +493,8 @@ export function CustomizableCVTemplate({ data, customization }: CustomizableCVTe
       case 'experience': return renderExperience();
       case 'education': return renderEducation();
       case 'skills': return renderSkills();
+      case 'projects': return renderProjects();
+      case 'references': return renderReferences();
       default: return null;
     }
   };

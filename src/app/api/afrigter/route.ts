@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { mistralService, ServiceType } from '@/lib/ai/mistralService';
+import { stripEmojis } from '@/lib/text/stripEmojis';
+import { createHash } from 'crypto';
 import type { 
   ResumeTipsParams, 
   InterviewPrepParams, 
@@ -16,6 +18,32 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+const cacheTtlMs = 5 * 60 * 1000;
+const maxCacheEntries = 200;
+const responseCache = new Map<string, { expiresAt: number; value: string }>();
+const inflight = new Map<string, Promise<string>>();
+
+const getCacheKey = (data: unknown) =>
+  createHash('sha256').update(JSON.stringify(data)).digest('hex');
+
+const getCached = (key: string) => {
+  const item = responseCache.get(key);
+  if (!item) return null;
+  if (item.expiresAt < Date.now()) {
+    responseCache.delete(key);
+    return null;
+  }
+  return item.value;
+};
+
+const setCached = (key: string, value: string) => {
+  if (responseCache.size >= maxCacheEntries) {
+    const firstKey = responseCache.keys().next().value as string | undefined;
+    if (firstKey) responseCache.delete(firstKey);
+  }
+  responseCache.set(key, { expiresAt: Date.now() + cacheTtlMs, value });
 };
 
 // Define types for request data
@@ -48,8 +76,6 @@ function createErrorResponse(error: string, message: string, status: number) {
 }
 
 export async function POST(request: Request) {
-  console.log('🤖 Afrigter API: Received request');
-  
   try {
     // Check for OpenAI API key
     if (!process.env.OPENAI_API_KEY) {
@@ -59,14 +85,10 @@ export async function POST(request: Request) {
         500
       );
     }
-    
-    console.log('🤖 Using OpenAI GPT-4o-mini for career guidance');
-
     // Parse and validate request body
     let requestData: RequestData;
     try {
       const body = await request.json();
-      console.log('📝 Afrigter API: Processing request:', body.type);
       
       if (!body) {
         throw new Error('Request body is empty');
@@ -74,7 +96,7 @@ export async function POST(request: Request) {
       requestData = body as RequestData;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('❌ Afrigter API: Error parsing request body:', errorMessage);
+      console.error('Afrigter API: Error parsing request body:', errorMessage);
       return createErrorResponse(
         'Invalid request',
         'Could not parse request body. Please ensure you are sending valid JSON.',
@@ -83,6 +105,7 @@ export async function POST(request: Request) {
     }
 
     const { type, ...data } = requestData;
+    const cacheKey = getCacheKey(requestData);
     
     // Validate request data
     const validServiceTypes: ServiceType[] = [
@@ -104,104 +127,121 @@ export async function POST(request: Request) {
       );
     }
     
-    let response: string;
-    
     try {
-      console.log(`🚀 Afrigter API: Processing ${type} request`);
+      const cached = getCached(cacheKey);
+      if (cached) {
+        return new NextResponse(JSON.stringify({ response: cached }), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+
+      const existing = inflight.get(cacheKey);
+      if (existing) {
+        const value = await existing;
+        return new NextResponse(JSON.stringify({ response: value }), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+
+      const compute = async () => {
+        let response: string;
       
-      switch (type) {
-        case 'resume-tips': {
-          const params = data as ResumeTipsParams;
-          if (!params.resumeText || !params.experienceLevel) {
-            throw new Error('Resume text and experience level are required for resume tips');
+        switch (type) {
+          case 'resume-tips': {
+            const params = data as ResumeTipsParams;
+            if (!params.resumeText || !params.experienceLevel) {
+              throw new Error('Resume text and experience level are required for resume tips');
+            }
+            response = await mistralService.provideResumeTips(params);
+            break;
           }
-          console.log('📄 Generating resume tips with GPT-4o-mini...');
-          response = await mistralService.provideResumeTips(params);
-          break;
-        }
           
-        case 'interview-prep': {
-          const params = data as InterviewPrepParams;
-          if (!params.role || !params.experienceLevel) {
-            throw new Error('Role and experience level are required for interview preparation');
+          case 'interview-prep': {
+            const params = data as InterviewPrepParams;
+            if (!params.role || !params.experienceLevel) {
+              throw new Error('Role and experience level are required for interview preparation');
+            }
+            response = await mistralService.conductInterviewPrep(params);
+            break;
           }
-          console.log('🎤 Generating interview preparation with GPT-4o-mini...');
-          response = await mistralService.conductInterviewPrep(params);
-          break;
-        }
           
-        case 'job-search': {
-          const params = data as JobSearchParams;
-          if (!params.role || !params.field || !params.locations?.length || !params.experienceLevel) {
-            throw new Error('Role, field, locations, and experience level are required for job search');
+          case 'job-search': {
+            const params = data as JobSearchParams;
+            if (!params.role || !params.field || !params.locations?.length || !params.experienceLevel) {
+              throw new Error('Role, field, locations, and experience level are required for job search');
+            }
+            response = await mistralService.searchJobs(params);
+            break;
           }
-          console.log('🔍 Generating job search strategy with GPT-4o-mini...');
-          response = await mistralService.searchJobs(params);
-          break;
-        }
           
-        case 'career-advice': {
-          const params = data as CareerAdviceParams;
-          if (!params.question || !params.experienceLevel) {
-            throw new Error('Question and experience level are required for career advice');
+          case 'career-advice': {
+            const params = data as CareerAdviceParams;
+            if (!params.question || !params.experienceLevel) {
+              throw new Error('Question and experience level are required for career advice');
+            }
+            response = await mistralService.provideCareerAdvice(params);
+            break;
           }
-          console.log('💡 Generating career advice with GPT-4o-mini...');
-          response = await mistralService.provideCareerAdvice(params);
-          break;
-        }
           
-        case 'career-roadmap': {
-          const params = data as CareerRoadmapParams;
-          if (!params.currentRole || !params.targetRole || !params.experienceLevel) {
-            throw new Error('Current role, target role, and experience level are required for career roadmap');
+          case 'career-roadmap': {
+            const params = data as CareerRoadmapParams;
+            if (!params.currentRole || !params.targetRole || !params.experienceLevel) {
+              throw new Error('Current role, target role, and experience level are required for career roadmap');
+            }
+            response = await mistralService.generateCareerRoadmap({
+              ...params,
+              timeline: params.timeline || '6' as const
+            });
+            break;
           }
-          console.log('🗺️ Generating career roadmap with GPT-4o-mini...');
-          response = await mistralService.generateCareerRoadmap({
-            ...params,
-            timeline: params.timeline || '6' as const
-          });
-          break;
-        }
           
-        case 'skill-gap': {
-          const params = data as SkillGapParams;
-          if (!params.currentSkills?.length || !params.targetRole || !params.experienceLevel) {
-            throw new Error('Current skills, target role, and experience level are required for skill gap analysis');
+          case 'skill-gap': {
+            const params = data as SkillGapParams;
+            if (!params.currentSkills?.length || !params.targetRole || !params.experienceLevel) {
+              throw new Error('Current skills, target role, and experience level are required for skill gap analysis');
+            }
+            response = await mistralService.analyzeSkillGap(params);
+            break;
           }
-          console.log('📊 Analyzing skill gap with GPT-4o-mini...');
-          response = await mistralService.analyzeSkillGap(params);
-          break;
-        }
           
-        case 'cover-letter': {
-          const params = data as CoverLetterParams;
-          if (!params.jobDescription || !params.resumeText) {
-            throw new Error('Job description and resume text are required for cover letter generation');
+          case 'cover-letter': {
+            const params = data as CoverLetterParams;
+            if (!params.jobDescription || !params.resumeText) {
+              throw new Error('Job description and resume text are required for cover letter generation');
+            }
+            response = await mistralService.generateCoverLetter(params);
+            break;
           }
-          console.log('📧 Generating cover letter with GPT-4o-mini...');
-          response = await mistralService.generateCoverLetter(params);
-          break;
+
+          case 'cv-regenerator': {
+            const params = data as CVRegeneratorParams;
+            if (!params.cvText || !params.jobDescription) {
+              throw new Error('CV text and job description are required for CV regeneration');
+            }
+            response = await mistralService.regenerateCV(params);
+            break;
+          }
+          
+          default:
+            throw new Error('Invalid request type');
         }
 
-        case 'cv-regenerator': {
-          const params = data as CVRegeneratorParams;
-          if (!params.cvText || !params.jobDescription) {
-            throw new Error('CV text and job description are required for CV regeneration');
-          }
-          console.log('📝 Regenerating CV with GPT-4o-mini...');
-          response = await mistralService.regenerateCV(params);
-          break;
-        }
-          
-        default:
-          return createErrorResponse(
-            'Invalid request type',
-            `Request type must be one of: ${validServiceTypes.join(', ')}`,
-            400
-          );
-      }
+        return stripEmojis(response);
+      };
+
+      const promise = compute().finally(() => inflight.delete(cacheKey));
+      inflight.set(cacheKey, promise);
+      const response = await promise;
+      setCached(cacheKey, response);
       
-      console.log('✅ Afrigter API: Request processed successfully');
       return new NextResponse(
         JSON.stringify({ response }),
         { 
@@ -214,7 +254,7 @@ export async function POST(request: Request) {
       );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-      console.error('❌ Afrigter API: Error processing request:', errorMessage);
+      console.error('Afrigter API: Error processing request:', errorMessage);
       
       return createErrorResponse(
         'Processing error',
@@ -224,7 +264,7 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    console.error('💥 Afrigter API: Unexpected error:', errorMessage);
+    console.error('Afrigter API: Unexpected error:', errorMessage);
     
     return createErrorResponse(
       'Internal Server Error',

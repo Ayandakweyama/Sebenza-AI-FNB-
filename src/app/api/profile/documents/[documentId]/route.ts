@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
-import { unlink } from 'fs/promises';
-import path from 'path';
 
 // GET /api/profile/documents/[documentId] - Get single document
 export async function GET(
@@ -146,16 +144,6 @@ export async function DELETE(
       return NextResponse.json({ error: 'Document not found' }, { status: 404 });
     }
 
-    // Try to delete the file from disk
-    if (existingDoc.fileUrl && existingDoc.fileUrl.startsWith('/uploads/')) {
-      try {
-        const filePath = path.join(process.cwd(), 'public', existingDoc.fileUrl);
-        await unlink(filePath);
-      } catch (fsErr) {
-        console.warn('Could not delete file from disk:', fsErr);
-      }
-    }
-
     // Delete the document (only if it belongs to the user)
     const document = await prisma.document.delete({
       where: {
@@ -163,6 +151,7 @@ export async function DELETE(
         userId: user.id
       }
     });
+    console.log('DELETE operation result:', document);
 
     return NextResponse.json({ document });
   } catch (error) {

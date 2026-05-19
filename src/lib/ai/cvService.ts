@@ -37,15 +37,9 @@ Provide a detailed analysis in JSON format with these keys:
     });
 
     try {
-      // Handle AI responses wrapped in markdown code blocks
-      let cleanedResult = result.trim();
-      if (cleanedResult.startsWith('```')) {
-        cleanedResult = cleanedResult.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
-      }
-      return JSON.parse(cleanedResult);
+      return JSON.parse(result);
     } catch (error) {
       console.error('Error parsing CV analysis result:', error);
-      console.error('Raw AI result:', result?.substring(0, 200));
       return {
         score: 0,
         strengths: [],
@@ -91,15 +85,9 @@ Provide the tailored resume and a summary of changes made. Format your response 
     });
 
     try {
-      // Handle AI responses wrapped in markdown code blocks
-      let cleanedResult = result.trim();
-      if (cleanedResult.startsWith('```')) {
-        cleanedResult = cleanedResult.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
-      }
-      return JSON.parse(cleanedResult);
+      return JSON.parse(result);
     } catch (error) {
       console.error('Error parsing tailored resume result:', error);
-      console.error('Raw AI result:', result?.substring(0, 200));
       return {
         tailoredResume: resumeText, // Return original if parsing fails
         changesMade: [],

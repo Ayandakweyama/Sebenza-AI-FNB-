@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Upload, FileText, Download, Trash2, Eye, Plus, Edit, Star } from 'lucide-react';
+import { Upload, FileText, Download, Trash2, Eye, Star, Edit3, Palette, Award, Folder } from 'lucide-react';
 import DashboardNavigation from '@/components/dashboard/DashboardNavigation';
 
 interface Document {
@@ -24,8 +24,6 @@ export default function ResumeDocumentsPage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [selectedType, setSelectedType] = useState<string>('all');
-  const [uploadType, setUploadType] = useState<string>('resume');
-  const [uploadMessage, setUploadMessage] = useState('');
 
   useEffect(() => {
     fetchDocuments();
@@ -54,10 +52,9 @@ export default function ResumeDocumentsPage() {
     if (!file) return;
 
     setUploading(true);
-    setUploadMessage('');
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('type', uploadType);
+    formData.append('type', 'resume'); // Default to resume
     formData.append('description', '');
 
     try {
@@ -69,25 +66,20 @@ export default function ResumeDocumentsPage() {
       if (response.ok) {
         const data = await response.json();
         setDocuments(prev => [data.document, ...prev]);
-        setUploadMessage('Document uploaded successfully!');
       } else {
-        const err = await response.json();
-        setUploadMessage(err.error || 'Failed to upload document');
+        alert('Failed to upload document');
       }
     } catch (error) {
       console.error('Error uploading document:', error);
-      setUploadMessage('Error uploading document');
+      alert('Error uploading document');
     } finally {
       setUploading(false);
-      // Reset the file input
-      event.target.value = '';
-      setTimeout(() => setUploadMessage(''), 4000);
     }
   };
 
   const setPrimaryDocument = async (documentId: string) => {
     try {
-      const response = await fetch(`/api/profile/documents/${documentId}`, {
+      const response = await fetch(`/api/profile/documents/${documentId}/primary`, {
         method: 'PUT',
       });
 
@@ -148,11 +140,11 @@ export default function ResumeDocumentsPage() {
 
   const getTypeIcon = (type: string) => {
     switch (type) {
-      case 'resume': return '📄';
-      case 'cover_letter': return '📝';
-      case 'portfolio': return '🎨';
-      case 'certificate': return '🏆';
-      default: return '📁';
+      case 'resume': return <FileText className="w-6 h-6" />;
+      case 'cover_letter': return <Edit3 className="w-6 h-6" />;
+      case 'portfolio': return <Palette className="w-6 h-6" />;
+      case 'certificate': return <Award className="w-6 h-6" />;
+      default: return <Folder className="w-6 h-6" />;
     }
   };
 
@@ -182,22 +174,7 @@ export default function ResumeDocumentsPage() {
         <div className="mb-8">
           <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
             <h2 className="text-xl font-semibold text-white mb-4">Upload New Document</h2>
-
-            {/* Document type selector */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-slate-300 mb-2">Document Type</label>
-              <select
-                value={uploadType}
-                onChange={(e) => setUploadType(e.target.value)}
-                className="w-full sm:w-64 px-4 py-2.5 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:border-blue-500 focus:outline-none"
-              >
-                <option value="resume">Resume / CV</option>
-                <option value="cover_letter">Cover Letter</option>
-                <option value="portfolio">Portfolio</option>
-                <option value="certificate">Certificate</option>
-              </select>
-            </div>
-
+            
             <div className="border-2 border-dashed border-slate-600 rounded-lg p-8 text-center hover:border-blue-500/50 transition-colors">
               <input
                 type="file"
@@ -220,12 +197,6 @@ export default function ResumeDocumentsPage() {
                 </p>
               </label>
             </div>
-
-            {uploadMessage && (
-              <p className={`mt-3 text-sm font-medium ${uploadMessage.includes('successfully') ? 'text-green-400' : 'text-red-400'}`}>
-                {uploadMessage}
-              </p>
-            )}
           </div>
         </div>
 
@@ -281,7 +252,9 @@ export default function ResumeDocumentsPage() {
                 {/* Document Header */}
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="text-2xl">{getTypeIcon(document.type)}</div>
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-lg border ${getTypeColor(document.type)}`}>
+                      {getTypeIcon(document.type)}
+                    </div>
                     <div>
                       <h3 className="font-semibold text-white truncate">{document.name}</h3>
                       <div className={`inline-flex items-center px-2 py-1 rounded text-xs border ${getTypeColor(document.type)}`}>

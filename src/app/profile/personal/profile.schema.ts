@@ -63,6 +63,37 @@ const skillsSchema = z.object({
   ),
 });
 
+const referencesSchema = z.object({
+  references: z
+    .array(
+      z.object({
+        name: z.string().min(2, 'Name is required'),
+        relationship: z.string().min(2, 'Relationship is required'),
+        title: z.string().optional(),
+        company: z.string().optional(),
+        email: z
+          .union([z.string().email('Invalid email address'), z.literal('')])
+          .optional(),
+        phone: z.string().optional(),
+        recommendation: z.string().max(800, 'Recommendation is too long').optional(),
+      })
+    )
+    .optional(),
+});
+
+const projectsSchema = z.object({
+  projects: z
+    .array(
+      z.object({
+        name: z.string().min(2, 'Project name is required'),
+        technologies: z.string().optional(),
+        description: z.string().optional(),
+        link: z.string().optional(),
+      })
+    )
+    .optional(),
+});
+
 // Step 5: Goals & Preferences
 const goalsSchema = z.object({
   jobTitle: z.string().min(2, 'Job title is required'),
@@ -92,10 +123,7 @@ export const profileFormSchema = z.intersection(
       workExperienceSchema,
       z.intersection(
         skillsSchema,
-        z.intersection(
-          goalsSchema,
-          cvStyleSchema
-        )
+        z.intersection(projectsSchema, z.intersection(referencesSchema, z.intersection(goalsSchema, cvStyleSchema)))
       )
     )
   )

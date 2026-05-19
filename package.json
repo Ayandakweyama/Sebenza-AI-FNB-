@@ -63,7 +63,8 @@
     "sonner": "^2.0.6",
     "svix": "^1.27.0",
     "tailwind-merge": "^3.3.1",
-    "three": "^0.182.0"
+    "three": "^0.182.0",
+    "word-extractor": "^1.0.4"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.0.0",

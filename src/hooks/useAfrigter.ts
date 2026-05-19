@@ -69,6 +69,7 @@ type AfrigterOptions =
   | SkillGapOptions;
 export function useAfrigter<T extends AfrigterType>() {
   const [state, setState] = useState<BaseAfrigterState>({ loading: false });
+  const debug = process.env.NODE_ENV !== 'production';
 
   const callAfrigter = useCallback(async (
     options: Extract<AfrigterOptions, { type: T }>
@@ -76,7 +77,7 @@ export function useAfrigter<T extends AfrigterType>() {
     setState(prev => ({ ...prev, loading: true, error: undefined }));
     
     const { type } = options;
-    console.log('useAfrigter: Starting API call with type:', type, 'and options:', options);
+    if (debug) console.log('useAfrigter: Starting API call with type:', type, 'and options:', options);
     
     try {
       // Add validation for required parameters based on type
@@ -114,7 +115,7 @@ export function useAfrigter<T extends AfrigterType>() {
         throw new Error(`Unsupported service type: ${type}`);
       }
 
-      console.log('useAfrigter: Sending request to /api/afrigter');
+      if (debug) console.log('useAfrigter: Sending request to /api/afrigter');
       
       // Create a clean request body with only the necessary properties
       let requestBody: any = { ...options };
@@ -128,7 +129,7 @@ export function useAfrigter<T extends AfrigterType>() {
         ...requestBody
       };
       
-      console.log('useAfrigter: Request data:', JSON.stringify(requestData, null, 2));
+      if (debug) console.log('useAfrigter: Request data:', JSON.stringify(requestData, null, 2));
       
       const response = await fetch('/api/afrigter', {
         method: 'POST',
@@ -138,23 +139,23 @@ export function useAfrigter<T extends AfrigterType>() {
         body: JSON.stringify(requestData),
       });
 
-      console.log('useAfrigter: Received response status:', response.status);
+      if (debug) console.log('useAfrigter: Received response status:', response.status);
       
       // First, get the response as text to check if it's valid JSON
       const responseText = await response.text();
-      console.log('useAfrigter: Raw response text:', responseText);
+      if (debug) console.log('useAfrigter: Raw response text:', responseText);
       
       let result;
       try {
         result = responseText ? JSON.parse(responseText) : {};
-        console.log('useAfrigter: Parsed response:', result);
+        if (debug) console.log('useAfrigter: Parsed response:', result);
       } catch (jsonError) {
-        console.error('useAfrigter: Failed to parse JSON response. Error:', jsonError, 'Response text:', responseText);
+        if (debug) console.error('useAfrigter: Failed to parse JSON response. Error:', jsonError, 'Response text:', responseText);
         throw new Error('Received invalid response from server. This might be an authentication or server error.');
       }
 
       if (!response.ok) {
-        console.error('useAfrigter: API Error Response - Status:', response.status, 'Response:', result);
+        if (debug) console.error('useAfrigter: API Error Response - Status:', response.status, 'Response:', result);
         let errorMessage = 'An unknown error occurred';
         
         if (result && result.error) {
@@ -171,7 +172,7 @@ export function useAfrigter<T extends AfrigterType>() {
       }
 
       if (!result.response) {
-        console.error('Unexpected API Response:', result);
+        if (debug) console.error('Unexpected API Response:', result);
         throw new Error('No response data received from the server');
       }
 
@@ -199,7 +200,7 @@ export function useAfrigter<T extends AfrigterType>() {
         errorMessage = error;
       }
       
-      console.error(`Afrigter API Error (${type}):`, error);
+      if (debug) console.error(`Afrigter API Error (${type}):`, error);
       
       setState(prev => ({
         ...prev,

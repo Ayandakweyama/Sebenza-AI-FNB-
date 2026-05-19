@@ -36,7 +36,20 @@ Provide a JSON response with:
     });
 
     try {
-      return JSON.parse(result);
+      const trimmed = (result || '').trim();
+      const withoutFences = trimmed
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/```$/i, '')
+        .trim();
+
+      try {
+        return JSON.parse(withoutFences);
+      } catch {
+        const match = withoutFences.match(/\{[\s\S]*\}/);
+        if (match?.[0]) return JSON.parse(match[0]);
+        throw new Error('No JSON object found');
+      }
     } catch (error) {
       console.error('Error parsing job match result:', error);
       return {

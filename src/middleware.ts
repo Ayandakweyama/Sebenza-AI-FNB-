@@ -14,7 +14,8 @@ const isPublicRoute = createRouteMatcher([
   '/api/jobs/alerts(.*)',
   '/api/jobs/saved(.*)',
   '/api/profile(.*)',
-  '/api/auth/(.*)'
+  '/api/auth/(.*)',
+  '/api/user/sync(.*)'
 ]);
 
 export default clerkMiddleware((auth, req) => {

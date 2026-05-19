@@ -5,6 +5,8 @@ import CustomizableCVTemplate, { CVCustomizationOptions } from '../profile/perso
 import CVCustomizationPanel from '../profile/personal/components/CVCustomizationPanel';
 import { ProfileFormData } from '../profile/personal/profile.schema';
 import { Button } from '@/components/ui/button';
+import { MarkdownRenderer } from '@/components/MarkdownRenderer';
+import { useAfrigter } from '@/hooks/useAfrigter';
 import { 
   ChevronLeft, 
   FileText, 
@@ -16,16 +18,139 @@ import {
   User,
   Briefcase,
   GraduationCap,
-  Code,
+  Lightbulb,
+  Sparkles,
+  Users,
+  Folder,
   ChevronRight
 } from 'lucide-react';
-import { exportToWord } from '../profile/personal/utils/cvExport';
 import { toast } from 'sonner';
+
+const buildResumeText = (data: Partial<ProfileFormData>) => {
+  const lines: string[] = [];
+
+  const fullName = [data.firstName, data.lastName].filter(Boolean).join(' ');
+  if (fullName) lines.push(fullName);
+  if (data.jobTitle) lines.push(data.jobTitle);
+
+  const contact = [data.email, data.phone, data.location].filter(Boolean).join(' | ');
+  if (contact) lines.push(contact);
+
+  lines.push('');
+
+  if (data.bio) {
+    lines.push('SUMMARY');
+    lines.push(data.bio);
+    lines.push('');
+  }
+
+  if (data.workExperience?.length) {
+    lines.push('EXPERIENCE');
+    data.workExperience.forEach((exp) => {
+      const header = [exp.position, exp.company].filter(Boolean).join(' - ');
+      if (header) lines.push(header);
+      if (exp.description) lines.push(exp.description);
+      if (exp.achievements?.length) {
+        exp.achievements.filter(Boolean).forEach((a) => lines.push(`- ${a}`));
+      }
+      lines.push('');
+    });
+  }
+
+  if (data.education?.length) {
+    lines.push('EDUCATION');
+    data.education.forEach((edu) => {
+      const header = [edu.degree, edu.fieldOfStudy ? `(${edu.fieldOfStudy})` : '', edu.institution]
+        .filter(Boolean)
+        .join(' ');
+      if (header) lines.push(header);
+    });
+    lines.push('');
+  }
+
+  const coreSkills = data.technicalSkills?.map((s) => s.name).filter(Boolean) ?? [];
+  const softSkills = data.softSkills?.filter(Boolean) ?? [];
+  if (coreSkills.length || softSkills.length) {
+    lines.push('SKILLS');
+    if (coreSkills.length) lines.push(`Core: ${coreSkills.join(', ')}`);
+    if (softSkills.length) lines.push(`Soft: ${softSkills.join(', ')}`);
+    lines.push('');
+  }
+
+  if (data.references?.length) {
+    lines.push('REFERENCES');
+    data.references.forEach((ref) => {
+      const meta = [ref.title, ref.company].filter(Boolean).join(' • ');
+      lines.push([ref.name, meta].filter(Boolean).join(' - '));
+      if (ref.relationship) lines.push(ref.relationship);
+      const refContact = [ref.email, ref.phone].filter(Boolean).join(' | ');
+      if (refContact) lines.push(refContact);
+      if (ref.recommendation) lines.push(ref.recommendation);
+      lines.push('');
+    });
+  }
+
+  if (data.projects?.length) {
+    lines.push('PROJECTS');
+    data.projects.forEach((project) => {
+      if (project.name) lines.push(project.name);
+      if (project.technologies) lines.push(project.technologies);
+      if (project.link) lines.push(project.link);
+      if (project.description) lines.push(project.description);
+      lines.push('');
+    });
+  }
+
+  return lines.join('\n').trim();
+};
+
+const defaultCustomization: CVCustomizationOptions = {
+  layout: 'single-column',
+  sidebarPosition: 'left',
+  fontFamily: 'Arial, sans-serif',
+  fontSize: 'medium',
+  lineHeight: 'normal',
+  primaryColor: '#2563eb',
+  secondaryColor: '#64748b',
+  textColor: '#1f2937',
+  backgroundColor: '#ffffff',
+  accentColor: '#3b82f6',
+  sectionOrder: ['summary', 'experience', 'education', 'skills', 'projects', 'references'],
+  visibleSections: {
+    photo: false,
+    summary: true,
+    experience: true,
+    education: true,
+    skills: true,
+    languages: false,
+    certifications: false,
+    projects: false,
+    references: true
+  },
+  sectionStyle: {
+    headerStyle: 'underline',
+    headerAlignment: 'left',
+    headerCase: 'capitalize',
+    spacing: 'normal'
+  },
+  dateFormat: 'Month YYYY',
+  bulletStyle: 'disc',
+  skillDisplay: 'tags',
+  borderRadius: 'medium',
+  shadow: 'medium',
+  margins: 'normal'
+};
 
 const CVBuilderPage: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [experienceLevel, setExperienceLevel] = useState('Entry-level');
+  const [isGettingTips, setIsGettingTips] = useState(false);
+  const [aiTipsByStep, setAiTipsByStep] = useState<Record<number, string>>({});
+  const [aiTipsError, setAiTipsError] = useState<string | null>(null);
+
+  const { provideResumeTips } = useAfrigter();
   
   // Form data state
   const [formData, setFormData] = useState<Partial<ProfileFormData>>({
@@ -39,56 +164,96 @@ const CVBuilderPage: React.FC = () => {
     education: [],
     workExperience: [],
     technicalSkills: [],
-    softSkills: []
+    softSkills: [],
+    projects: [],
+    references: []
   });
   
   // Customization state
-  const [customization, setCustomization] = useState<CVCustomizationOptions>({
-    layout: 'single-column',
-    sidebarPosition: 'left',
-    fontFamily: 'Arial, sans-serif',
-    fontSize: 'medium',
-    lineHeight: 'normal',
-    primaryColor: '#2563eb',
-    secondaryColor: '#64748b',
-    textColor: '#1f2937',
-    backgroundColor: '#ffffff',
-    accentColor: '#3b82f6',
-    sectionOrder: ['summary', 'experience', 'education', 'skills'],
-    visibleSections: {
-      photo: false,
-      summary: true,
-      experience: true,
-      education: true,
-      skills: true,
-      languages: false,
-      certifications: false,
-      projects: false,
-      references: false
-    },
-    sectionStyle: {
-      headerStyle: 'underline',
-      headerAlignment: 'left',
-      headerCase: 'capitalize',
-      spacing: 'normal'
-    },
-    dateFormat: 'Month YYYY',
-    bulletStyle: 'disc',
-    skillDisplay: 'tags',
-    borderRadius: 'medium',
-    shadow: 'medium',
-    margins: 'normal'
-  });
+  const [customization, setCustomization] = useState<CVCustomizationOptions>(defaultCustomization);
 
   // Load saved data from localStorage
   useEffect(() => {
     const savedData = localStorage.getItem('cvBuilderData');
+    const parsedSaved = savedData ? JSON.parse(savedData) : null;
     if (savedData) {
-      setFormData(JSON.parse(savedData));
+      setFormData((prev) => ({
+        ...prev,
+        ...parsedSaved,
+        education: parsedSaved.education ?? prev.education,
+        workExperience: parsedSaved.workExperience ?? prev.workExperience,
+        technicalSkills: parsedSaved.technicalSkills ?? prev.technicalSkills,
+        softSkills: parsedSaved.softSkills ?? prev.softSkills,
+        references: parsedSaved.references ?? prev.references,
+        projects: parsedSaved.projects ?? prev.projects
+      }));
     }
+
+    const shouldHydrateFromProfile =
+      !parsedSaved ||
+      (!parsedSaved.firstName &&
+        !parsedSaved.lastName &&
+        !parsedSaved.email &&
+        !parsedSaved.phone &&
+        !parsedSaved.location &&
+        !parsedSaved.bio &&
+        !parsedSaved.jobTitle &&
+        !(parsedSaved.education && parsedSaved.education.length) &&
+        !(parsedSaved.workExperience && parsedSaved.workExperience.length) &&
+        !(parsedSaved.technicalSkills && parsedSaved.technicalSkills.length) &&
+        !(parsedSaved.softSkills && parsedSaved.softSkills.length) &&
+        !(parsedSaved.projects && parsedSaved.projects.length) &&
+        !(parsedSaved.references && parsedSaved.references.length));
+
+    if (shouldHydrateFromProfile) {
+      void (async () => {
+        try {
+          const res = await fetch('/api/profile', { credentials: 'include' });
+          if (!res.ok) return;
+          const data = await res.json();
+          const snapshot = data.profileSnapshot as Partial<ProfileFormData> | null;
+          if (!snapshot) return;
+
+          setFormData((prev) => ({
+            ...prev,
+            firstName: snapshot.firstName ?? prev.firstName,
+            lastName: snapshot.lastName ?? prev.lastName,
+            email: snapshot.email ?? prev.email,
+            phone: snapshot.phone ?? prev.phone,
+            location: snapshot.location ?? prev.location,
+            bio: snapshot.bio ?? prev.bio,
+            jobTitle: snapshot.jobTitle ?? prev.jobTitle,
+            education: snapshot.education?.length ? snapshot.education : prev.education,
+            workExperience: snapshot.workExperience?.length ? snapshot.workExperience : prev.workExperience,
+            technicalSkills: snapshot.technicalSkills?.length ? snapshot.technicalSkills : prev.technicalSkills,
+            softSkills: snapshot.softSkills?.length ? snapshot.softSkills : prev.softSkills
+          }));
+        } catch {}
+      })();
+    }
+
     const savedCustomization = localStorage.getItem('cvBuilderCustomization');
     if (savedCustomization) {
-      setCustomization(JSON.parse(savedCustomization));
+      const parsed = JSON.parse(savedCustomization);
+      setCustomization((prev) => {
+        const sectionOrder = parsed.sectionOrder?.length ? parsed.sectionOrder : prev.sectionOrder;
+        const normalizedSectionOrder = sectionOrder.includes('projects')
+          ? sectionOrder
+          : (() => {
+              const idx = sectionOrder.indexOf('references');
+              const next = [...sectionOrder];
+              next.splice(idx >= 0 ? idx : next.length, 0, 'projects');
+              return next;
+            })();
+
+        return {
+          ...prev,
+          ...parsed,
+          sectionOrder: normalizedSectionOrder,
+          visibleSections: { ...prev.visibleSections, ...(parsed.visibleSections ?? {}) },
+          sectionStyle: { ...prev.sectionStyle, ...(parsed.sectionStyle ?? {}) }
+        };
+      });
     }
   }, []);
 
@@ -97,6 +262,45 @@ const CVBuilderPage: React.FC = () => {
     localStorage.setItem('cvBuilderData', JSON.stringify(formData));
     localStorage.setItem('cvBuilderCustomization', JSON.stringify(customization));
     toast.success('Progress saved!');
+  };
+
+  const stepFocus: Record<number, string> = {
+    0: 'Personal information and summary',
+    1: 'Work experience and achievements',
+    2: 'Education',
+    3: 'Skills (core and soft skills)',
+    4: 'Projects (optional portfolio highlights)',
+    5: 'References and recommendations',
+  };
+
+  const handleGetTips = async () => {
+    try {
+      setAiTipsError(null);
+      setIsGettingTips(true);
+
+      const focus = stepFocus[currentStep] ?? 'Overall CV';
+      const resumeTextRaw = buildResumeText(formData);
+      const resumeText =
+        resumeTextRaw ||
+        `The user is building a CV. Provide practical, step-by-step CV writing tips for: ${focus}.`;
+
+      const response = await provideResumeTips({
+        resumeText,
+        experienceLevel,
+        jobDescription: `Focus area: ${focus}`,
+      });
+
+      if (response) {
+        setAiTipsByStep((prev) => ({ ...prev, [currentStep]: response }));
+        return;
+      }
+
+      setAiTipsError('Unable to generate tips right now. Please try again.');
+    } catch (err) {
+      setAiTipsError(err instanceof Error ? err.message : 'Unable to generate tips right now. Please try again.');
+    } finally {
+      setIsGettingTips(false);
+    }
   };
 
   const handleExport = async () => {
@@ -111,9 +315,11 @@ const CVBuilderPage: React.FC = () => {
         template: 'Professional' as const,
         colorScheme: customization.primaryColor,
         fontFamily: customization.fontFamily,
-        showPhoto: customization.visibleSections.photo
+        showPhoto: customization.visibleSections.photo,
+        customization
       };
 
+      const { exportToWord } = await import('../profile/personal/utils/cvExport');
       await exportToWord(formData, exportOptions);
       toast.success('CV downloaded as Word document successfully!');
     } catch (error) {
@@ -128,8 +334,10 @@ const CVBuilderPage: React.FC = () => {
     { id: 0, title: 'Personal Info', icon: <User className="h-5 w-5" /> },
     { id: 1, title: 'Experience', icon: <Briefcase className="h-5 w-5" /> },
     { id: 2, title: 'Education', icon: <GraduationCap className="h-5 w-5" /> },
-    { id: 3, title: 'Skills', icon: <Code className="h-5 w-5" /> },
-    { id: 4, title: 'Customize & Export', icon: <Edit3 className="h-5 w-5" /> }
+    { id: 3, title: 'Skills', icon: <Sparkles className="h-5 w-5" /> },
+    { id: 4, title: 'Projects', icon: <Folder className="h-5 w-5" /> },
+    { id: 5, title: 'References', icon: <Users className="h-5 w-5" /> },
+    { id: 6, title: 'Customize & Export', icon: <Edit3 className="h-5 w-5" /> }
   ];
 
   return (
@@ -172,10 +380,53 @@ const CVBuilderPage: React.FC = () => {
         </div>
 
         {/* Main Content */}
-        {currentStep < 4 ? (
+        {currentStep < 6 ? (
           // Form Steps
           <div className="max-w-4xl mx-auto">
             <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
+              <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <span className="text-sm text-slate-400">Experience level for AI tips:</span>
+                  <select
+                    value={experienceLevel}
+                    onChange={(e) => setExperienceLevel(e.target.value)}
+                    className="px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                  >
+                    <option value="Student">Student</option>
+                    <option value="Entry-level">Entry-level</option>
+                    <option value="Mid-level">Mid-level</option>
+                    <option value="Senior">Senior</option>
+                    <option value="Career switcher">Career switcher</option>
+                  </select>
+                </div>
+
+                <Button
+                  onClick={handleGetTips}
+                  disabled={isGettingTips}
+                  variant="outline"
+                  className="border-slate-700 hover:bg-slate-800"
+                >
+                  {isGettingTips ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Lightbulb className="h-4 w-4 mr-2" />
+                  )}
+                  Get AI Tips
+                </Button>
+              </div>
+
+              {aiTipsError && (
+                <div className="mb-6 border border-red-500/30 bg-red-500/10 rounded-lg p-4 text-sm text-red-200">
+                  {aiTipsError}
+                </div>
+              )}
+
+              {aiTipsByStep[currentStep] && (
+                <div className="mb-6 border border-slate-700 bg-slate-800/30 rounded-lg p-4">
+                  <MarkdownRenderer content={aiTipsByStep[currentStep]} />
+                </div>
+              )}
+
               {currentStep === 0 && (
                 <PersonalInfoStep formData={formData} setFormData={setFormData} />
               )}
@@ -187,6 +438,17 @@ const CVBuilderPage: React.FC = () => {
               )}
               {currentStep === 3 && (
                 <SkillsStep formData={formData} setFormData={setFormData} />
+              )}
+              {currentStep === 4 && (
+                <ProjectsStep
+                  formData={formData}
+                  setFormData={setFormData}
+                  customization={customization}
+                  setCustomization={setCustomization}
+                />
+              )}
+              {currentStep === 5 && (
+                <ReferencesStep formData={formData} setFormData={setFormData} />
               )}
               
               {/* Navigation */}
@@ -211,10 +473,10 @@ const CVBuilderPage: React.FC = () => {
                 </Button>
                 
                 <Button
-                  onClick={() => setCurrentStep(Math.min(4, currentStep + 1))}
+                  onClick={() => setCurrentStep(Math.min(6, currentStep + 1))}
                   className="bg-blue-600 hover:bg-blue-700"
                 >
-                  Next
+                  {currentStep === 5 ? 'Customize' : 'Next'}
                   <ChevronRight className="h-4 w-4 ml-2" />
                 </Button>
               </div>
@@ -232,7 +494,7 @@ const CVBuilderPage: React.FC = () => {
               
               {/* Back Button */}
               <Button
-                onClick={() => setCurrentStep(3)}
+                onClick={() => setCurrentStep(5)}
                 variant="outline"
                 className="w-full mt-4 border-slate-700 hover:bg-slate-800"
               >
@@ -791,15 +1053,15 @@ function SkillsStep({ formData, setFormData }: any) {
     <div className="space-y-8">
       <div>
         <h2 className="text-2xl font-bold text-white mb-2">Skills</h2>
-        <p className="text-slate-400">Add your technical expertise and soft skills</p>
+        <p className="text-slate-400">Add your job-specific skills and strengths</p>
       </div>
 
       {/* Technical Skills Section */}
       <div className="border border-slate-700 rounded-lg p-6 bg-slate-800/30">
         <div className="flex justify-between items-center mb-4">
           <div>
-            <h3 className="text-lg font-semibold text-white">Technical Skills</h3>
-            <p className="text-sm text-slate-400">Programming languages, tools, and technologies</p>
+            <h3 className="text-lg font-semibold text-white">Core Skills</h3>
+            <p className="text-sm text-slate-400">Tools, methods, and role-specific skills</p>
           </div>
           <Button
             onClick={addTechnicalSkill}
@@ -807,15 +1069,15 @@ function SkillsStep({ formData, setFormData }: any) {
             size="sm"
             className="border-slate-700 hover:bg-slate-800"
           >
-            <Code className="h-4 w-4 mr-2" />
+            <Sparkles className="h-4 w-4 mr-2" />
             Add Skill
           </Button>
         </div>
 
         {(!formData.technicalSkills || formData.technicalSkills.length === 0) ? (
           <div className="text-center py-6 bg-slate-800/30 rounded-lg">
-            <Code className="h-10 w-10 text-slate-600 mx-auto mb-2" />
-            <p className="text-slate-400 text-sm">No technical skills added yet</p>
+            <Sparkles className="h-10 w-10 text-slate-600 mx-auto mb-2" />
+            <p className="text-slate-400 text-sm">No core skills added yet</p>
             <Button
               onClick={addTechnicalSkill}
               size="sm"
@@ -833,7 +1095,7 @@ function SkillsStep({ formData, setFormData }: any) {
                   value={skill.name || ''}
                   onChange={(e) => updateTechnicalSkill(index, 'name', e.target.value)}
                   className="flex-1 px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
-                  placeholder="e.g., JavaScript, Python, React"
+                  placeholder="e.g., Excel, Customer service, Cash handling, Inventory, Canva"
                 />
                 <select
                   value={skill.level || 'Intermediate'}
@@ -919,9 +1181,9 @@ function SkillsStep({ formData, setFormData }: any) {
         <h3 className="text-lg font-semibold text-white mb-3">Quick Add Suggestions</h3>
         
         <div className="mb-4">
-          <p className="text-sm text-slate-400 mb-2">Popular Technical Skills:</p>
+          <p className="text-sm text-slate-400 mb-2">Popular Core Skills:</p>
           <div className="flex flex-wrap gap-2">
-            {['JavaScript', 'Python', 'React', 'Node.js', 'SQL', 'Git', 'Docker', 'AWS'].map((skill) => (
+            {['Customer Service', 'Excel', 'Sales', 'Administration', 'POS Systems', 'Cash Handling', 'Project Coordination', 'Inventory Management', 'Canva'].map((skill) => (
               <button
                 key={skill}
                 onClick={() => {
@@ -961,6 +1223,335 @@ function SkillsStep({ formData, setFormData }: any) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ProjectsStep({ formData, setFormData, customization, setCustomization }: any) {
+  const addProject = () => {
+    const newProject = {
+      name: '',
+      technologies: '',
+      description: '',
+      link: ''
+    };
+
+    setFormData({
+      ...formData,
+      projects: [...(formData.projects || []), newProject]
+    });
+
+    setCustomization({
+      ...customization,
+      sectionOrder: customization.sectionOrder.includes('projects')
+        ? customization.sectionOrder
+        : (() => {
+            const idx = customization.sectionOrder.indexOf('references');
+            const next = [...customization.sectionOrder];
+            next.splice(idx >= 0 ? idx : next.length, 0, 'projects');
+            return next;
+          })(),
+      visibleSections: { ...customization.visibleSections, projects: true }
+    });
+  };
+
+  const updateProject = (index: number, field: string, value: any) => {
+    const updatedProjects = [...(formData.projects || [])];
+    updatedProjects[index] = {
+      ...updatedProjects[index],
+      [field]: value
+    };
+    setFormData({ ...formData, projects: updatedProjects });
+  };
+
+  const removeProject = (index: number) => {
+    const updatedProjects = (formData.projects || []).filter((_: any, i: number) => i !== index);
+    setFormData({ ...formData, projects: updatedProjects });
+  };
+
+  const toggleVisibility = (checked: boolean) => {
+    setCustomization({
+      ...customization,
+      sectionOrder: customization.sectionOrder.includes('projects')
+        ? customization.sectionOrder
+        : (() => {
+            const idx = customization.sectionOrder.indexOf('references');
+            const next = [...customization.sectionOrder];
+            next.splice(idx >= 0 ? idx : next.length, 0, 'projects');
+            return next;
+          })(),
+      visibleSections: { ...customization.visibleSections, projects: checked }
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-white">Projects (Optional)</h2>
+          <p className="text-slate-400">
+            Add projects if they strengthen your CV. This section is optional for many industries.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={!!customization?.visibleSections?.projects}
+              onChange={(e) => toggleVisibility(e.target.checked)}
+              className="w-4 h-4 text-blue-600 bg-slate-800 border-slate-600 rounded"
+            />
+            Show on CV
+          </label>
+          <Button
+            onClick={addProject}
+            variant="outline"
+            className="border-slate-700 hover:bg-slate-800"
+          >
+            <Folder className="h-4 w-4 mr-2" />
+            Add Project
+          </Button>
+        </div>
+      </div>
+
+      {(!formData.projects || formData.projects.length === 0) ? (
+        <div className="text-center py-8 bg-slate-800/30 rounded-lg">
+          <Folder className="h-12 w-12 text-slate-600 mx-auto mb-3" />
+          <p className="text-slate-400">No projects added</p>
+          <Button
+            onClick={addProject}
+            className="mt-4 bg-blue-600 hover:bg-blue-700"
+          >
+            Add Your First Project
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {formData.projects.map((project: any, index: number) => (
+            <div key={index} className="border border-slate-700 rounded-lg p-6 bg-slate-800/30">
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-lg font-semibold text-white">Project {index + 1}</h3>
+                <Button
+                  onClick={() => removeProject(index)}
+                  variant="ghost"
+                  size="sm"
+                  className="text-red-400 hover:text-red-300"
+                >
+                  Remove
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Project Name</label>
+                  <input
+                    type="text"
+                    value={project.name || ''}
+                    onChange={(e) => updateProject(index, 'name', e.target.value)}
+                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                    placeholder="e.g., Community Events Website"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Tools / Skills Used (optional)</label>
+                  <input
+                    type="text"
+                    value={project.technologies || ''}
+                    onChange={(e) => updateProject(index, 'technologies', e.target.value)}
+                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                    placeholder="e.g., Excel, Canva, WordPress"
+                  />
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-slate-300 mb-2">Link (optional)</label>
+                <input
+                  type="url"
+                  value={project.link || ''}
+                  onChange={(e) => updateProject(index, 'link', e.target.value)}
+                  className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                  placeholder="https://..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Description (optional)</label>
+                <textarea
+                  value={project.description || ''}
+                  onChange={(e) => updateProject(index, 'description', e.target.value)}
+                  rows={3}
+                  className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                  placeholder="What was the project about and what did you achieve?"
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReferencesStep({ formData, setFormData }: any) {
+  const addReference = () => {
+    const newReference = {
+      name: '',
+      relationship: '',
+      title: '',
+      company: '',
+      email: '',
+      phone: '',
+      recommendation: ''
+    };
+
+    setFormData({
+      ...formData,
+      references: [...(formData.references || []), newReference]
+    });
+  };
+
+  const updateReference = (index: number, field: string, value: any) => {
+    const updatedReferences = [...(formData.references || [])];
+    updatedReferences[index] = {
+      ...updatedReferences[index],
+      [field]: value
+    };
+    setFormData({ ...formData, references: updatedReferences });
+  };
+
+  const removeReference = (index: number) => {
+    const updatedReferences = (formData.references || []).filter((_: any, i: number) => i !== index);
+    setFormData({ ...formData, references: updatedReferences });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h2 className="text-2xl font-bold text-white">References</h2>
+          <p className="text-slate-400">Add referees and optional recommendation quotes</p>
+        </div>
+        <Button
+          onClick={addReference}
+          variant="outline"
+          className="border-slate-700 hover:bg-slate-800"
+        >
+          <Users className="h-4 w-4 mr-2" />
+          Add Reference
+        </Button>
+      </div>
+
+      {(!formData.references || formData.references.length === 0) ? (
+        <div className="text-center py-8 bg-slate-800/30 rounded-lg">
+          <Users className="h-12 w-12 text-slate-600 mx-auto mb-3" />
+          <p className="text-slate-400">No references added yet</p>
+          <Button
+            onClick={addReference}
+            className="mt-4 bg-blue-600 hover:bg-blue-700"
+          >
+            Add Your First Reference
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {formData.references.map((ref: any, index: number) => (
+            <div key={index} className="border border-slate-700 rounded-lg p-6 bg-slate-800/30">
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-lg font-semibold text-white">Reference {index + 1}</h3>
+                <Button
+                  onClick={() => removeReference(index)}
+                  variant="ghost"
+                  size="sm"
+                  className="text-red-400 hover:text-red-300"
+                >
+                  Remove
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Full Name</label>
+                  <input
+                    type="text"
+                    value={ref.name || ''}
+                    onChange={(e) => updateReference(index, 'name', e.target.value)}
+                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                    placeholder="e.g., Thandi Mokoena"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Relationship</label>
+                  <input
+                    type="text"
+                    value={ref.relationship || ''}
+                    onChange={(e) => updateReference(index, 'relationship', e.target.value)}
+                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                    placeholder="e.g., Manager / Supervisor / Lecturer"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Job Title (optional)</label>
+                  <input
+                    type="text"
+                    value={ref.title || ''}
+                    onChange={(e) => updateReference(index, 'title', e.target.value)}
+                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                    placeholder="e.g., Store Manager"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Company (optional)</label>
+                  <input
+                    type="text"
+                    value={ref.company || ''}
+                    onChange={(e) => updateReference(index, 'company', e.target.value)}
+                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                    placeholder="e.g., FNB"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Email (optional)</label>
+                  <input
+                    type="email"
+                    value={ref.email || ''}
+                    onChange={(e) => updateReference(index, 'email', e.target.value)}
+                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                    placeholder="e.g., thandi@example.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Phone (optional)</label>
+                  <input
+                    type="tel"
+                    value={ref.phone || ''}
+                    onChange={(e) => updateReference(index, 'phone', e.target.value)}
+                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                    placeholder="e.g., +27 82 123 4567"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Recommendation (optional)</label>
+                <textarea
+                  value={ref.recommendation || ''}
+                  onChange={(e) => updateReference(index, 'recommendation', e.target.value)}
+                  rows={3}
+                  className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                  placeholder="A short quote you want to include, or leave blank."
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,33 +11,37 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Textarea } from '@/components/ui/textarea';
-import { 
-  Loader2, 
-  FileText, 
-  Target, 
-  TrendingUp, 
-  CheckCircle, 
-  AlertCircle, 
-  Download, 
-  Upload,
+import {
+  Loader2,
+  FileText,
+  Target,
+  TrendingUp,
+  CheckCircle,
+  AlertCircle,
+  Download,
   X,
   Plus,
   Sparkles,
   Copy,
   RefreshCw,
   User,
-  Briefcase,
-  GraduationCap,
-  Award
+  Award,
+  ChevronLeft,
+  BarChart3,
+  Lightbulb,
+  ClipboardList,
+  Wand2,
 } from 'lucide-react';
 import { parseCV, extractSkillsFromCV } from '@/lib/cvParser';
 import { useProfileStrength } from '@/hooks/useProfileStrength';
 import { useUserProfile } from '@/hooks/useUserProfile';
-import { ProfileFormData } from '@/app/profile/personal/profile.schema';
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
+import { extractTextFromFile } from '@/lib/fileTextExtractor';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '@/lib/utils';
 
 // ============================================================================
-// Types & Interfaces
+// Types
 // ============================================================================
 
 interface JobData {
@@ -49,60 +53,6 @@ interface JobData {
   salary?: string;
 }
 
-// Enhanced profile interface that integrates with the main profile system
-interface EnhancedUserProfile {
-  // Basic info from main profile
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  location: string;
-  bio: string;
-  
-  // Experience and education
-  workExperience: Array<{
-    company: string;
-    position: string;
-    description: string;
-    startDate: Date;
-    endDate?: Date;
-    current: boolean;
-  }>;
-  education: Array<{
-    institution: string;
-    degree: string;
-    fieldOfStudy: string;
-    startDate: Date;
-    endDate?: Date;
-    current: boolean;
-  }>;
-  
-  // Skills
-  technicalSkills: Array<{
-    name: string;
-    level: string;
-  }>;
-  softSkills: string[];
-  languages: Array<{
-    name: string;
-    proficiency: string;
-  }>;
-  
-  // Career preferences
-  jobTitle: string;
-  industries: string[];
-  jobTypes: string[];
-  remotePreference: string;
-  careerGoals: string;
-  salaryExpectation?: number;
-  
-  // CV preferences
-  template: string;
-  colorScheme: string;
-  fontFamily: string;
-}
-
-// Legacy interface for backward compatibility
 interface UserProfile {
   skills: string[];
   experience: string;
@@ -122,12 +72,6 @@ interface ApplicationPackage {
   };
 }
 
-interface CVParseResult {
-  skills: string[];
-  experience: string;
-  level: string;
-}
-
 // ============================================================================
 // Constants
 // ============================================================================
@@ -136,303 +80,302 @@ const ACCEPTED_FILE_TYPES = {
   'text/plain': ['.txt'],
   'application/pdf': ['.pdf'],
   'application/msword': ['.doc'],
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx']
-};
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+} as const;
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
 const EXPERIENCE_LEVELS = [
   { value: '', label: 'Select level' },
-  { value: 'Entry Level', label: 'Entry Level (0-2 years)' },
-  { value: 'Mid Level', label: 'Mid Level (2-5 years)' },
-  { value: 'Senior Level', label: 'Senior Level (5-10 years)' },
-  { value: 'Lead/Principal', label: 'Lead/Principal (10+ years)' }
+  { value: 'Entry Level', label: 'Entry Level (0–2 years)' },
+  { value: 'Mid Level', label: 'Mid Level (2–5 years)' },
+  { value: 'Senior Level', label: 'Senior Level (5–10 years)' },
+  { value: 'Lead/Principal', label: 'Lead / Principal (10+ years)' },
 ] as const;
 
+const GENERATION_STEPS = [
+  'Analysing job requirements…',
+  'Matching your profile…',
+  'Tailoring your CV…',
+  'Drafting cover letter…',
+  'Compiling market insights…',
+  'Finalising package…',
+];
+
 // ============================================================================
-// Utility Functions
+// Utility helpers
 // ============================================================================
 
 const determineExperienceLevel = (experience: any[]): string => {
   const totalYears = experience.reduce((acc, exp) => {
-    const yearMatch = exp.duration?.match(/(\d+)\s*years?/i);
-    return acc + (yearMatch ? parseInt(yearMatch[1]) : 0);
+    const match = exp.duration?.match(/(\d+)\s*years?/i);
+    return acc + (match ? parseInt(match[1]) : 0);
   }, 0);
-
   if (totalYears >= 10) return 'Lead/Principal';
   if (totalYears >= 5) return 'Senior Level';
   if (totalYears >= 2) return 'Mid Level';
   return 'Entry Level';
 };
 
-const formatExperience = (experience: any[]): string => {
-  return experience.map(exp => {
-    const parts = [];
-    if (exp.position) parts.push(exp.position);
-    if (exp.company) parts.push(`at ${exp.company}`);
-    if (exp.duration) parts.push(`(${exp.duration})`);
-    
-    let result = parts.join(' ');
-    if (exp.description) result += `\n\n${exp.description}`;
-    
-    return result;
-  }).join('\n\n');
-};
+const formatExperience = (experience: any[]): string =>
+  experience
+    .map((exp) => {
+      const parts: string[] = [];
+      if (exp.position) parts.push(exp.position);
+      if (exp.company) parts.push(`at ${exp.company}`);
+      if (exp.duration) parts.push(`(${exp.duration})`);
+      return [parts.join(' '), exp.description].filter(Boolean).join('\n\n');
+    })
+    .join('\n\n');
 
 const validateFile = (file: File): { valid: boolean; error?: string } => {
-  if (!Object.keys(ACCEPTED_FILE_TYPES).includes(file.type)) {
-    return {
-      valid: false,
-      error: 'Please upload a PDF, DOC, DOCX, or TXT file'
-    };
+  const allowedExts = Object.values(ACCEPTED_FILE_TYPES).flat();
+  const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+  if (!Object.keys(ACCEPTED_FILE_TYPES).includes(file.type) && !allowedExts.includes(ext)) {
+    return { valid: false, error: 'Please upload a PDF, DOC, DOCX, or TXT file.' };
   }
-
   if (file.size > MAX_FILE_SIZE) {
-    return {
-      valid: false,
-      error: 'File size must be less than 5MB'
-    };
+    return { valid: false, error: 'File size must be less than 5 MB.' };
   }
-
   return { valid: true };
-};
-
-const readFileAsText = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
-      resolve(text);
-    };
-    
-    reader.onerror = () => reject(new Error('Failed to read file'));
-    
-    reader.readAsText(file);
-  });
 };
 
 const copyToClipboard = async (text: string): Promise<boolean> => {
   try {
     await navigator.clipboard.writeText(text);
     return true;
-  } catch (error) {
-    console.error('Failed to copy:', error);
+  } catch {
     return false;
   }
 };
 
 // ============================================================================
-// Sub-Components
+// Animation variants
 // ============================================================================
 
-interface SkillBadgeProps {
-  skill: string;
-  onRemove: (skill: string) => void;
-  className?: string;
-}
+const fadeUp = {
+  hidden: { opacity: 0, y: 16 },
+  visible: (i = 0) => ({
+    opacity: 1,
+    y: 0,
+    transition: { delay: i * 0.06, duration: 0.4, ease: [0.16, 1, 0.3, 1] },
+  }),
+};
 
-const SkillBadge: React.FC<SkillBadgeProps> = ({ skill, onRemove, className }) => (
-  <Badge
-    variant="secondary"
-    className={`cursor-pointer hover:bg-slate-700 transition-colors ${className || ''}`}
-    onClick={() => onRemove(skill)}
+// ============================================================================
+// Sub-components
+// ============================================================================
+
+/** Character count with colour feedback */
+const CharCount = ({ value, max }: { value: number; max?: number }) => (
+  <span
+    className={cn(
+      'text-xs tabular-nums',
+      max && value > max * 0.9 ? 'text-amber-400' : 'text-slate-500',
+    )}
   >
-    {skill}
-    <X className="w-3 h-3 ml-1" />
-  </Badge>
+    {value.toLocaleString()} {max ? `/ ${max.toLocaleString()}` : 'chars'}
+  </span>
 );
 
-interface SkillInputProps {
-  onAdd: (skill: string) => void;
+/** Skill pill with remove action */
+const SkillBadge = ({
+  skill,
+  onRemove,
+}: {
+  skill: string;
+  onRemove: (s: string) => void;
+}) => (
+  <motion.div layout initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
+    <Badge
+      variant="secondary"
+      className="cursor-pointer select-none gap-1 pr-1.5 hover:bg-rose-500/20 hover:text-rose-300 hover:border-rose-500/40 transition-colors"
+      onClick={() => onRemove(skill)}
+    >
+      {skill}
+      <X className="w-2.5 h-2.5 opacity-60" />
+    </Badge>
+  </motion.div>
+);
+
+/** Inline skill entry field */
+const SkillInput = ({
+  onAdd,
+  existingSkills,
+}: {
+  onAdd: (s: string) => void;
   existingSkills: string[];
-}
+}) => {
+  const [value, setValue] = useState('');
 
-const SkillInput: React.FC<SkillInputProps> = ({ onAdd, existingSkills }) => {
-  const [inputValue, setInputValue] = useState('');
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const trimmed = inputValue.trim();
-      
-      if (trimmed && !existingSkills.includes(trimmed)) {
-        onAdd(trimmed);
-        setInputValue('');
-        toast.success(`Added skill: ${trimmed}`);
-      } else if (existingSkills.includes(trimmed)) {
-        toast.error('Skill already exists');
-      }
+  const commit = () => {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    if (existingSkills.includes(trimmed)) {
+      toast.error('Skill already added');
+      return;
     }
+    onAdd(trimmed);
+    setValue('');
   };
 
   return (
-    <div className="relative">
+    <div className="flex gap-2">
       <Input
-        value={inputValue}
-        onChange={(e) => setInputValue(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="Type a skill and press Enter"
-        aria-label="Add new skill"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), commit())}
+        placeholder="Type a skill and press Enter…"
+        className="flex-1 text-sm"
+        aria-label="Add skill"
       />
-      <Plus className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+      <Button size="sm" variant="outline" onClick={commit} className="px-3 shrink-0">
+        <Plus className="w-4 h-4" />
+      </Button>
     </div>
   );
 };
 
-interface CVUploadProps {
-  isUploading: boolean;
-  cvFile: File | null;
-  cvParsed: boolean;
-  onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onReset: () => void;
-}
+/** Animated generation progress overlay */
+const GeneratingOverlay = ({ progress }: { progress: number }) => {
+  const stepIndex = Math.min(
+    Math.floor((progress / 100) * GENERATION_STEPS.length),
+    GENERATION_STEPS.length - 1,
+  );
 
-const CVUpload: React.FC<CVUploadProps> = ({ 
-  isUploading, 
-  cvFile, 
-  cvParsed, 
-  onUpload,
-  onReset 
-}) => (
-  <div>
-    <label className="block text-sm font-medium mb-2">
-      Upload Current CV
-      <span className="text-slate-400 ml-2 text-xs">(Optional - helps improve accuracy)</span>
-    </label>
-    <div className="border-2 border-dashed border-slate-600 rounded-lg p-4 sm:p-6 hover:border-slate-500 transition-colors">
-      <input
-        type="file"
-        accept={Object.values(ACCEPTED_FILE_TYPES).flat().join(',')}
-        onChange={onUpload}
-        disabled={isUploading}
-        className="hidden"
-        id="cv-upload"
-        aria-label="Upload CV file"
-      />
-      <label
-        htmlFor="cv-upload"
-        className="cursor-pointer flex flex-col items-center"
-      >
-        {isUploading ? (
-          <>
-            <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-2" />
-            <span className="text-sm text-slate-400 text-center">Parsing CV...</span>
-            <Progress value={66} className="w-full mt-2" />
-          </>
-        ) : cvFile ? (
-          <>
-            <CheckCircle className="w-8 h-8 text-green-500 mb-2" />
-            <span className="text-sm text-slate-300 text-center break-all px-2">{cvFile.name}</span>
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.97 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="flex flex-col items-center justify-center py-20 px-8 gap-6"
+    >
+      <div className="relative w-16 h-16">
+        <svg className="w-full h-full -rotate-90" viewBox="0 0 64 64">
+          <circle cx="32" cy="32" r="28" fill="none" stroke="rgba(255,255,255,.07)" strokeWidth="4" />
+          <motion.circle
+            cx="32" cy="32" r="28"
+            fill="none"
+            stroke="url(#prog-grad)"
+            strokeWidth="4"
+            strokeLinecap="round"
+            strokeDasharray={175.9}
+            strokeDashoffset={175.9 - (progress / 100) * 175.9}
+            transition={{ duration: 0.6, ease: 'easeOut' }}
+          />
+          <defs>
+            <linearGradient id="prog-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#ec4899" />
+              <stop offset="100%" stopColor="#a855f7" />
+            </linearGradient>
+          </defs>
+        </svg>
+        <Wand2 className="absolute inset-0 m-auto w-6 h-6 text-pink-400" />
+      </div>
+
+      <div className="text-center space-y-1">
+        <p className="text-base font-medium text-white">
+          Generating your package
+        </p>
+        <AnimatePresence mode="wait">
+          <motion.p
+            key={stepIndex}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            className="text-sm text-slate-400"
+          >
+            {GENERATION_STEPS[stepIndex]}
+          </motion.p>
+        </AnimatePresence>
+      </div>
+
+      <div className="w-full max-w-xs space-y-1.5">
+        <Progress value={progress} className="h-1.5" />
+        <p className="text-xs text-slate-500 text-right tabular-nums">{Math.round(progress)}%</p>
+      </div>
+    </motion.div>
+  );
+};
+
+/** Content card with copy capability */
+const ContentDisplay = ({
+  title,
+  content,
+  icon,
+  onCopy,
+}: {
+  title: string;
+  content: string;
+  icon: React.ReactNode;
+  onCopy?: () => void;
+}) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    if (!onCopy) return;
+    onCopy();
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader className="pb-3 border-b border-slate-800">
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle className="flex items-center gap-2 text-sm sm:text-base font-semibold">
+            {icon}
+            {title}
+          </CardTitle>
+          {onCopy && (
             <Button
               variant="ghost"
               size="sm"
-              onClick={(e) => {
-                e.preventDefault();
-                onReset();
-              }}
-              className="mt-2"
+              onClick={handleCopy}
+              className={cn(
+                'gap-1.5 text-xs shrink-0 transition-colors',
+                copied ? 'text-green-400' : 'text-slate-400 hover:text-white',
+              )}
             >
-              <RefreshCw className="w-3 h-3 mr-1" />
-              Upload Different File
+              {copied ? (
+                <><CheckCircle className="w-3.5 h-3.5" /> Copied</>
+              ) : (
+                <><Copy className="w-3.5 h-3.5" /> Copy</>
+              )}
             </Button>
-          </>
-        ) : (
-          <>
-            <Upload className="w-8 h-8 text-slate-400 mb-2" />
-            <span className="text-sm text-slate-400 text-center">
-              Click to upload CV (PDF, DOC, DOCX, TXT)
-            </span>
-            <span className="text-xs text-slate-500 mt-1">
-              Max size: 5MB
-            </span>
-          </>
-        )}
-      </label>
-    </div>
-    {cvParsed && (
-      <Alert className="mt-3 bg-green-950/30 border-green-900">
-        <CheckCircle className="w-4 h-4 text-green-500" />
-        <AlertDescription className="text-green-300">
-          CV parsed successfully! Skills and experience have been extracted.
-        </AlertDescription>
-      </Alert>
-    )}
-  </div>
-);
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="bg-slate-950/40 p-4 sm:p-6 max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+          <MarkdownRenderer content={content} className="prose-sm" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
 
-interface ContentDisplayProps {
-  content: string;
-  title: string;
-  icon: React.ReactNode;
-  iconColor: string;
-  onCopy?: () => void;
-}
-
-const ContentDisplay: React.FC<ContentDisplayProps> = ({ 
-  content, 
-  title, 
-  icon, 
-  iconColor,
-  onCopy 
-}) => (
-  <Card>
-    <CardHeader>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-          {icon}
-          {title}
-        </CardTitle>
-        {onCopy && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onCopy}
-            className="gap-2 w-full sm:w-auto"
-          >
-            <Copy className="w-4 h-4" />
-            Copy
-          </Button>
-        )}
-      </div>
-    </CardHeader>
-    <CardContent>
-      <div className="bg-slate-900/50 backdrop-blur-sm p-4 sm:p-6 rounded-xl max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-900">
-        <MarkdownRenderer content={content} className="prose-sm" />
-      </div>
-    </CardContent>
-  </Card>
-);
-
-// ============================================================================
-// Profile Strength Display Component
-// ============================================================================
-
-interface ProfileStrengthDisplayProps {
+/** Profile strength panel */
+const ProfileStrengthPanel = ({
+  percentage,
+  label,
+  color,
+  recommendations,
+  isLoading,
+  error,
+}: {
   percentage: number;
   label: string;
   color: string;
   recommendations: string[];
   isLoading: boolean;
   error: string | null;
-}
-
-const ProfileStrengthDisplay: React.FC<ProfileStrengthDisplayProps> = ({
-  percentage,
-  label,
-  color,
-  recommendations,
-  isLoading,
-  error
 }) => {
   if (isLoading) {
     return (
       <Card className="mb-4 sm:mb-6">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-3">
-            <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
-            <span className="text-slate-400">Loading profile data...</span>
-          </div>
+        <CardContent className="p-4 flex items-center gap-3">
+          <Loader2 className="w-4 h-4 animate-spin text-blue-500 shrink-0" />
+          <span className="text-sm text-slate-400">Loading profile…</span>
         </CardContent>
       </Card>
     );
@@ -440,62 +383,55 @@ const ProfileStrengthDisplay: React.FC<ProfileStrengthDisplayProps> = ({
 
   if (error) {
     return (
-      <Card className="mb-4 sm:mb-6 border-red-900">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-3 text-red-400">
-            <AlertCircle className="w-5 h-5" />
-            <span>Unable to load profile data</span>
-          </div>
+      <Card className="mb-4 sm:mb-6 border-red-900/50">
+        <CardContent className="p-4 flex items-center gap-3 text-red-400">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span className="text-sm">Unable to load profile data</span>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card className="mb-4 sm:mb-6">
-      <CardContent className="p-4 sm:p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-          <div className="flex items-center gap-3">
-            <User className="w-5 h-5 text-blue-500 flex-shrink-0" />
-            <h3 className="text-base sm:text-lg font-semibold text-white">Profile Strength</h3>
+    <Card className="mb-4 sm:mb-6 bg-gradient-to-br from-slate-900 to-slate-900/80">
+      <CardContent className="p-4 sm:p-5">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <User className="w-4 h-4 text-blue-400 shrink-0" />
+            <span className="text-sm font-semibold text-white">Profile Strength</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className={`text-xl sm:text-2xl font-bold bg-gradient-to-r ${color} bg-clip-text text-transparent`}>
+            <span className={`text-lg font-bold bg-gradient-to-r ${color} bg-clip-text text-transparent tabular-nums`}>
               {percentage}%
             </span>
-            <Badge variant={percentage >= 70 ? 'default' : 'secondary'}>
+            <Badge variant={percentage >= 70 ? 'default' : 'secondary'} className="text-xs">
               {label}
             </Badge>
           </div>
         </div>
-        
-        <Progress value={percentage} className="mb-4" />
-        
+
+        <Progress value={percentage} className="h-1.5 mb-3" />
+
         {recommendations.length > 0 && (
-          <div className="space-y-2">
-            <h4 className="text-sm font-medium text-slate-400 mb-2">Recommendations:</h4>
-            <div className="space-y-1">
-              {recommendations.slice(0, 3).map((rec, index) => (
-                <div key={index} className="flex items-start gap-2 text-sm text-slate-300">
-                  <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 flex-shrink-0" />
-                  <span>{rec}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          <ul className="space-y-1 mb-3">
+            {recommendations.slice(0, 3).map((rec, i) => (
+              <li key={i} className="flex items-start gap-2 text-xs text-slate-400">
+                <span className="mt-1.5 w-1 h-1 rounded-full bg-blue-500 shrink-0" />
+                {rec}
+              </li>
+            ))}
+          </ul>
         )}
-        
-        <div className="mt-4 pt-4 border-t border-slate-700">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => window.location.href = '/profile/personal'}
-            className="w-full"
-          >
-            <Award className="w-4 h-4 mr-2" />
-            Complete Your Profile
-          </Button>
-        </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full text-xs h-8 border-slate-700 hover:border-slate-500"
+          onClick={() => (window.location.href = '/profile/personal')}
+        >
+          <Award className="w-3.5 h-3.5 mr-1.5" />
+          Complete Your Profile
+        </Button>
       </CardContent>
     </Card>
   );
@@ -507,66 +443,52 @@ const ProfileStrengthDisplay: React.FC<ProfileStrengthDisplayProps> = ({
 
 export default function ApplicationsPage() {
   const { user } = useUser();
-  
-  // Enhanced Profile Integration
-  const { 
-    percentage: profileStrength, 
-    label: strengthLabel, 
-    color: strengthColor, 
+
+  const {
+    percentage: profileStrength,
+    label: strengthLabel,
+    color: strengthColor,
     recommendations: strengthRecommendations,
     isLoading: isProfileLoading,
-    error: profileError 
+    error: profileError,
   } = useProfileStrength();
-  
-  // Access to user profile data throughout the app
-  const userProfileData = useUserProfile();
-  
-  // Hydration fix: defer Radix Tabs rendering until client mount
+
+  // Hydration guard for Radix Tabs
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
-  // State Management
+  // Core state
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [activeTab, setActiveTab] = useState('input');
+  const [activeTab, setActiveTab] = useState<'input' | 'results'>('input');
+  const [genProgress, setGenProgress] = useState(0);
+
+  // CV state
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [cvParsed, setCvParsed] = useState(false);
-  const [cvText, setCvText] = useState<string>('');
-  
-  // Enhanced profile state
-  const [enhancedProfile, setEnhancedProfile] = useState<EnhancedUserProfile | null>(null);
-  
+  const [cvText, setCvText] = useState('');
+
+  // Form state
   const [jobData, setJobData] = useState<JobData>({
-    title: '',
-    company: '',
-    description: '',
-    location: '',
-    type: '',
-    salary: ''
+    title: '', company: '', description: '', location: '', type: '', salary: '',
   });
-  
-  // Legacy profile state for backward compatibility
+
   const [userProfile, setUserProfile] = useState<UserProfile>({
-    skills: [],
-    experience: '',
-    level: '',
-    preferences: ''
+    skills: [], experience: '', level: '', preferences: '',
   });
-  
+
   const [applicationPackage, setApplicationPackage] = useState<ApplicationPackage | null>(null);
 
+  // Progress simulation ref
+  const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   // ============================================================================
-  // Computed Values
+  // Derived
   // ============================================================================
 
-  const isFormValid = useMemo(() => 
-    Boolean(jobData.title && jobData.company && jobData.description),
-    [jobData.title, jobData.company, jobData.description]
-  );
-
-  const canGeneratePackage = useMemo(() => 
-    isFormValid && !isLoading,
-    [isFormValid, isLoading]
+  const isFormValid = useMemo(
+    () => Boolean(jobData.title.trim() && jobData.company.trim() && jobData.description.trim()),
+    [jobData.title, jobData.company, jobData.description],
   );
 
   // ============================================================================
@@ -574,701 +496,691 @@ export default function ApplicationsPage() {
   // ============================================================================
 
   useEffect(() => {
-    if (user) {
-      loadUserProfile();
-    }
-  }, [user]);
+    if (user) loadUserProfile();
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => () => { if (progressRef.current) clearInterval(progressRef.current); }, []);
 
   // ============================================================================
-  // API Calls
+  // Loaders
   // ============================================================================
 
   const loadUserProfile = useCallback(async () => {
     try {
-      const response = await fetch('/api/profile');
-      
-      if (response.ok) {
-        const data = await response.json();
-        setUserProfile({
-          skills: data.profile?.skills || [],
-          experience: data.profile?.experience || '',
-          level: data.profile?.level || '',
-          preferences: data.profile?.preferences || ''
-        });
-        
-        // Set enhanced profile with full data
-        setEnhancedProfile({
-          firstName: data.profile?.firstName || '',
-          lastName: data.profile?.lastName || '',
-          email: data.user?.email || '',
-          phone: data.profile?.phone || '',
-          location: data.profile?.location || '',
-          bio: data.profile?.bio || '',
-          
-          workExperience: data.experience?.map((exp: any) => ({
-            company: exp.company,
-            position: exp.position,
-            description: exp.description || '',
-            startDate: new Date(exp.startDate),
-            endDate: exp.endDate ? new Date(exp.endDate) : undefined,
-            current: exp.current || false
-          })) || [],
-          
-          education: data.education?.map((edu: any) => ({
-            institution: edu.institution,
-            degree: edu.degree,
-            fieldOfStudy: edu.fieldOfStudy,
-            startDate: new Date(edu.startDate),
-            endDate: edu.endDate ? new Date(edu.endDate) : undefined,
-            current: edu.current || false
-          })) || [],
-          
-          technicalSkills: data.skills
-            ?.filter((s: any) => s.category === 'technical')
-            ?.map((s: any) => ({
-              name: s.name,
-              level: s.proficiency || 'Intermediate'
-            })) || [],
-          
-          softSkills: data.skills
-            ?.filter((s: any) => s.category === 'soft')
-            ?.map((s: any) => s.name) || [],
-            
-          languages: data.skills
-            ?.filter((s: any) => s.category === 'language')
-            ?.map((s: any) => ({
-              name: s.name,
-              proficiency: s.proficiency || 'Conversational'
-            })) || [],
-          
-          jobTitle: data.jobPreferences?.jobTitle || '',
-          industries: data.jobPreferences?.industries || [],
-          jobTypes: data.jobPreferences?.desiredRoles || [],
-          remotePreference: data.jobPreferences?.remoteWork ? 'Remote' : 'Flexible',
-          careerGoals: data.jobPreferences?.careerGoals || '',
-          salaryExpectation: data.jobPreferences?.salaryExpectation,
-          
-          template: data.cvStyle?.template || 'Professional',
-          colorScheme: data.cvStyle?.colorScheme || '#2563eb',
-          fontFamily: data.cvStyle?.fontFamily || 'Arial'
-        });
-      }
-    } catch (error) {
-      console.error('Error loading profile:', error);
-      // Silent fail - use empty profile
+      const res = await fetch('/api/profile');
+      if (!res.ok) return;
+      const data = await res.json();
+
+      setUserProfile({
+        skills: data.profile?.skills ?? [],
+        experience: data.profile?.experience ?? '',
+        level: data.profile?.level ?? '',
+        preferences: data.profile?.preferences ?? '',
+      });
+    } catch {
+      // Silent – user can fill manually
     }
+  }, []);
+
+  // ============================================================================
+  // Generation
+  // ============================================================================
+
+  const startProgressSimulation = useCallback(() => {
+    setGenProgress(0);
+    progressRef.current = setInterval(() => {
+      setGenProgress((prev) => {
+        if (prev >= 90) {
+          if (progressRef.current) clearInterval(progressRef.current);
+          return prev;
+        }
+        return prev + Math.random() * 4;
+      });
+    }, 500);
+  }, []);
+
+  const stopProgressSimulation = useCallback((success: boolean) => {
+    if (progressRef.current) clearInterval(progressRef.current);
+    setGenProgress(success ? 100 : 0);
   }, []);
 
   const generateApplicationPackage = useCallback(async () => {
     if (!isFormValid) {
-      toast.error('Please fill in all required job information');
+      toast.error('Please fill in Job Title, Company, and Job Description.');
       return;
     }
 
     setIsLoading(true);
     setActiveTab('results');
+    startProgressSimulation();
 
     try {
-      const response = await fetch('/api/applications/prepare', {
+      const res = await fetch('/api/applications/prepare', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          jobData,
-          userProfile,
-          cvText: cvText || undefined
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobData, userProfile, cvText: cvText || undefined }),
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to generate application package');
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message ?? 'Failed to generate application package');
       }
 
-      const data = await response.json();
+      const data = await res.json();
+      stopProgressSimulation(true);
       setApplicationPackage(data);
-      toast.success('Application package generated successfully!');
-    } catch (error) {
-      console.error('Error generating package:', error);
-      toast.error(
-        error instanceof Error 
-          ? error.message 
-          : 'Failed to generate application package. Please try again.'
-      );
+      toast.success('Application package ready!');
+    } catch (err) {
+      stopProgressSimulation(false);
+      toast.error(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
       setActiveTab('input');
     } finally {
       setIsLoading(false);
     }
-  }, [jobData, userProfile, cvText, isFormValid]);
+  }, [jobData, userProfile, cvText, isFormValid, startProgressSimulation, stopProgressSimulation]);
 
   // ============================================================================
-  // Event Handlers
+  // Handlers
   // ============================================================================
 
-  const handleJobDataChange = useCallback((field: keyof JobData, value: string) => {
-    setJobData(prev => ({ ...prev, [field]: value }));
-  }, []);
+  const handleJobChange = useCallback(
+    (field: keyof JobData, value: string) => setJobData((p) => ({ ...p, [field]: value })),
+    [],
+  );
 
-  const handleProfileChange = useCallback((field: keyof UserProfile, value: string | string[]) => {
-    setUserProfile(prev => ({ ...prev, [field]: value }));
-  }, []);
+  const handleProfileChange = useCallback(
+    (field: keyof UserProfile, value: string | string[]) =>
+      setUserProfile((p) => ({ ...p, [field]: value })),
+    [],
+  );
 
-  const handleSkillAdd = useCallback((skill: string) => {
-    const trimmed = skill.trim();
-    if (trimmed && !userProfile.skills.includes(trimmed)) {
-      setUserProfile(prev => ({
-        ...prev,
-        skills: [...prev.skills, trimmed]
-      }));
-      toast.success(`Added skill: ${trimmed}`);
-    }
-  }, [userProfile.skills]);
+  const handleSkillAdd = useCallback(
+    (skill: string) => {
+      const trimmed = skill.trim();
+      if (!trimmed || userProfile.skills.includes(trimmed)) return;
+      setUserProfile((p) => ({ ...p, skills: [...p.skills, trimmed] }));
+    },
+    [userProfile.skills],
+  );
 
-  const handleSkillRemove = useCallback((skillToRemove: string) => {
-    setUserProfile(prev => ({
-      ...prev,
-      skills: prev.skills.filter(skill => skill !== skillToRemove)
-    }));
-    toast.info(`Removed skill: ${skillToRemove}`);
-  }, []);
+  const handleSkillRemove = useCallback(
+    (skill: string) =>
+      setUserProfile((p) => ({ ...p, skills: p.skills.filter((s) => s !== skill) })),
+    [],
+  );
 
-  const handleCVUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleCVUpload = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
 
-    const validation = validateFile(file);
-    if (!validation.valid) {
-      toast.error(validation.error);
-      return;
-    }
+      const check = validateFile(file);
+      if (!check.valid) { toast.error(check.error); return; }
 
-    setIsUploading(true);
-    setCvFile(file);
+      setIsUploading(true);
+      setCvFile(file);
 
-    try {
-      const text = await readFileAsText(file);
-      const parsedCV = parseCV(text);
-      const extractedSkills = extractSkillsFromCV(text);
+      try {
+        const text = await extractTextFromFile(file);
+        const parsed = parseCV(text);
+        const skills = extractSkillsFromCV(text);
 
-      setCvText(text);
-
-      const experienceText = formatExperience(parsedCV.experience);
-
-      setUserProfile(prev => ({
-        ...prev,
-        skills: [...new Set([...prev.skills, ...extractedSkills])],
-        experience: prev.experience || experienceText,
-        level: prev.level || determineExperienceLevel(parsedCV.experience)
-      }));
-
-      setCvParsed(true);
-      
-      const feedback = [
-        `CV parsed successfully!`,
-        `Found ${extractedSkills.length} skills`,
-        parsedCV.experience.length > 0 
-          ? `Extracted ${parsedCV.experience.length} work experiences` 
-          : null,
-        parsedCV.education.length > 0 
-          ? `Found ${parsedCV.education.length} education entries` 
-          : null
-      ].filter(Boolean).join(' • ');
-      
-      toast.success(feedback);
-    } catch (error) {
-      console.error('Error parsing CV:', error);
-      toast.error('Failed to parse CV. Please try again or enter data manually.');
-      setCvFile(null);
-    } finally {
-      setIsUploading(false);
-    }
-  }, []);
-
-  const handleCVReset = useCallback(() => {
-    setCvFile(null);
-    setCvParsed(false);
-    setCvText('');
-  }, []);
+        setCvText(text);
+        setUserProfile((prev) => ({
+          ...prev,
+          skills: [...new Set([...prev.skills, ...skills])],
+          experience: prev.experience || formatExperience(parsed.experience),
+          level: prev.level || determineExperienceLevel(parsed.experience),
+        }));
+        setCvParsed(true);
+        toast.success(
+          `CV parsed — ${skills.length} skills · ${parsed.experience.length} roles · ${parsed.education.length} education entries`,
+        );
+      } catch {
+        toast.error('Failed to parse CV. Please paste text manually.');
+        setCvFile(null);
+      } finally {
+        setIsUploading(false);
+        // Reset input so the same file can be re-uploaded
+        e.target.value = '';
+      }
+    },
+    [],
+  );
 
   const handleCopyContent = useCallback(async (content: string, label: string) => {
-    const success = await copyToClipboard(content);
-    if (success) {
-      toast.success(`${label} copied to clipboard!`);
-    } else {
-      toast.error('Failed to copy to clipboard');
-    }
+    const ok = await copyToClipboard(content);
+    toast[ok ? 'success' : 'error'](ok ? `${label} copied!` : 'Copy failed');
   }, []);
 
   const downloadPackage = useCallback(() => {
     if (!applicationPackage) return;
-
-    const packageData = {
-      jobData,
-      userProfile,
-      generatedAt: new Date().toISOString(),
-      ...applicationPackage
-    };
-
-    const blob = new Blob([JSON.stringify(packageData, null, 2)], {
-      type: 'application/json'
-    });
-    
+    const payload = { jobData, userProfile, generatedAt: new Date().toISOString(), ...applicationPackage };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    const fileName = `application-${jobData.company.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}.json`;
-    
-    a.href = url;
-    a.download = fileName;
+    const a = Object.assign(document.createElement('a'), {
+      href: url,
+      download: `application-${jobData.company.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}.json`,
+    });
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
+    a.remove();
     URL.revokeObjectURL(url);
-    
-    toast.success('Package downloaded successfully!');
+    toast.success('Package downloaded!');
   }, [applicationPackage, jobData, userProfile]);
+
+  const resetForNew = useCallback(() => {
+    setApplicationPackage(null);
+    setActiveTab('input');
+    setGenProgress(0);
+  }, []);
 
   // ============================================================================
   // Render
   // ============================================================================
 
   return (
-    <div className="container mx-auto pt-16 sm:pt-20 pb-6 sm:pb-8 px-4 max-w-7xl">
-      {/* Header */}
-      <div className="mb-6 sm:mb-8">
-        <div className="flex items-center justify-between mb-8">
-          <a 
-            href="/dashboard"
-            className="inline-flex items-center px-4 py-2 rounded-lg bg-slate-800/50 border border-slate-700 hover:bg-slate-700/50 text-slate-300 hover:text-white transition-colors"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-chevron-left h-5 w-5 mr-2" aria-hidden="true">
-              <path d="m15 18-6-6 6-6"></path>
-            </svg>
-            Back to Dashboard
-          </a>
-        </div>
-        <div className="flex items-center justify-center gap-2 sm:gap-3 mb-2">
-          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-pink-400 to-rose-500 bg-clip-text text-transparent text-center">
-            Application Assistant
-          </h1>
-        </div>
-        <p className="text-slate-400 text-sm sm:text-base text-center px-2">
-          Transform job postings into ready-to-submit application packages with AI-powered customization
-        </p>
-      </div>
+    <div className="min-h-screen bg-slate-950">
+      {/* Ambient background */}
+      <div
+        className="pointer-events-none fixed inset-0 z-0"
+        style={{
+          background:
+            'radial-gradient(ellipse 80% 50% at 10% 0%, rgba(236,72,153,.07) 0%, transparent 60%), radial-gradient(ellipse 60% 40% at 90% 100%, rgba(139,92,246,.06) 0%, transparent 60%)',
+        }}
+      />
 
-      {mounted ? <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="input" className="flex items-center gap-2 text-xs sm:text-sm">
-            <Target className="w-3 h-3 sm:w-4 sm:h-4" />
-            <span className="hidden sm:inline">Input Data</span>
-            <span className="sm:hidden">Input</span>
-          </TabsTrigger>
-          <TabsTrigger 
-            value="results" 
-            className="flex items-center gap-2 text-xs sm:text-sm" 
-            disabled={!applicationPackage}
-          >
-            <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
-            <span className="hidden sm:inline">Generated Package</span>
-            <span className="sm:hidden">Results</span>
-            {applicationPackage && (
-              <Badge variant="secondary" className="ml-1 sm:ml-2 text-xs">
-                Ready
-              </Badge>
-            )}
-          </TabsTrigger>
-        </TabsList>
+      <div className="relative z-10 container mx-auto pt-16 sm:pt-20 pb-10 px-4 max-w-6xl">
 
-        {/* ====================================================================== */}
-        {/* Input Tab */}
-        {/* ====================================================================== */}
-        <TabsContent value="input" className="space-y-4 sm:space-y-6">
-          <div className="grid lg:grid-cols-2 gap-4 sm:gap-6">
-            {/* Job Information Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                  <Target className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
-                  Job Information
-                </CardTitle>
-                <CardDescription className="text-xs sm:text-sm">
-                  Enter the job details you want to apply for
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 sm:space-y-4">
-                <div>
-                  <label htmlFor="job-title" className="block text-xs sm:text-sm font-medium mb-2">
-                    Job Title <span className="text-red-500">*</span>
-                  </label>
-                  <Input
-                    id="job-title"
-                    value={jobData.title}
-                    onChange={(e) => handleJobDataChange('title', e.target.value)}
-                    placeholder="e.g., Senior Software Engineer"
-                    required
-                    className="text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="company" className="block text-xs sm:text-sm font-medium mb-2">
-                    Company Name <span className="text-red-500">*</span>
-                  </label>
-                  <Input
-                    id="company"
-                    value={jobData.company}
-                    onChange={(e) => handleJobDataChange('company', e.target.value)}
-                    placeholder="e.g., Tech Corp"
-                    required
-                    className="text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="description" className="block text-xs sm:text-sm font-medium mb-2">
-                    Job Description <span className="text-red-500">*</span>
-                  </label>
-                  <Textarea
-                    id="description"
-                    value={jobData.description}
-                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleJobDataChange('description', e.target.value)}
-                    placeholder="Paste the full job description here..."
-                    rows={8}
-                    required
-                    className="text-sm resize-y"
-                  />
-                  <p className="text-xs text-slate-500 mt-1">
-                    {jobData.description.length} characters
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  <div>
-                    <label htmlFor="location" className="block text-xs sm:text-sm font-medium mb-2">
-                      Location
-                    </label>
-                    <Input
-                      id="location"
-                      value={jobData.location}
-                      onChange={(e) => handleJobDataChange('location', e.target.value)}
-                      placeholder="e.g., Remote, Cape Town"
-                      className="text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="type" className="block text-xs sm:text-sm font-medium mb-2">
-                      Job Type
-                    </label>
-                    <Input
-                      id="type"
-                      value={jobData.type}
-                      onChange={(e) => handleJobDataChange('type', e.target.value)}
-                      placeholder="e.g., Full-time"
-                      className="text-sm"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="salary" className="block text-xs sm:text-sm font-medium mb-2">
-                    Salary Range
-                  </label>
-                  <Input
-                    id="salary"
-                    value={jobData.salary}
-                    onChange={(e) => handleJobDataChange('salary', e.target.value)}
-                    placeholder="e.g., R800k - R1.2M"
-                    className="text-sm"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* User Profile Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                  <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" />
-                  Your Profile
-                </CardTitle>
-                <CardDescription className="text-xs sm:text-sm">
-                  Your skills and experience for customization
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 sm:space-y-4">
-                {/* CV Text Input */}
-                <div>
-                  <label htmlFor="cv-text" className="block text-xs sm:text-sm font-medium mb-2">
-                    CV Text <span className="text-slate-400 text-xs">(Copy and paste your CV text here)</span>
-                  </label>
-                  <Textarea
-                    id="cv-text"
-                    value={cvText}
-                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setCvText(e.target.value)}
-                    placeholder="Paste your CV text here. Include your work experience, education, skills, and any other relevant information..."
-                    rows={8}
-                    className="text-sm resize-y"
-                  />
-                  <p className="text-xs text-slate-500 mt-1">
-                    {cvText.length} characters
-                  </p>
-                </div>
-
-                {/* Experience Level */}
-                <div>
-                  <label htmlFor="level" className="block text-xs sm:text-sm font-medium mb-2">
-                    Experience Level
-                  </label>
-                  <select
-                    id="level"
-                    value={userProfile.level}
-                    onChange={(e) => handleProfileChange('level', e.target.value)}
-                    className="w-full p-2 text-sm rounded-md bg-slate-800 border border-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {EXPERIENCE_LEVELS.map(({ value, label }) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Preferences */}
-                <div>
-                  <label htmlFor="preferences" className="block text-xs sm:text-sm font-medium mb-2">
-                    Preferences & Goals <span className="text-slate-400 text-xs">(Optional)</span>
-                  </label>
-                  <Textarea
-                    id="preferences"
-                    value={userProfile.preferences}
-                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleProfileChange('preferences', e.target.value)}
-                    placeholder="Work preferences, career goals, etc."
-                    rows={3}
-                    className="text-sm resize-y"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Generate Button */}
-          <div className="flex justify-center pt-2 sm:pt-4">
-            <Button
-              onClick={generateApplicationPackage}
-              disabled={!canGeneratePackage}
-              size="lg"
-              className="w-full sm:w-auto sm:min-w-[250px] h-11 sm:h-12 text-sm sm:text-base"
+        {/* ── Header ── */}
+        <motion.div
+          className="mb-8"
+          initial="hidden"
+          animate="visible"
+          variants={{ visible: { transition: { staggerChildren: 0.07 } } }}
+        >
+          <motion.div variants={fadeUp} className="mb-6">
+            <a
+              href="/dashboard"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700/60 hover:bg-slate-700/60 text-slate-400 hover:text-white text-sm transition-colors"
             >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 animate-spin" />
-                  Generating Package...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                  Generate Application Package
-                </>
-              )}
-            </Button>
-          </div>
+              <ChevronLeft className="w-4 h-4" />
+              Dashboard
+            </a>
+          </motion.div>
 
-          {!isFormValid && (
-            <Alert>
-              <AlertCircle className="w-4 h-4" />
-              <AlertDescription className="text-xs sm:text-sm">
-                Please fill in the required fields: Job Title, Company Name, and Job Description
-              </AlertDescription>
-            </Alert>
-          )}
-        </TabsContent>
+          <motion.div variants={fadeUp} className="text-center">
+            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-pink-400 via-rose-400 to-purple-400 bg-clip-text text-transparent mb-2">
+              Application Assistant
+            </h1>
+            <p className="text-sm text-slate-400 max-w-lg mx-auto">
+              Transform any job posting into a tailored CV, cover letter, and market intelligence — in seconds.
+            </p>
+          </motion.div>
+        </motion.div>
 
-        {/* ====================================================================== */}
-        {/* Results Tab */}
-        {/* ====================================================================== */}
-        <TabsContent value="results" className="space-y-4 sm:space-y-6">
-          {isLoading ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12 sm:py-16 px-4">
-                <Loader2 className="w-10 h-10 sm:w-12 sm:h-12 animate-spin text-blue-500 mb-4" />
-                <p className="text-base sm:text-lg text-slate-300 mb-2 text-center">
-                  Generating your personalized application package...
-                </p>
-                <p className="text-xs sm:text-sm text-slate-500 text-center">
-                  This may take 30-60 seconds
-                </p>
-                <Progress value={45} className="w-48 sm:w-64 mt-4" />
-              </CardContent>
-            </Card>
-          ) : applicationPackage ? (
-            <div className="space-y-4 sm:space-y-6">
-              {/* Market Insights */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                    <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" />
-                    Market Intelligence
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
-                    <div className="text-center p-3 sm:p-4 bg-slate-900 rounded-lg">
-                      <h4 className="font-medium text-slate-400 mb-2 text-xs sm:text-sm">Salary Range</h4>
-                      <p className="text-lg sm:text-2xl font-bold text-green-500">
-                        {applicationPackage.marketInsights.salaryRange}
-                      </p>
-                    </div>
-                    <div className="text-center p-3 sm:p-4 bg-slate-900 rounded-lg">
-                      <h4 className="font-medium text-slate-400 mb-2 text-xs sm:text-sm">Demand Level</h4>
-                      <Badge 
-                        variant={
-                          applicationPackage.marketInsights.demandLevel === 'High' 
-                            ? 'default' 
-                            : 'secondary'
-                        }
-                        className="text-base sm:text-lg px-3 sm:px-4 py-1"
-                      >
-                        {applicationPackage.marketInsights.demandLevel}
-                      </Badge>
-                    </div>
-                    <div className="p-3 sm:p-4 bg-slate-900 rounded-lg sm:col-span-2 md:col-span-1">
-                      <h4 className="font-medium text-slate-400 mb-2 text-xs sm:text-sm">Top Skills</h4>
-                      <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                        {applicationPackage.marketInsights.keySkills.map((skill) => (
-                          <Badge key={skill} variant="outline" className="text-xs">
-                            {skill}
-                          </Badge>
+        {/* ── Profile strength ── */}
+        <ProfileStrengthPanel
+          percentage={profileStrength}
+          label={strengthLabel}
+          color={strengthColor}
+          recommendations={strengthRecommendations}
+          isLoading={isProfileLoading}
+          error={profileError}
+        />
+
+        {/* ── Tabs ── */}
+        {mounted ? (
+          <Tabs
+            value={activeTab}
+            onValueChange={(v) => setActiveTab(v as 'input' | 'results')}
+            className="space-y-5"
+          >
+            <TabsList className="grid w-full grid-cols-2 h-10">
+              <TabsTrigger value="input" className="text-xs sm:text-sm gap-1.5">
+                <Target className="w-3.5 h-3.5" />
+                <span>Job Details</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="results"
+                disabled={!applicationPackage && !isLoading}
+                className="text-xs sm:text-sm gap-1.5"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Generated Package</span>
+                {applicationPackage && !isLoading && (
+                  <Badge variant="secondary" className="text-xs ml-1 h-4 px-1.5">Ready</Badge>
+                )}
+              </TabsTrigger>
+            </TabsList>
+
+            {/* ================================================================ */}
+            {/* INPUT TAB                                                        */}
+            {/* ================================================================ */}
+            <TabsContent value="input" className="space-y-5">
+              <div className="grid lg:grid-cols-2 gap-5">
+
+                {/* Job Information */}
+                <motion.div variants={fadeUp} initial="hidden" animate="visible">
+                  <Card className="h-full">
+                    <CardHeader className="pb-3 border-b border-slate-800">
+                      <CardTitle className="text-sm sm:text-base flex items-center gap-2">
+                        <Target className="w-4 h-4 text-blue-400" />
+                        Job Information
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        Paste the job details you want to apply for
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-4 space-y-4">
+
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <label htmlFor="job-title" className="text-xs font-medium text-slate-300">
+                            Job Title <span className="text-rose-400">*</span>
+                          </label>
+                          <Input
+                            id="job-title"
+                            value={jobData.title}
+                            onChange={(e) => handleJobChange('title', e.target.value)}
+                            placeholder="Senior Software Engineer"
+                            className="text-sm h-9"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label htmlFor="company" className="text-xs font-medium text-slate-300">
+                            Company <span className="text-rose-400">*</span>
+                          </label>
+                          <Input
+                            id="company"
+                            value={jobData.company}
+                            onChange={(e) => handleJobChange('company', e.target.value)}
+                            placeholder="Acme Corp"
+                            className="text-sm h-9"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label htmlFor="description" className="text-xs font-medium text-slate-300">
+                            Job Description <span className="text-rose-400">*</span>
+                          </label>
+                          <CharCount value={jobData.description.length} />
+                        </div>
+                        <Textarea
+                          id="description"
+                          value={jobData.description}
+                          onChange={(e) => handleJobChange('description', e.target.value)}
+                          placeholder="Paste the full job description here…"
+                          rows={9}
+                          className="text-sm resize-y"
+                        />
+                      </div>
+
+                      <div className="grid sm:grid-cols-3 gap-3">
+                        {(
+                          [
+                            { id: 'location', label: 'Location', placeholder: 'Remote / Cape Town' },
+                            { id: 'type', label: 'Job Type', placeholder: 'Full-time' },
+                            { id: 'salary', label: 'Salary', placeholder: 'R800k–1.2M' },
+                          ] as { id: keyof JobData; label: string; placeholder: string }[]
+                        ).map(({ id, label, placeholder }) => (
+                          <div key={id} className="space-y-1.5">
+                            <label htmlFor={id} className="text-xs font-medium text-slate-400">
+                              {label}
+                            </label>
+                            <Input
+                              id={id}
+                              value={jobData[id] ?? ''}
+                              onChange={(e) => handleJobChange(id, e.target.value)}
+                              placeholder={placeholder}
+                              className="text-sm h-9"
+                            />
+                          </div>
                         ))}
                       </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
+                </motion.div>
 
-              {/* Skill Gap Analysis */}
-              {applicationPackage.skillGapNotes.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                      <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500" />
-                      Skill Gap Analysis
-                    </CardTitle>
-                    <CardDescription className="text-xs sm:text-sm">
-                      Areas to emphasize or improve
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2 sm:space-y-3">
-                      {applicationPackage.skillGapNotes.map((note, index) => (
-                        <Alert key={index} className="bg-amber-950/20 border-amber-900">
-                          <AlertCircle className="w-4 h-4 text-amber-500" />
-                          <AlertDescription className="text-amber-200 text-xs sm:text-sm">
-                            {note}
-                          </AlertDescription>
-                        </Alert>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+                {/* Your Profile */}
+                <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={1}>
+                  <Card className="h-full">
+                    <CardHeader className="pb-3 border-b border-slate-800">
+                      <CardTitle className="text-sm sm:text-base flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-green-400" />
+                        Your Profile
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        Your background used for tailoring
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-4 space-y-4">
 
-              {/* Tailored CV */}
-              <ContentDisplay
-                title="Tailored CV Recommendations"
-                icon={<FileText className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />}
-                iconColor="blue"
-                content={applicationPackage.tailoredCV}
-                onCopy={() => handleCopyContent(applicationPackage.tailoredCV, 'CV recommendations')}
-              />
-
-              {/* Cover Letter */}
-              <ContentDisplay
-                title="Custom Cover Letter"
-                icon={<FileText className="w-4 h-4 sm:w-5 sm:h-5 text-purple-500" />}
-                iconColor="purple"
-                content={applicationPackage.coverLetter}
-                onCopy={() => handleCopyContent(applicationPackage.coverLetter, 'Cover letter')}
-              />
-
-              {/* Application Answers */}
-              {Object.keys(applicationPackage.applicationAnswers).length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                      <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" />
-                      Pre-filled Application Answers
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3 sm:space-y-4">
-                      {Object.entries(applicationPackage.applicationAnswers).map(([question, answer]) => (
-                        <div 
-                          key={question} 
-                          className="border-l-4 border-blue-500 pl-3 sm:pl-4 py-2 bg-slate-900 rounded-r"
-                        >
-                          <h4 className="font-medium mb-2 text-slate-200 text-sm sm:text-base">{question}</h4>
-                          <p className="text-slate-400 text-xs sm:text-sm">{answer}</p>
+                      {/* CV text */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label htmlFor="cv-text" className="text-xs font-medium text-slate-300">
+                            CV / Résumé Text
+                          </label>
+                          <CharCount value={cvText.length} />
                         </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+                        <Textarea
+                          id="cv-text"
+                          value={cvText}
+                          onChange={(e) => setCvText(e.target.value)}
+                          placeholder="Paste your CV text here, or upload a file below…"
+                          rows={6}
+                          className="text-sm resize-y"
+                        />
+                      </div>
 
-              {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4">
-                <Button 
-                  onClick={() => window.location.href = '/dashboard'} 
-                  variant="outline"
-                  size="lg"
-                  className="w-full sm:w-auto text-sm"
-                >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Back to Dashboard
-                </Button>
-                <Button 
-                  onClick={downloadPackage} 
-                  size="lg" 
-                  className="w-full sm:w-auto sm:min-w-[200px] text-sm"
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Download Package
-                </Button>
-                <Button 
-                  onClick={() => setActiveTab('input')} 
-                  variant="outline"
-                  size="lg"
-                  className="w-full sm:w-auto text-sm"
-                >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Create Another
-                </Button>
+                      {/* File upload */}
+                      <div>
+                        <div className="border border-dashed border-slate-700 rounded-lg p-4 hover:border-slate-600 transition-colors">
+                          <input
+                            type="file"
+                            id="cv-upload"
+                            accept={Object.values(ACCEPTED_FILE_TYPES).flat().join(',')}
+                            onChange={handleCVUpload}
+                            disabled={isUploading}
+                            className="hidden"
+                          />
+                          <div className="flex flex-col items-center gap-2">
+                            {isUploading ? (
+                              <>
+                                <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+                                <span className="text-xs text-slate-400">Parsing CV…</span>
+                              </>
+                            ) : cvFile && cvParsed ? (
+                              <>
+                                <CheckCircle className="w-6 h-6 text-green-500" />
+                                <span className="text-xs text-slate-300 break-all text-center">{cvFile.name}</span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-xs h-7 text-slate-400 hover:text-white"
+                                  onClick={() => { setCvFile(null); setCvParsed(false); setCvText(''); }}
+                                >
+                                  <RefreshCw className="w-3 h-3 mr-1" /> Replace
+                                </Button>
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-xs text-slate-500">or upload PDF, DOC, DOCX, TXT (max 5 MB)</span>
+                                <Button asChild variant="outline" size="sm" className="h-7 text-xs border-slate-700">
+                                  <label htmlFor="cv-upload" className="cursor-pointer">Upload CV</label>
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Skills */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-slate-300">Skills</label>
+                        <SkillInput onAdd={handleSkillAdd} existingSkills={userProfile.skills} />
+                        {userProfile.skills.length > 0 && (
+                          <motion.div layout className="flex flex-wrap gap-1.5 pt-1">
+                            {userProfile.skills.map((s) => (
+                              <SkillBadge key={s} skill={s} onRemove={handleSkillRemove} />
+                            ))}
+                          </motion.div>
+                        )}
+                      </div>
+
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        {/* Level */}
+                        <div className="space-y-1.5">
+                          <label htmlFor="level" className="text-xs font-medium text-slate-300">
+                            Experience Level
+                          </label>
+                          <select
+                            id="level"
+                            value={userProfile.level}
+                            onChange={(e) => handleProfileChange('level', e.target.value)}
+                            className="w-full h-9 px-3 text-sm rounded-md bg-slate-800 border border-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            {EXPERIENCE_LEVELS.map(({ value, label }) => (
+                              <option key={value} value={value}>{label}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Preferences */}
+                        <div className="space-y-1.5">
+                          <label htmlFor="preferences" className="text-xs font-medium text-slate-300">
+                            Preferences & Goals
+                          </label>
+                          <Textarea
+                            id="preferences"
+                            value={userProfile.preferences}
+                            onChange={(e) => handleProfileChange('preferences', e.target.value)}
+                            placeholder="Remote-first, growth-stage…"
+                            rows={2}
+                            className="text-sm resize-none"
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
               </div>
-            </div>
-          ) : (
-            <Card>
-              <CardContent className="text-center py-12 sm:py-16 px-4">
-                <FileText className="w-12 h-12 sm:w-16 sm:h-16 text-slate-600 mx-auto mb-4" />
-                <p className="text-slate-400 text-sm sm:text-base mb-4">
-                  No application package generated yet.
-                </p>
+
+              {/* Generate CTA */}
+              <motion.div
+                variants={fadeUp}
+                initial="hidden"
+                animate="visible"
+                custom={2}
+                className="flex flex-col items-center gap-3 pt-2"
+              >
+                {!isFormValid && (
+                  <Alert className="max-w-md">
+                    <AlertCircle className="w-4 h-4" />
+                    <AlertDescription className="text-xs">
+                      Fill in Job Title, Company, and Job Description to continue.
+                    </AlertDescription>
+                  </Alert>
+                )}
                 <Button
-                  onClick={() => setActiveTab('input')}
-                  variant="outline"
-                  className="text-sm"
+                  onClick={generateApplicationPackage}
+                  disabled={!isFormValid || isLoading}
+                  size="lg"
+                  className="w-full sm:w-auto sm:min-w-56 h-11 text-sm bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 border-0 shadow-lg shadow-purple-900/30"
                 >
-                  Go to Input
+                  {isLoading ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating…</>
+                  ) : (
+                    <><Sparkles className="w-4 h-4 mr-2" />Generate Application Package</>
+                  )}
                 </Button>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-      </Tabs> : (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-        </div>
-      )}
+              </motion.div>
+            </TabsContent>
+
+            {/* ================================================================ */}
+            {/* RESULTS TAB                                                      */}
+            {/* ================================================================ */}
+            <TabsContent value="results" className="space-y-5">
+              <AnimatePresence mode="wait">
+                {isLoading ? (
+                  <motion.div key="generating" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    <Card>
+                      <CardContent className="p-0">
+                        <GeneratingOverlay progress={genProgress} />
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ) : applicationPackage ? (
+                  <motion.div
+                    key="results"
+                    initial="hidden"
+                    animate="visible"
+                    variants={{ visible: { transition: { staggerChildren: 0.08 } } }}
+                    className="space-y-5"
+                  >
+                    {/* Market Intelligence */}
+                    <motion.div variants={fadeUp}>
+                      <Card>
+                        <CardHeader className="pb-3 border-b border-slate-800">
+                          <CardTitle className="text-sm sm:text-base flex items-center gap-2">
+                            <BarChart3 className="w-4 h-4 text-green-400" />
+                            Market Intelligence
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="pt-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800 text-center">
+                              <p className="text-xs text-slate-500 mb-1">Salary Range</p>
+                              <p className="text-lg font-bold text-green-400">
+                                {applicationPackage.marketInsights.salaryRange}
+                              </p>
+                            </div>
+                            <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800 text-center">
+                              <p className="text-xs text-slate-500 mb-2">Demand Level</p>
+                              <Badge
+                                variant={applicationPackage.marketInsights.demandLevel === 'High' ? 'default' : 'secondary'}
+                                className="text-sm px-3 py-0.5"
+                              >
+                                {applicationPackage.marketInsights.demandLevel}
+                              </Badge>
+                            </div>
+                            <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800">
+                              <p className="text-xs text-slate-500 mb-2">Key Skills</p>
+                              <div className="flex flex-wrap gap-1">
+                                {applicationPackage.marketInsights.keySkills.map((s) => (
+                                  <Badge key={s} variant="outline" className="text-xs">{s}</Badge>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+
+                    {/* Skill Gaps */}
+                    {applicationPackage.skillGapNotes.length > 0 && (
+                      <motion.div variants={fadeUp}>
+                        <Card>
+                          <CardHeader className="pb-3 border-b border-slate-800">
+                            <CardTitle className="text-sm sm:text-base flex items-center gap-2">
+                              <Lightbulb className="w-4 h-4 text-amber-400" />
+                              Skill Gap Analysis
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="pt-4 space-y-2">
+                            {applicationPackage.skillGapNotes.map((note, i) => (
+                              <div
+                                key={i}
+                                className="flex items-start gap-2.5 p-3 rounded-lg bg-amber-950/20 border border-amber-900/40 text-amber-200 text-xs"
+                              >
+                                <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                                {note}
+                              </div>
+                            ))}
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    )}
+
+                    {/* Tailored CV */}
+                    <motion.div variants={fadeUp}>
+                      <ContentDisplay
+                        title="Tailored CV Recommendations"
+                        icon={<FileText className="w-4 h-4 text-blue-400" />}
+                        content={applicationPackage.tailoredCV}
+                        onCopy={() => handleCopyContent(applicationPackage.tailoredCV, 'CV recommendations')}
+                      />
+                    </motion.div>
+
+                    {/* Cover Letter */}
+                    <motion.div variants={fadeUp}>
+                      <ContentDisplay
+                        title="Cover Letter"
+                        icon={<FileText className="w-4 h-4 text-purple-400" />}
+                        content={applicationPackage.coverLetter}
+                        onCopy={() => handleCopyContent(applicationPackage.coverLetter, 'Cover letter')}
+                      />
+                    </motion.div>
+
+                    {/* Application Answers */}
+                    {Object.keys(applicationPackage.applicationAnswers).length > 0 && (
+                      <motion.div variants={fadeUp}>
+                        <Card>
+                          <CardHeader className="pb-3 border-b border-slate-800">
+                            <CardTitle className="text-sm sm:text-base flex items-center gap-2">
+                              <ClipboardList className="w-4 h-4 text-teal-400" />
+                              Pre-filled Application Answers
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="pt-4 space-y-3">
+                            {Object.entries(applicationPackage.applicationAnswers).map(([q, a]) => (
+                              <div
+                                key={q}
+                                className="border-l-2 border-blue-500/50 pl-4 py-1.5"
+                              >
+                                <p className="text-xs font-semibold text-slate-300 mb-1">{q}</p>
+                                <p className="text-xs text-slate-400 leading-relaxed">{a}</p>
+                              </div>
+                            ))}
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    )}
+
+                    {/* Actions */}
+                    <motion.div
+                      variants={fadeUp}
+                      className="flex flex-col sm:flex-row justify-center gap-3 pt-2"
+                    >
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={resetForNew}
+                        className="w-full sm:w-auto border-slate-700 text-sm"
+                      >
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        New Application
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={downloadPackage}
+                        className="w-full sm:w-auto bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 border-0 text-sm"
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Download Package
+                      </Button>
+                    </motion.div>
+                  </motion.div>
+                ) : (
+                  <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                    <Card>
+                      <CardContent className="flex flex-col items-center gap-4 py-16 px-8 text-center">
+                        <FileText className="w-12 h-12 text-slate-700" />
+                        <p className="text-sm text-slate-500">No package generated yet.</p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-slate-700 text-sm"
+                          onClick={() => setActiveTab('input')}
+                        >
+                          Go to Job Details
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </TabsContent>
+          </Tabs>
+        ) : (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-7 h-7 animate-spin text-slate-500" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -22,9 +22,14 @@ import { useAuth } from '@clerk/nextjs';
 import { getValidToken, exponentialBackoff } from '@/utils/authHelpers';
 
 // Function to load existing profile data from API
-const loadProfileData = async (): Promise<Partial<ProfileFormData> | null> => {
+const loadProfileData = async (token: string): Promise<Partial<ProfileFormData> | null> => {
   try {
-    const response = await fetch('/api/profile');
+    const response = await fetch('/api/profile', {
+      headers: {
+        Authorization: `Bearer ${token}`
+      },
+      credentials: 'include'
+    });
     
     if (!response.ok) {
       console.error('Failed to load profile data:', response.status);
@@ -32,6 +37,7 @@ const loadProfileData = async (): Promise<Partial<ProfileFormData> | null> => {
     }
     
     const data = await response.json();
+    const snapshot = data.profileSnapshot as Partial<ProfileFormData> | null;
     
     // Transform API data to match ProfileFormData structure
     const transformedProfile: Partial<ProfileFormData> = {
@@ -44,7 +50,7 @@ const loadProfileData = async (): Promise<Partial<ProfileFormData> | null> => {
       bio: data.profile?.bio || '',
 
       // Education
-      education: data.education?.map((edu: any) => ({
+      education: (snapshot?.education || [])?.map((edu: any) => ({
         institution: edu.institution,
         degree: edu.degree,
         fieldOfStudy: edu.fieldOfStudy,
@@ -55,7 +61,7 @@ const loadProfileData = async (): Promise<Partial<ProfileFormData> | null> => {
       })) || [],
 
       // Work experience
-      workExperience: data.experience?.map((exp: any) => ({
+      workExperience: (snapshot?.workExperience || [])?.map((exp: any) => ({
         company: exp.company,
         position: exp.position,
         startDate: new Date(exp.startDate),
@@ -66,42 +72,61 @@ const loadProfileData = async (): Promise<Partial<ProfileFormData> | null> => {
       })) || [],
 
       // Skills
-      technicalSkills: data.skills
-        ?.filter((s: any) => s.category === 'technical')
-        ?.map((s: any) => ({
-          name: s.name,
-          level: s.proficiency === 'beginner' ? 'Beginner' :
-                 s.proficiency === 'intermediate' ? 'Intermediate' :
-                 s.proficiency === 'advanced' ? 'Advanced' : 'Expert'
-        })) || [],
+      technicalSkills:
+        snapshot?.technicalSkills ||
+        data.skills
+          ?.filter((s: any) => s.category === 'technical')
+          ?.map((s: any) => ({
+            name: s.name,
+            level:
+              s.proficiency === 'beginner'
+                ? 'Beginner'
+                : s.proficiency === 'intermediate'
+                  ? 'Intermediate'
+                  : s.proficiency === 'advanced'
+                    ? 'Advanced'
+                    : 'Expert'
+          })) ||
+        [],
 
-      softSkills: data.skills
-        ?.filter((s: any) => s.category === 'soft')
-        ?.map((s: any) => s.name) || [],
+      softSkills:
+        snapshot?.softSkills ||
+        data.skills
+          ?.filter((s: any) => s.category === 'soft')
+          ?.map((s: any) => s.name) ||
+        [],
 
-      languages: data.skills
-        ?.filter((s: any) => s.category === 'language')
-        ?.map((s: any) => ({
-          name: s.name,
-          proficiency: s.proficiency === 'beginner' ? 'Basic' :
-                      s.proficiency === 'intermediate' ? 'Conversational' :
-                      s.proficiency === 'expert' ? 'Fluent' : 'Native'
-        })) || [],
+      languages:
+        snapshot?.languages ||
+        data.skills
+          ?.filter((s: any) => s.category === 'language')
+          ?.map((s: any) => ({
+            name: s.name,
+            proficiency:
+              s.proficiency === 'beginner'
+                ? 'Basic'
+                : s.proficiency === 'intermediate'
+                  ? 'Conversational'
+                  : s.proficiency === 'expert'
+                    ? 'Fluent'
+                    : 'Native'
+          })) ||
+        [],
 
       // Goals & preferences
-      jobTitle: data.jobPreferences?.jobTitle || '',
-      industries: data.jobPreferences?.industries || [],
-      jobTypes: data.jobPreferences?.desiredRoles || [],
-      salaryExpectation: data.jobPreferences?.salaryExpectation,
-      relocation: data.jobPreferences?.relocation || false,
-      remotePreference: data.jobPreferences?.remoteWork ? 'Remote' : 'Flexible',
-      careerGoals: data.jobPreferences?.careerGoals || '',
+      jobTitle: data.profile?.title || '',
+      industries: snapshot?.industries || data.jobPreferences?.industries || [],
+      jobTypes: snapshot?.jobTypes || data.jobPreferences?.desiredRoles || [],
+      salaryExpectation: snapshot?.salaryExpectation,
+      relocation: snapshot?.relocation || false,
+      remotePreference: snapshot?.remotePreference || (data.jobPreferences?.remoteWork ? 'Remote' : 'Flexible'),
+      careerGoals: snapshot?.careerGoals || '',
 
       // CV Style
-      template: data.cvStyle?.template || 'Professional',
-      colorScheme: data.cvStyle?.colorScheme || '#2563eb',
-      fontFamily: data.cvStyle?.fontFamily || 'Arial',
-      showPhoto: data.cvStyle?.showPhoto !== false
+      template: snapshot?.template || 'Professional',
+      colorScheme: snapshot?.colorScheme || '#2563eb',
+      fontFamily: snapshot?.fontFamily || 'Arial',
+      showPhoto: snapshot?.showPhoto !== false
     };
 
     console.log('Loaded profile data from API:', transformedProfile);
@@ -114,7 +139,7 @@ const loadProfileData = async (): Promise<Partial<ProfileFormData> | null> => {
 };
 
 // Function to save profile data to the API
-const saveProfileData = async (data: ProfileFormData) => {
+const saveProfileData = async (data: ProfileFormData, token: string) => {
   console.log('Saving profile data:', data);
 
   // Save profile and job preferences
@@ -122,7 +147,9 @@ const saveProfileData = async (data: ProfileFormData) => {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
     },
+    credentials: 'include',
     body: JSON.stringify({
       profile: {
         firstName: data.firstName,
@@ -130,6 +157,7 @@ const saveProfileData = async (data: ProfileFormData) => {
         phone: data.phone,
         location: data.location,
         bio: data.bio,
+        title: data.jobTitle,
       },
       jobPreferences: {
         desiredRoles: data.jobTypes || [],
@@ -137,7 +165,8 @@ const saveProfileData = async (data: ProfileFormData) => {
         remoteWork: data.remotePreference === 'Remote',
         skills: data.technicalSkills?.map(skill => skill.name).filter(Boolean) || [],
         languages: data.languages?.map(lang => lang.name).filter(Boolean) || [],
-      }
+      },
+      profileSnapshot: data
     }),
   });
 
@@ -211,7 +240,9 @@ const saveProfileData = async (data: ProfileFormData) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
         },
+        credentials: 'include',
         body: JSON.stringify(skill),
       })
     );
@@ -259,7 +290,7 @@ export default function PersonalProfilePage() {
       
       try {
         // First try to load from API (most up-to-date)
-        const apiData = await loadProfileData();
+        const apiData = await loadProfileData(token);
         
         // Then check localStorage for any unsaved changes
         let localStorageData: Partial<ProfileFormData> | null = null;
@@ -315,7 +346,10 @@ export default function PersonalProfilePage() {
   const handleSubmit = async (data: ProfileFormData) => {
     try {
       // Save the form data
-      const result = await saveProfileData(data);
+      const token = await getValidToken(getToken, 3);
+      if (!token) throw new Error('Unable to get valid token');
+
+      const result = await saveProfileData(data, token);
       
       if (result.success) {
         // Clear saved form data from localStorage on successful submission
@@ -471,7 +505,19 @@ function FormSteps() {
     // Save form data to localStorage when component unmounts or step changes
     const saveFormData = () => {
       if (form.formState.isDirty) {
-        localStorage.setItem('profileFormData', JSON.stringify(form.getValues()));
+        const values = form.getValues();
+        localStorage.setItem('profileFormData', JSON.stringify(values));
+
+        void fetch('/api/profile', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            profileSnapshot: values
+          })
+        });
       }
     };
 
@@ -480,7 +526,7 @@ function FormSteps() {
       saveFormData();
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [form, isSubmitting]);
+  }, [form, isSubmitting, currentStep]);
 
   // Render the current step
   const renderStep = () => {

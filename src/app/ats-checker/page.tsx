@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Upload, FileText, CheckCircle, XCircle, AlertTriangle, Download, Zap, Target, Award, TrendingUp, Link } from 'lucide-react';
 import { generateAtsReport, generateWordReport } from '@/lib/generateAtsReport';
 // Define types for our analysis results
@@ -11,10 +11,14 @@ interface KeywordAnalysis {
 
 interface AnalysisResult {
   score: number;
+  atsQualityScore: number;
+  jobMatchScore: number | null;
   keywordAnalysis: KeywordAnalysis;
   skills: string[];
   experience: any[];
   education: any[];
+  resumeText?: string;
+  jobKeywords?: string[];
   overallScore?: number;
   breakdown?: any;
   strengths?: string[];
@@ -36,19 +40,9 @@ interface JobAnalysisResult {
   qualifications?: string[];
 }
 
-import { analyzeCVWithAI, extractTextFromFile } from '@/lib/cvAnalyzer';
-
-// Generate keywords for ATS analysis
-const generateKeywordsForATS = (text: string): string[] => {
-  if (!text) return [];
-  // Basic keyword extraction - can be enhanced as needed
-  return text
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(word => word.length > 3) // Filter out short words
-    .map(word => word.replace(/[^a-z0-9]/g, '')) // Remove non-alphanumeric chars
-    .filter(Boolean); // Remove empty strings
-};
+import { analyzeCVWithAI } from '@/lib/cvAnalyzer';
+import { extractTextFromFile } from '@/lib/fileTextExtractor';
+import { analyzeText } from '@/lib/textAnalyzer';
 
 const ATSAnalyzer = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -59,87 +53,176 @@ const ATSAnalyzer = () => {
   const [qualificationKeywords, setQualificationKeywords] = useState<string[]>([]);
   // const [isAnalyzingJobPost, setIsAnalyzingJobPost] = useState<boolean>(false); // No longer needed - automatic extraction
   const [jobAnalysis, setJobAnalysis] = useState<JobAnalysisResult | null>(null);
+  const [resumeText, setResumeText] = useState<string>('');
+  const [analysisHistory, setAnalysisHistory] = useState<any[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   
+  useEffect(() => {
+    void (async () => {
+      setIsLoadingHistory(true);
+      try {
+        const res = await fetch('/api/ats/history', { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        setAnalysisHistory(data.history || []);
+      } catch {
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    })();
+  }, []);
+
 
 
   // Function to analyze CV using AI-powered analysis
   const analyzeCV = async (file: File) => {
+    const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const uniqueNonEmpty = (values: string[]) =>
+      Array.from(
+        new Set(
+          values
+            .map((v) => v.trim())
+            .filter(Boolean)
+        )
+      );
+
+    const matchJobKeywords = (resumeText: string, keywords: string[]) => {
+      const found: string[] = [];
+      const missing: string[] = [];
+      for (const kw of keywords) {
+        const re = new RegExp(`\\b${escapeRegExp(kw)}\\b`, 'i');
+        (re.test(resumeText) ? found : missing).push(kw);
+      }
+      return { found: uniqueNonEmpty(found), missing: uniqueNonEmpty(missing) };
+    };
+
     try {
       // Extract text from the uploaded file
       const cvText = await extractTextFromFile(file);
       
       // Get job keywords for comparison
-      const jobKeywords = jobAnalysis ? 
-        [...(jobAnalysis.keywords || []), ...(jobAnalysis.skills || [])] : 
-        qualificationKeywords || [];
+      const jobKeywords = uniqueNonEmpty(
+        jobAnalysis
+          ? [...(jobAnalysis.keywords || []), ...(jobAnalysis.skills || [])]
+          : qualificationKeywords || []
+      );
       
-      console.log('Starting AI-powered ATS analysis...');
-      
-      // Use AI-powered analysis with GLM
-      const aiAnalysis = await analyzeCVWithAI(cvText, 'glm', jobKeywords);
-      
-      console.log('AI analysis completed:', aiAnalysis);
-      
-      // Transform AI response to our expected format
-      const result = {
-        score: aiAnalysis.overallScore || aiAnalysis.score || 0,
-        overallScore: aiAnalysis.overallScore || aiAnalysis.score || 0,
-        breakdown: aiAnalysis.breakdown || {},
-        strengths: aiAnalysis.strengths || [],
-        improvements: aiAnalysis.improvements || [],
-        keywordAnalysis: {
-          found: aiAnalysis.keywordAnalysis?.foundKeywords || aiAnalysis.keywordAnalysis?.found || [],
-          missing: aiAnalysis.keywordAnalysis?.missingKeywords || aiAnalysis.keywordAnalysis?.missing || []
-        },
-        atsCompatibility: aiAnalysis.atsCompatibility || { score: 0, issues: [] },
-        skills: aiAnalysis.keywordAnalysis?.foundKeywords || [],
-        experience: [],
-        education: []
-      };
+      const jobMatch = matchJobKeywords(cvText, jobKeywords);
 
-      console.log('Transformed analysis result:', result);
-      return result;
+      if (jobQualifications.trim() || jobAnalysis?.description) {
+        const response = await fetch('/api/ats/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            resumeText: cvText,
+            jobDescription: jobQualifications || jobAnalysis?.description || '',
+            industry: '',
+            experienceLevel: ''
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const analysis = data?.analysis;
+
+          return {
+            score: analysis?.overallScore ?? 0,
+            atsQualityScore: analysis?.atsCompatibility?.parseability ?? analysis?.overallScore ?? 0,
+            jobMatchScore: jobKeywords.length > 0 ? Math.round((jobMatch.found.length / Math.max(1, jobKeywords.length)) * 100) : null,
+            breakdown: analysis?.breakdown ?? {},
+            strengths: analysis?.detailedAnalysis?.strengths ?? [],
+            improvements: uniqueNonEmpty([
+              ...(analysis?.detailedAnalysis?.criticalIssues ?? []),
+              ...(analysis?.detailedAnalysis?.improvements ?? []),
+              ...(analysis?.detailedAnalysis?.weaknesses ?? [])
+            ]),
+            keywordAnalysis: {
+              found: analysis?.keywordAnalysis?.matched?.length ? analysis.keywordAnalysis.matched : jobMatch.found,
+              missing: analysis?.keywordAnalysis?.missing?.length ? analysis.keywordAnalysis.missing : jobMatch.missing
+            },
+            atsCompatibility: {
+              score: analysis?.atsCompatibility?.parseability ?? analysis?.overallScore ?? 0,
+              issues: analysis?.atsCompatibility?.formatIssues ?? []
+            },
+            skills: analysis?.contextualAnalysis?.skillsAlignment?.relevantSkills ?? [],
+            experience: [],
+            education: [],
+            resumeText: cvText,
+            jobKeywords
+          };
+        }
+      }
+
+      const local = analyzeText(cvText);
+      const localQuality = local.atsCompatibility?.score ?? local.overallScore ?? 0;
+      const jobMatchScore = jobKeywords.length > 0 ? Math.round((jobMatch.found.length / Math.max(1, jobKeywords.length)) * 100) : null;
+      const keywordAnalysis =
+        jobKeywords.length > 0
+          ? jobMatch
+          : {
+              found: local.keywordAnalysis?.found ?? [],
+              missing: local.keywordAnalysis?.missing ?? []
+            };
+
+      return {
+        score: local.overallScore ?? 0,
+        atsQualityScore: localQuality,
+        jobMatchScore,
+        overallScore: local.overallScore ?? 0,
+        breakdown: local.breakdown ?? {},
+        strengths: local.strengths ?? [],
+        improvements: local.improvements ?? [],
+        keywordAnalysis,
+        atsCompatibility: local.atsCompatibility
+          ? { score: local.atsCompatibility.score ?? 0, issues: local.atsCompatibility.issues ?? [] }
+          : { score: 0, issues: [] },
+        skills: local.keywordAnalysis?.found ?? [],
+        experience: [],
+        education: [],
+        resumeText: cvText,
+        jobKeywords
+      };
       
     } catch (error) {
       console.error('Error in AI-powered CV analysis:', error);
       
-      // Fallback to basic keyword analysis if AI fails
-      console.log('Falling back to basic keyword analysis...');
       const cvText = await extractTextFromFile(file);
-      const cvKeywords = extractKeywords(cvText);
       
-      const jobKeywords = jobAnalysis ? 
-        [...(jobAnalysis.keywords || []), ...(jobAnalysis.skills || [])] : 
-        qualificationKeywords || [];
-      
-      const matchedKeywords = cvKeywords.filter(keyword => 
-        jobKeywords.some(jobKeyword => 
-          jobKeyword.toLowerCase().includes(keyword.toLowerCase()) ||
-          keyword.toLowerCase().includes(jobKeyword.toLowerCase())
-        )
+      const jobKeywords = uniqueNonEmpty(
+        jobAnalysis
+          ? [...(jobAnalysis.keywords || []), ...(jobAnalysis.skills || [])]
+          : qualificationKeywords || []
       );
-      
-      const score = jobKeywords.length > 0 
-        ? Math.min(100, Math.round((matchedKeywords.length / jobKeywords.length) * 100))
-        : 0;
+      const jobMatch = matchJobKeywords(cvText, jobKeywords);
+      const local = analyzeText(cvText);
+      const localQuality = local.atsCompatibility?.score ?? local.overallScore ?? 0;
+      const jobMatchScore = jobKeywords.length > 0 ? Math.round((jobMatch.found.length / Math.max(1, jobKeywords.length)) * 100) : null;
+      const keywordAnalysis =
+        jobKeywords.length > 0
+          ? jobMatch
+          : {
+              found: local.keywordAnalysis?.found ?? [],
+              missing: local.keywordAnalysis?.missing ?? []
+            };
       
       return {
-        score,
-        keywordAnalysis: {
-          found: Array.from(new Set(matchedKeywords)),
-          missing: Array.from(new Set(
-            jobKeywords.filter(k => !matchedKeywords.some(mk => 
-              k.toLowerCase().includes(mk.toLowerCase()) ||
-              mk.toLowerCase().includes(k.toLowerCase())
-            ))
-          ))
-        },
-        skills: Array.from(new Set(cvKeywords)),
+        score: local.overallScore ?? 0,
+        atsQualityScore: localQuality,
+        jobMatchScore,
+        overallScore: local.overallScore ?? 0,
+        breakdown: local.breakdown ?? {},
+        strengths: local.strengths ?? [],
+        improvements: local.improvements ?? [],
+        keywordAnalysis,
+        atsCompatibility: local.atsCompatibility
+          ? { score: local.atsCompatibility.score ?? 0, issues: local.atsCompatibility.issues ?? [] }
+          : { score: 0, issues: [] },
+        skills: local.keywordAnalysis?.found ?? [],
         experience: [],
         education: [],
-        strengths: ['Basic keyword matching completed'],
-        improvements: ['Consider using AI-powered analysis for detailed insights'],
-        atsCompatibility: { score: score, issues: [] }
+        resumeText: cvText,
+        jobKeywords
       };
     }
   };
@@ -281,9 +364,9 @@ const ATSAnalyzer = () => {
       
       // Determine if this was AI analysis or fallback
       const isAiAnalysis = skillCount > 0 || qualCount > 0 || analysis.title !== 'Job Position';
-      const analysisType = isAiAnalysis ? '🤖 AI Analysis' : '⚡ Basic Analysis';
+      const analysisType = isAiAnalysis ? 'AI Analysis' : 'Basic Analysis';
       
-      alert(`✅ Job post analyzed successfully!\n\n📊 ${analysisType} Results:\n• ${keywordCount} ATS keywords extracted\n• ${skillCount} technical skills identified\n• ${qualCount} qualifications found\n• Job Title: ${analysis.title}\n• Company: ${analysis.company}\n\nKeywords will now be highlighted in your resume analysis.`);
+      alert(`Job post analyzed successfully.\n\n${analysisType} Results:\n• ${keywordCount} ATS keywords extracted\n• ${skillCount} technical skills identified\n• ${qualCount} qualifications found\n• Job Title: ${analysis.title}\n• Company: ${analysis.company}\n\nKeywords will now be highlighted in your resume analysis.`);
       
     } catch (error) {
       console.error('Failed to analyze job post:', error);
@@ -304,7 +387,7 @@ const ATSAnalyzer = () => {
       setJobAnalysis(fallbackAnalysis);
       setQualificationKeywords(fallbackKeywords);
       
-      alert(`⚠️ AI analysis failed, using basic keyword extraction instead.\n\nError: ${error instanceof Error ? error.message : 'Unknown error'}\n\nExtracted ${fallbackKeywords.length} basic keywords from the job post.`);
+      alert(`AI analysis failed, using basic keyword extraction instead.\n\nError: ${error instanceof Error ? error.message : 'Unknown error'}\n\nExtracted ${fallbackKeywords.length} basic keywords from the job post.`);
     } finally {
       // setIsAnalyzingJobPost(false);
     }
@@ -321,39 +404,94 @@ const ATSAnalyzer = () => {
     );
   };
 
+  const highlightTerms = (text: string, terms: string[]) => {
+    const limited = terms.slice(0, 60).filter(Boolean);
+    if (!limited.length) return text;
+    const regex = new RegExp(`(${limited.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
+    return text.split(regex).map((part, i) =>
+      limited.some(k => k.toLowerCase() === part.toLowerCase())
+        ? <span key={i} className="bg-green-500/20 text-green-200 px-1 rounded">{part}</span>
+        : part
+    );
+  };
+
+  const suggestPlacement = (keyword: string) => {
+    const k = keyword.toLowerCase();
+    if (k.includes('lead') || k.includes('manage') || k.includes('stakeholder') || k.includes('strategy')) return 'Experience';
+    if (k.includes('degree') || k.includes('diploma') || k.includes('certificate')) return 'Education';
+    if (k.includes('aws') || k.includes('azure') || k.includes('gcp') || k.includes('sql') || k.includes('react') || k.includes('node') || k.includes('python')) return 'Skills';
+    if (k.includes('communication') || k.includes('team') || k.includes('collaboration')) return 'Summary';
+    return 'Skills / Experience';
+  };
+
   const handleAnalyze = async () => {
     if (!uploadedFile) return;
     
     setIsAnalyzing(true);
     try {
       const result = await analyzeCV(uploadedFile);
-      
-      // If we have qualification keywords, update the analysis to highlight matches
-      if (qualificationKeywords.length > 0) {
-        // Create a copy of the result to avoid mutating the original
-        const updatedResult = { ...result };
-        
-        // Update found keywords to include any from qualifications
-        const foundKeywords = new Set([
-          ...(updatedResult.keywordAnalysis?.found || []),
-          ...qualificationKeywords
-        ]);
-        
-        updatedResult.keywordAnalysis = {
-          ...updatedResult.keywordAnalysis,
-          found: Array.from(foundKeywords)
-        };
-        
-        setAnalysisResult(updatedResult);
-      } else {
-        setAnalysisResult(result);
-      }
+      setAnalysisResult(result);
+      setResumeText(result.resumeText || '');
+
+      void (async () => {
+        try {
+          const res = await fetch('/api/ats/history', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              atsQualityScore: result.atsQualityScore,
+              jobMatchScore: result.jobMatchScore,
+              jobDescription: jobQualifications || jobAnalysis?.description || null,
+              analysis: {
+                analysisResult: result,
+                resumeText: result.resumeText,
+                jobKeywords: result.jobKeywords
+              }
+            })
+          });
+          if (!res.ok) return;
+          const refreshed = await fetch('/api/ats/history', { credentials: 'include' });
+          if (!refreshed.ok) return;
+          const data = await refreshed.json();
+          setAnalysisHistory(data.history || []);
+        } catch {}
+      })();
     } catch (error) {
       console.error('Error analyzing CV:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to analyze CV. Please try again.';
       alert(errorMessage);
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const loadHistoryItem = (item: any) => {
+    const payload = item?.analysis || {};
+    const savedResult = payload.analysisResult as AnalysisResult | undefined;
+
+    if (savedResult) {
+      setAnalysisResult(savedResult);
+      setResumeText(payload.resumeText || savedResult.resumeText || '');
+    }
+
+    const jd = item?.jobDescription || '';
+    setJobQualifications(jd);
+
+    if (jd && jd.trim()) {
+      const keywords = extractKeywords(jd);
+      setQualificationKeywords(keywords);
+      setJobAnalysis({
+        keywords,
+        skills: [],
+        qualifications: [],
+        title: 'Job Posting',
+        company: 'Company',
+        description: jd
+      });
+    } else {
+      setQualificationKeywords([]);
+      setJobAnalysis(null);
     }
   };
 
@@ -476,7 +614,7 @@ const ATSAnalyzer = () => {
             <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-left">
               <div className="flex items-start gap-2">
                 <div className="text-xs text-blue-300">
-                  <strong>💡 Fun Fact:</strong> Word documents (.doc/.docx) are optimal for ATS systems because they preserve formatting structure and metadata that helps ATS software parse sections, headers, and content hierarchy more accurately than PDFs or plain text.
+                  <strong>Fun Fact:</strong> Word documents (.doc/.docx) are optimal for ATS systems because they preserve formatting structure and metadata that helps ATS software parse sections, headers, and content hierarchy more accurately than PDFs or plain text.
                   <div className="mt-2 space-x-2">
                     <span className="text-blue-500">•</span>
                     <a href="https://www.indeed.com/career-advice/resumes-cover-letters/ats-resume" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline text-xs">Indeed ATS Tips</a>
@@ -522,7 +660,7 @@ const ATSAnalyzer = () => {
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Job Description/Requirements (Optional) 
-              <span className="text-purple-400 text-xs ml-2">✨ Automatic Keyword Extraction</span>
+              <span className="text-purple-400 text-xs ml-2">Automatic Keyword Extraction</span>
             </label>
             <div className="mb-4">
               <textarea
@@ -536,7 +674,7 @@ Keywords will be automatically extracted and highlighted in your resume analysis
             </div>
             {jobQualifications.trim() && qualificationKeywords.length > 0 && (
               <div className="mt-3 p-3 bg-slate-700/50 rounded-lg">
-                <p className="text-xs text-purple-400 mb-2">✅ {qualificationKeywords.length} keywords extracted</p>
+                <p className="text-xs text-purple-400 mb-2">{qualificationKeywords.length} keywords extracted</p>
                 <div className="flex flex-wrap gap-1">
                   {qualificationKeywords.slice(0, 10).map((keyword, idx) => (
                     <span key={idx} className="text-xs px-2 py-1 bg-purple-600/20 text-purple-300 rounded">
@@ -581,30 +719,47 @@ Keywords will be automatically extracted and highlighted in your resume analysis
                 ATS Compatibility
               </h3>
               
-              <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6">
-                <div className="flex items-center">
-                  <div className={`text-5xl font-bold mr-4 ${getScoreColor(analysisResult.score)}`}>
-                    {analysisResult.score}%
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div className="bg-slate-700 rounded-lg p-4">
+                  <div className="text-sm text-gray-300 mb-1">ATS Parseability / Quality</div>
+                  <div className="flex items-end justify-between">
+                    <div className={`text-4xl font-bold ${getScoreColor(analysisResult.atsQualityScore)}`}>
+                      {analysisResult.atsQualityScore}%
+                    </div>
+                    <div className="text-sm text-gray-400">{getScoreLabel(analysisResult.atsQualityScore)}</div>
                   </div>
-                  <div>
-                    <div className="text-lg font-semibold text-white">
-                      {getScoreLabel(analysisResult.score)}
-                    </div>
-                    <div className="text-sm text-gray-400">
-                      {analysisResult.score >= 70 ? 'Good match for this position' : 'Could be improved'}
-                    </div>
+                  <div className="w-full bg-slate-600 rounded-full h-2 mt-3">
+                    <div
+                      className={`h-2 rounded-full ${getScoreColor(analysisResult.atsQualityScore).replace('text-', 'bg-')}`}
+                      style={{ width: `${analysisResult.atsQualityScore}%` }}
+                    ></div>
                   </div>
                 </div>
-                
-                <div className="mt-4 md:mt-0">
-                  <div className="text-sm text-gray-300 mb-2">
-                    Based on {analysisResult.keywordAnalysis?.found.length || 0} matched keywords
-                  </div>
-                  <div className="w-full bg-slate-700 rounded-full h-2.5">
-                    <div 
-                      className={`h-2.5 rounded-full ${getScoreColor(analysisResult.score).replace('text-', 'bg-')}`}
-                      style={{ width: `${analysisResult.score}%` }}
-                    ></div>
+
+                <div className="bg-slate-700 rounded-lg p-4">
+                  <div className="text-sm text-gray-300 mb-1">Job Match Score</div>
+                  {analysisResult.jobMatchScore === null ? (
+                    <div className="text-sm text-gray-400 mt-1">
+                      Paste a job description to calculate job match.
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-end justify-between">
+                        <div className={`text-4xl font-bold ${getScoreColor(analysisResult.jobMatchScore)}`}>
+                          {analysisResult.jobMatchScore}%
+                        </div>
+                        <div className="text-sm text-gray-400">{getScoreLabel(analysisResult.jobMatchScore)}</div>
+                      </div>
+                      <div className="w-full bg-slate-600 rounded-full h-2 mt-3">
+                        <div
+                          className={`h-2 rounded-full ${getScoreColor(analysisResult.jobMatchScore).replace('text-', 'bg-')}`}
+                          style={{ width: `${analysisResult.jobMatchScore}%` }}
+                        ></div>
+                      </div>
+                    </>
+                  )}
+                  <div className="text-xs text-gray-400 mt-3">
+                    Matched keywords found: {analysisResult.keywordAnalysis?.found.length || 0}
                   </div>
                 </div>
               </div>
@@ -632,6 +787,7 @@ Keywords will be automatically extracted and highlighted in your resume analysis
                     {analysisResult.keywordAnalysis.missing.slice(0, 15).map((keyword: string, index: number) => (
                       <span key={index} className="bg-red-900/50 text-red-300 px-3 py-1 rounded-full text-sm">
                         {keyword}
+                        <span className="text-red-200/70 ml-2 text-xs">{suggestPlacement(keyword)}</span>
                       </span>
                     ))}
                     {analysisResult.keywordAnalysis.missing.length > 15 && (
@@ -641,6 +797,18 @@ Keywords will be automatically extracted and highlighted in your resume analysis
                 </div>
               )}
             </div>
+
+            {resumeText && (
+              <div className="bg-slate-750 rounded-xl p-6 mb-8">
+                <h3 className="text-lg font-semibold mb-4 flex items-center">
+                  <FileText className="w-5 h-5 mr-2 text-purple-400" />
+                  Resume Preview (Highlighted Matches)
+                </h3>
+                <div className="bg-slate-700 rounded-lg p-4 max-h-80 overflow-auto whitespace-pre-wrap text-sm text-gray-100">
+                  {highlightTerms(resumeText, analysisResult.keywordAnalysis?.found || [])}
+                </div>
+              </div>
+            )}
 
             {/* Detailed Breakdown */}
             {analysisResult.breakdown && Object.keys(analysisResult.breakdown).length > 0 && (
@@ -757,6 +925,42 @@ Keywords will be automatically extracted and highlighted in your resume analysis
             </div>
           </div>
         )}
+
+        <div className="bg-slate-800 rounded-xl p-6 mb-8">
+          <h2 className="text-xl font-semibold mb-4 flex items-center">
+            <TrendingUp className="w-5 h-5 mr-2 text-purple-400" />
+            Analysis History
+          </h2>
+
+          {isLoadingHistory ? (
+            <div className="text-sm text-gray-400">Loading history...</div>
+          ) : analysisHistory.length > 0 ? (
+            <div className="space-y-3">
+              {analysisHistory.slice(0, 10).map((item) => (
+                <div key={item.id} className="bg-slate-700 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <div className="text-sm text-gray-200">
+                      {new Date(item.createdAt).toLocaleString()}
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      ATS Quality: {item.atsQualityScore}%{typeof item.jobMatchScore === 'number' ? ` • Job Match: ${item.jobMatchScore}%` : ''}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => loadHistoryItem(item)}
+                    className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors text-sm"
+                  >
+                    View
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-sm text-gray-400">
+              No history yet. Run an analysis to save results.
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

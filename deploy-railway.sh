@@ -28,8 +28,6 @@ echo "- NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"
 echo "- CLERK_SECRET_KEY"
 echo "- OPENAI_API_KEY"
 echo "- DATABASE_URL (if using PostgreSQL)"
-echo "- ADZUNA_APP_ID (required for Indeed job matcher - get free at https://developer.adzuna.com)"
-echo "- ADZUNA_APP_KEY (required for Indeed job matcher - get free at https://developer.adzuna.com)"
 
 # Deploy to Railway
 echo "🚀 Deploying to Railway..."

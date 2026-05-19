@@ -3,7 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { CVTemplate } from './CVTemplate';
 import { ProfileFormData } from '../profile.schema';
-import { exportToWord, ExportOptions } from '../utils/cvExport';
+import type { ExportOptions } from '../utils/cvExport';
 import { Button } from '@/components/ui/button';
 import { FileText, Loader2, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
@@ -57,6 +57,7 @@ export function CVPreview({
       const filename = `${data.firstName || 'CV'}_${data.lastName || 'Resume'}_${Date.now()}`;
       const exportOptions = getExportOptions(filename, format);
 
+      const { exportToWord } = await import('../utils/cvExport');
       await exportToWord(data, exportOptions);
       toast.success('CV exported as Word document successfully!');
     } catch (error) {

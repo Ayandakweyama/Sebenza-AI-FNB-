@@ -1,11 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
+import { getAuth } from '@clerk/nextjs/server';
+
+async function getUserFromRequest(request: NextRequest) {
+  try {
+    const { userId } = await auth();
+    if (userId) return userId;
+
+    const authHeader = request.headers.get('authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      const authRequest = new Request(request.url, {
+        method: request.method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const { userId: tokenUserId } = getAuth(authRequest);
+      if (tokenUserId) return tokenUserId;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 // GET /api/skills - Get user skills
 export async function GET(request: NextRequest) {
   try {
-    const { userId: clerkId } = await auth();
+    const clerkId = await getUserFromRequest(request);
 
     if (!clerkId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -43,7 +69,7 @@ export async function GET(request: NextRequest) {
 // POST /api/skills - Create or update skill
 export async function POST(request: NextRequest) {
   try {
-    const { userId: clerkId } = await auth();
+    const clerkId = await getUserFromRequest(request);
 
     if (!clerkId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

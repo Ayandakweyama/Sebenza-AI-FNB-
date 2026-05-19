@@ -1,20 +1,7 @@
 import { randomInt } from 'crypto';
 import path from 'path';
 import fs from 'fs';
-import os from 'os';
 import type { Browser, Page } from 'puppeteer';
-
-function isServerEnvironment(): boolean {
-  return !!(
-    process.env.RAILWAY_ENVIRONMENT ||
-    process.env.RAILWAY_PROJECT_ID ||
-    process.env.RENDER ||
-    process.env.FLY_APP_NAME ||
-    process.env.VERCEL ||
-    process.env.DOCKER_CONTAINER ||
-    (process.env.NODE_ENV === 'production' && !process.env.DISPLAY)
-  );
-}
 
 export const randomDelay = (min: number, max: number): Promise<void> => 
   new Promise(resolve => setTimeout(resolve, randomInt(min, max)));
@@ -91,7 +78,6 @@ const MAX_POOL_SIZE = 3;
 export async function getBrowserFromPool(): Promise<Browser> {
   // Create a new browser instance with guaranteed unique userDataDir
   const puppeteer = await import('puppeteer');
-  const isServer = isServerEnvironment();
   
   let userDataDir: string;
   let uniqueDir: string;
@@ -101,24 +87,19 @@ export async function getBrowserFromPool(): Promise<Browser> {
     const timestamp = Date.now();
     const randomId = Math.random().toString(36).substr(2, 9) + Math.random().toString(36).substr(2, 9) + Math.random().toString(36).substr(2, 9);
     uniqueDir = `puppeteer_dev_chrome_profile-${timestamp}-${randomId}`;
-    userDataDir = path.join(os.tmpdir(), uniqueDir);
+    userDataDir = path.join(require('os').tmpdir(), uniqueDir);
     attempts++;
   } while (fs.existsSync(userDataDir) && attempts < 10); // Ensure directory doesn't exist
   
-  console.log(`🔧 Creating browser (${isServer ? 'server' : 'local'}) with userDataDir: ${userDataDir}`);
+  console.log(`🔧 Creating browser with unique userDataDir: ${userDataDir}`);
   
   const config = {
-    ...(isServer ? SERVER_BROWSER_CONFIG : FAST_BROWSER_CONFIG),
+    ...FAST_BROWSER_CONFIG,
     userDataDir
   };
   
   try {
-    // Handle both ESM and CJS interop - puppeteer.default might not exist in some environments
-    const puppeteerLib = (puppeteer as any).default || puppeteer;
-    if (!puppeteerLib || !puppeteerLib.launch) {
-      throw new Error('Puppeteer launch function not found. Module structure: ' + Object.keys(puppeteer as any).join(', '));
-    }
-    const browser = await puppeteerLib.launch(config);
+    const browser = await puppeteer.default.launch(config);
     console.log(`✅ Browser created successfully with unique profile: ${uniqueDir}`);
     return browser;
   } catch (error) {
@@ -160,8 +141,8 @@ export const BROWSER_CONFIG = {
     '--disable-features=VizDisplayCompositor',
     '--disable-extensions',
     '--disable-plugins',
-    '--disable-images',
-    '--disable-css',
+    '--disable-images', // Skip loading images for faster scraping
+    '--disable-javascript', // We'll enable only when needed
     '--disable-default-apps',
     '--disable-background-timer-throttling',
     '--disable-backgrounding-occluded-windows',
@@ -170,12 +151,11 @@ export const BROWSER_CONFIG = {
     '--no-first-run',
     '--no-default-browser-check',
     '--memory-pressure-off',
-    '--disable-blink-features=AutomationControlled',
     '--max_old_space_size=4096'
   ],
-  defaultViewport: { width: 1280, height: 720 },
+  defaultViewport: { width: 1280, height: 720 }, // Smaller viewport for speed
   ignoreHTTPSErrors: true,
-  timeout: 60000
+  timeout: 30000 // Reduced timeout
 };
 
 // Lightweight config for faster scraping
@@ -190,35 +170,12 @@ export const FAST_BROWSER_CONFIG = {
     '--disable-css',
     '--disable-plugins',
     '--disable-extensions',
+    // Removed --disable-javascript - scrapers need JS
     '--no-first-run',
-    '--memory-pressure-off',
-    '--disable-blink-features=AutomationControlled'
+    '--memory-pressure-off'
   ],
   defaultViewport: { width: 1024, height: 600 },
   ignoreHTTPSErrors: true,
-  timeout: 60000,
-  protocolTimeout: 120000
-};
-
-// Server/Railway-safe config - aligned with FAST_BROWSER_CONFIG (which works)
-// Removed --single-process (breaks JS), --no-zygote (breaks process spawning), headless:'new' (breaks launch)
-export const SERVER_BROWSER_CONFIG = {
-  headless: true,
-  args: [
-    '--no-sandbox',
-    '--disable-setuid-sandbox',
-    '--disable-dev-shm-usage',
-    '--disable-gpu',
-    '--disable-images',
-    '--disable-css',
-    '--disable-plugins',
-    '--disable-extensions',
-    '--no-first-run',
-    '--memory-pressure-off',
-    '--disable-blink-features=AutomationControlled',
-  ],
-  defaultViewport: { width: 1280, height: 720 },
-  ignoreHTTPSErrors: true,
-  timeout: 60000,
-  protocolTimeout: 180000 // 3 minutes for server environments
+  timeout: 15000,
+  protocolTimeout: 120000 // 2 minutes for protocol operations
 };

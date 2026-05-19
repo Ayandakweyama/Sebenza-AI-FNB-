@@ -1,14 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth, currentUser, getAuth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
+import type { RequestLike } from '@clerk/nextjs/server';
 
-// Helper function to get user from request
-async function getUserFromRequest(_request: NextRequest) {
+// Helper function to get user from request (supports both session and token)
+async function getUserFromRequest(request: NextRequest) {
   try {
+    // First try to get user from session (cookies)
     const { userId } = await auth();
-    return userId || null;
+    if (userId) {
+      console.log('✅ Got user from session:', userId);
+      return userId;
+    }
+
+    // If no session, try to get from Authorization header
+    const authHeader = request.headers.get('authorization');
+    console.log('🔐 Checking auth header:', authHeader ? 'Present' : 'Missing');
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      console.log('🔐 Extracted token, attempting verification...');
+      
+      try {
+        // Create a new request object with the token for verification
+        const authRequest = new Request(request.url, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const { userId: tokenUserId } = getAuth(authRequest);
+        if (tokenUserId) {
+          console.log('✅ Got user from token:', tokenUserId);
+          return tokenUserId;
+        } else {
+          console.log('❌ Token verification returned no userId');
+        }
+      } catch (tokenError) {
+        console.error('❌ Token verification failed:', tokenError);
+      }
+    }
+
+    console.log('❌ No valid authentication found');
+    return null;
   } catch (error) {
-    console.error('Error getting user from request:', error);
+    console.error('❌ Error getting user from request:', error);
     return null;
   }
 }
@@ -28,6 +66,7 @@ export async function GET(request: NextRequest) {
         profile: true,
         accountSettings: true,
         jobPreferences: true,
+        profileSnapshot: true,
         documents: {
           orderBy: { createdAt: 'desc' }
         },
@@ -55,12 +94,14 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
+      user: {
+        email: user.email,
+        name: user.name
+      },
       profile: user.profile || {},
-      user: { email: user.email, name: user.name },
-      accountSettings: user.accountSettings || null,
-      jobPreferences: user.jobPreferences || null,
+      jobPreferences: user.jobPreferences || {},
       skills: user.skills || [],
-      documents: user.documents || [],
+      profileSnapshot: user.profileSnapshot?.data || null
     });
   } catch (error) {
     console.error('Error fetching profile:', error);
@@ -78,7 +119,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { profile, jobPreferences } = body;
+    const { profile, jobPreferences, profileSnapshot } = body;
 
     const user = await prisma.user.findUnique({
       where: { clerkId }
@@ -92,11 +133,11 @@ export async function PUT(request: NextRequest) {
     const result = await prisma.$transaction(async (tx) => {
       let updatedProfile = null;
       let updatedJobPreferences = null;
+      let updatedProfileSnapshot = null;
 
       // Update profile if provided
       if (profile) {
-        // Extract fields that don't belong in userProfile
-        const { skills, education, workExperience, ...profileDataWithoutExtras } = profile;
+        const { skills, education, workExperience, cvStyle, ...profileDataWithoutExtras } = profile;
         
         updatedProfile = await tx.userProfile.upsert({
           where: { userId: user.id },
@@ -106,9 +147,6 @@ export async function PUT(request: NextRequest) {
             ...profileDataWithoutExtras
           }
         });
-        
-        // Note: Education and work experience would need separate models in the schema
-        // For now, we're just storing the core profile data
       }
 
       // Update job preferences if provided
@@ -131,13 +169,26 @@ export async function PUT(request: NextRequest) {
         });
       }
 
-      return { profile: updatedProfile, jobPreferences: updatedJobPreferences };
+      if (profileSnapshot) {
+        updatedProfileSnapshot = await tx.profileSnapshot.upsert({
+          where: { userId: user.id },
+          update: { data: profileSnapshot },
+          create: { userId: user.id, data: profileSnapshot }
+        });
+      }
+
+      return {
+        profile: updatedProfile,
+        jobPreferences: updatedJobPreferences,
+        profileSnapshot: updatedProfileSnapshot
+      };
     });
 
     return NextResponse.json({ 
       success: true,
       profile: result.profile,
-      jobPreferences: result.jobPreferences 
+      jobPreferences: result.jobPreferences,
+      profileSnapshot: result.profileSnapshot?.data || null
     });
   } catch (error) {
     console.error('Error updating profile:', error);

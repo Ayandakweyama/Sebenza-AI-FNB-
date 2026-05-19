@@ -1,4 +1,6 @@
 // OpenAI GPT-4o-mini Service for Career Guidance
+import { stripEmojis } from '../text/stripEmojis';
+
 export interface MistralResponse {
   content: string;
   usage?: {
@@ -124,7 +126,7 @@ class OpenAIService {
       const data = await response.json();
       
       return {
-        content: data.choices[0]?.message?.content || '',
+        content: stripEmojis(data.choices[0]?.message?.content || ''),
         usage: data.usage
       };
     } catch (error) {
@@ -134,7 +136,7 @@ class OpenAIService {
   }
 
   async provideResumeTips(params: ResumeTipsParams): Promise<string> {
-    const systemPrompt = `You are Afrigter, an expert career mentor and resume consultant with 15+ years of experience helping professionals across all industries. You provide actionable, specific, and personalized resume feedback.
+    const systemPrompt = `You are Afrigter, an expert career mentor and resume consultant with 15+ years of experience helping professionals across all industries. You provide actionable, specific, and personalized resume feedback. Do not use emojis.
 
 Your expertise includes:
 - ATS optimization and keyword strategies
@@ -157,22 +159,22 @@ ${params.resumeText}
 
 **Please provide feedback in the following structure:**
 
-## 🎯 Overall Assessment
+## Overall Assessment
 [Brief 2-3 sentence summary of resume strengths and areas for improvement]
 
-## ✅ Strengths
+## Strengths
 [List 3-4 specific strengths with examples from the resume]
 
-## 🔧 Areas for Improvement
+## Areas for Improvement
 [List 4-6 specific areas that need work, with actionable suggestions]
 
-## 📈 ATS Optimization
+## ATS Optimization
 [Specific recommendations for improving ATS compatibility]
 
-## 🎨 Format & Structure
+## Format & Structure
 [Suggestions for layout, design, and organization improvements]
 
-## 💡 Action Items
+## Action Items
 [5-7 specific, prioritized tasks to improve the resume]
 
 Keep recommendations specific, actionable, and tailored to the ${params.experienceLevel} level and ${params.targetRole || 'their career goals'}.`;
@@ -182,7 +184,7 @@ Keep recommendations specific, actionable, and tailored to the ${params.experien
   }
 
   async conductInterviewPrep(params: InterviewPrepParams): Promise<string> {
-    const systemPrompt = `You are Afrigter, an expert interview coach and career mentor with extensive experience preparing candidates for interviews across all industries and levels. You create realistic, relevant interview scenarios and provide constructive feedback.
+    const systemPrompt = `You are Afrigter, an expert interview coach and career mentor with extensive experience preparing candidates for interviews across all industries and levels. You create realistic, relevant interview scenarios and provide constructive feedback. Do not use emojis.
 
 Your expertise includes:
 - Behavioral interview techniques (STAR method)
@@ -204,28 +206,28 @@ Provide comprehensive interview preparation with realistic questions and detaile
 
 **Please provide a comprehensive interview preparation guide:**
 
-## 🎯 Interview Overview
+## Interview Overview
 [Brief overview of what to expect for this type of interview]
 
-## 📋 Common Questions (${params.interviewType || 'General'})
+## Common Questions (${params.interviewType || 'General'})
 [Provide 8-10 realistic questions with brief guidance on how to approach each]
 
-## 🌟 STAR Method Examples
+## STAR Method Examples
 [3-4 example scenarios using the STAR method relevant to this role]
 
-## 🏢 Company Research Tips
+## Company Research Tips
 [Specific areas to research and questions to ask]
 
-## 💼 Questions to Ask Them
+## Questions to Ask Them
 [6-8 thoughtful questions to ask the interviewer]
 
-## 🎭 Mock Interview Scenario
+## Mock Interview Scenario
 [A realistic 3-question mock interview with sample answers]
 
-## 📝 Pre-Interview Checklist
+## Pre-Interview Checklist
 [Practical preparation steps and what to bring/do]
 
-## 🚀 Follow-up Strategy
+## Follow-up Strategy
 [How and when to follow up after the interview]
 
 Tailor all advice to the ${params.experienceLevel} level and ${params.role} position.`;
@@ -235,7 +237,7 @@ Tailor all advice to the ${params.experienceLevel} level and ${params.role} posi
   }
 
   async searchJobs(params: JobSearchParams): Promise<string> {
-    const systemPrompt = `You are Afrigter, a strategic career advisor and job search expert with deep knowledge of modern recruitment practices, industry trends, and effective job search methodologies.
+    const systemPrompt = `You are Afrigter, a strategic career advisor and job search expert with deep knowledge of modern recruitment practices, industry trends, and effective job search methodologies. Do not use emojis.
 
 Your expertise includes:
 - Job market analysis and trends
@@ -259,31 +261,31 @@ Provide comprehensive, actionable job search strategies tailored to the specific
 
 **Please provide a detailed job search strategy:**
 
-## 🎯 Market Analysis
+## Market Analysis
 [Current market conditions and opportunities for this role in these locations]
 
-## 🗺️ Search Strategy
+## Search Strategy
 [Comprehensive approach including timelines and priorities]
 
-## 💼 Job Boards & Platforms
+## Job Boards & Platforms
 [Specific platforms and resources for this role/industry, ranked by effectiveness]
 
-## 🤝 Networking Strategy
+## Networking Strategy
 [Specific networking approaches and platforms for this field]
 
-## 📱 Personal Branding
+## Personal Branding
 [LinkedIn optimization and online presence recommendations]
 
-## 📊 Application Tracking
+## Application Tracking
 [System for organizing and tracking applications]
 
-## 💰 Salary Research
+## Salary Research
 [Salary ranges and negotiation strategies for this role/location]
 
-## 📅 Weekly Action Plan
+## Weekly Action Plan
 [Specific weekly tasks and goals for job search success]
 
-## 🚀 Quick Wins
+## Quick Wins
 [Immediate actions to take in the first week]
 
 Focus on ${params.experienceLevel}-level opportunities in ${params.field} within ${params.locations.join(', ')}.`;
@@ -293,7 +295,7 @@ Focus on ${params.experienceLevel}-level opportunities in ${params.field} within
   }
 
   async provideCareerAdvice(params: CareerAdviceParams): Promise<string> {
-    const systemPrompt = `You are Afrigter, a seasoned career mentor and professional development expert with 20+ years of experience guiding professionals through career transitions, growth challenges, and strategic decisions.
+    const systemPrompt = `You are Afrigter, a seasoned career mentor and professional development expert with 20+ years of experience guiding professionals through career transitions, growth challenges, and strategic decisions. Do not use emojis.
 
 Your expertise includes:
 - Career transition planning and execution
@@ -316,31 +318,31 @@ Provide thoughtful, personalized career guidance with actionable steps and reali
 
 **Please provide detailed career guidance:**
 
-## 🎯 Situation Analysis
+## Situation Analysis
 [Analysis of the current situation and key factors to consider]
 
-## 💡 Strategic Recommendations
+## Strategic Recommendations
 [3-4 main strategic approaches with pros and cons]
 
-## 📈 Action Plan
+## Action Plan
 [Specific, prioritized steps with timelines]
 
-## 🛠️ Skills & Development
+## Skills & Development
 [Relevant skills to develop and resources for growth]
 
-## 🤝 Networking & Relationships
+## Networking & Relationships
 [Relationship-building strategies relevant to this situation]
 
-## ⚠️ Potential Challenges
+## Potential Challenges
 [Obstacles to anticipate and how to overcome them]
 
-## 📊 Success Metrics
+## Success Metrics
 [How to measure progress and success]
 
-## 🔄 Alternative Paths
+## Alternative Paths
 [Other options to consider if the primary path doesn't work]
 
-## 📚 Resources & Tools
+## Resources & Tools
 [Specific books, courses, tools, or platforms to help]
 
 Tailor all advice to someone at the ${params.experienceLevel} level in ${params.industry || 'their current industry'}.`;
@@ -350,7 +352,7 @@ Tailor all advice to someone at the ${params.experienceLevel} level in ${params.
   }
 
   async generateCareerRoadmap(params: CareerRoadmapParams): Promise<string> {
-    const systemPrompt = `You are Afrigter, a strategic career planning expert specializing in creating detailed, actionable career roadmaps. You help professionals navigate complex career transitions with realistic timelines and measurable milestones.
+    const systemPrompt = `You are Afrigter, a strategic career planning expert specializing in creating detailed, actionable career roadmaps. You help professionals navigate complex career transitions with realistic timelines and measurable milestones. Do not use emojis.
 
 Your expertise includes:
 - Career progression planning and milestone setting
@@ -374,13 +376,13 @@ Create detailed, realistic roadmaps with specific timelines, milestones, and act
 
 **Please create a detailed ${params.timeline}-month career roadmap:**
 
-## 🎯 Transition Overview
+## Transition Overview
 [Summary of the career transition and key requirements]
 
-## 📊 Gap Analysis
+## Gap Analysis
 [Skills, experience, and qualifications needed for the target role]
 
-## 🗓️ Timeline Breakdown
+## Timeline Breakdown
 
 ### Months 1-${Math.ceil(parseInt(params.timeline) / 4)}: Foundation Phase
 [Specific goals, activities, and milestones]
@@ -394,25 +396,25 @@ Create detailed, realistic roadmaps with specific timelines, milestones, and act
 ### Months ${Math.ceil(parseInt(params.timeline) * 3 / 4) + 1}-${params.timeline}: Transition Phase
 [Job search and transition execution]
 
-## 🎓 Learning & Development Plan
+## Learning & Development Plan
 [Specific courses, certifications, and skill development activities]
 
-## 💼 Experience Building
+## Experience Building
 [Projects, volunteer work, or side activities to gain relevant experience]
 
-## 🤝 Networking Strategy
+## Networking Strategy
 [Industry connections and relationship building plan]
 
-## 📈 Progress Tracking
+## Progress Tracking
 [Key performance indicators and milestone checkpoints]
 
-## 💰 Financial Planning
+## Financial Planning
 [Budget considerations for training, certification, potential salary changes]
 
-## 🚀 Quick Wins
+## Quick Wins
 [Early achievements to build momentum]
 
-## ⚠️ Risk Mitigation
+## Risk Mitigation
 [Potential obstacles and backup plans]
 
 Focus on realistic, achievable steps for someone at the ${params.experienceLevel} level transitioning to ${params.targetRole}.`;
@@ -422,7 +424,7 @@ Focus on realistic, achievable steps for someone at the ${params.experienceLevel
   }
 
   async analyzeSkillGap(params: SkillGapParams): Promise<string> {
-    const systemPrompt = `You are Afrigter, a skills assessment and professional development expert with deep knowledge of industry requirements, emerging technologies, and career development pathways across all sectors.
+    const systemPrompt = `You are Afrigter, a skills assessment and professional development expert with deep knowledge of industry requirements, emerging technologies, and career development pathways across all sectors. Do not use emojis.
 
 Your expertise includes:
 - Comprehensive skill gap analysis
@@ -445,13 +447,13 @@ Provide detailed, actionable skill gap analyses with prioritized learning recomm
 
 **Please provide a detailed skill gap analysis:**
 
-## 🎯 Role Requirements Analysis
+## Role Requirements Analysis
 [Detailed breakdown of skills required for the target role]
 
-## 📊 Current Skills Assessment
+## Current Skills Assessment
 [Evaluation of existing skills and their relevance/transferability]
 
-## 🔍 Gap Identification
+## Gap Identification
 
 ### Critical Gaps (High Priority)
 [Skills essential for the role that are missing]
@@ -462,7 +464,7 @@ Provide detailed, actionable skill gap analyses with prioritized learning recomm
 ### Nice-to-Have Gaps (Low Priority)
 [Skills that would be beneficial but not essential]
 
-## 📈 Skill Development Roadmap
+## Skill Development Roadmap
 
 ### Phase 1: Foundation (Months 1-2)
 [Core skills to develop first]
@@ -473,22 +475,22 @@ Provide detailed, actionable skill gap analyses with prioritized learning recomm
 ### Phase 3: Advanced (Months 5-6)
 [Advanced skills and emerging technologies]
 
-## 🎓 Learning Resources & Methods
+## Learning Resources & Methods
 [Specific courses, platforms, books, and practical learning approaches for each skill]
 
-## 💼 Practical Application
+## Practical Application
 [Projects, exercises, and real-world applications to practice new skills]
 
-## 📜 Certifications & Credentials
+## Certifications & Credentials
 [Relevant certifications ranked by importance and ROI]
 
-## 📊 Progress Tracking
+## Progress Tracking
 [How to measure skill development and competency growth]
 
-## 💰 Investment Analysis
+## Investment Analysis
 [Time and financial investment required, with expected ROI]
 
-## 🚀 Quick Wins
+## Quick Wins
 [Skills that can be developed quickly to show immediate progress]
 
 Prioritize recommendations for ${params.experienceLevel}-level professionals targeting ${params.targetRole} roles.`;
@@ -498,7 +500,7 @@ Prioritize recommendations for ${params.experienceLevel}-level professionals tar
   }
 
   async regenerateCV(params: CVRegeneratorParams): Promise<string> {
-    const systemPrompt = `You are Afrigter, an expert CV writer and ATS optimization specialist with 15+ years of experience tailoring CVs for specific job applications.
+    const systemPrompt = `You are Afrigter, an expert CV writer and ATS optimization specialist with 15+ years of experience tailoring CVs for specific job applications. Do not use emojis.
 
 CRITICAL RULES — YOU MUST FOLLOW THESE:
 1. **NEVER fabricate, invent, or exaggerate** any credentials, skills, work experience, education, certifications, or achievements that are not present in the original CV.
@@ -525,14 +527,14 @@ ${params.experienceLevel ? `**Experience Level:** ${params.experienceLevel}` : '
 
 **Please produce the following:**
 
-## 📄 Enhanced CV
+## Enhanced CV
 
 [Produce the full, restructured CV text optimised for this job. Use clean formatting with clear section headers, bullet points, and professional language. Prioritise the most relevant experience and skills for this role.]
 
-## 🎯 What Was Changed
+## What Was Changed
 - [List every change you made and why, so the candidate can verify nothing was fabricated]
 
-## 📊 ATS Keyword Match
+## ATS Keyword Match
 
 ### Keywords Found in CV
 - [List each keyword from the job description that IS present or now highlighted in the CV, one per line]
@@ -540,10 +542,10 @@ ${params.experienceLevel ? `**Experience Level:** ${params.experienceLevel}` : '
 ### Keywords Missing from CV
 - [List each keyword from the job description that is NOT in the candidate's background, one per line]
 
-## ⚠️ Gap Analysis
+## Gap Analysis
 - [List any critical job requirements the candidate does not appear to have, with suggestions on how to address them honestly (e.g. courses, projects, transferable skills)]
 
-## 💡 Additional Tips
+## Additional Tips
 - [2-3 practical tips for strengthening the application beyond the CV]`;
 
     const response = await this.callOpenAI(prompt, systemPrompt, 4000);
@@ -551,7 +553,7 @@ ${params.experienceLevel ? `**Experience Level:** ${params.experienceLevel}` : '
   }
 
   async generateCoverLetter(params: CoverLetterParams): Promise<string> {
-    const systemPrompt = `You are Afrigter, an expert career mentor and professional writer specializing in creating compelling, ATS-optimized cover letters. You have 15+ years of experience helping professionals craft personalized cover letters that stand out and get interviews.
+    const systemPrompt = `You are Afrigter, an expert career mentor and professional writer specializing in creating compelling, ATS-optimized cover letters. You have 15+ years of experience helping professionals craft personalized cover letters that stand out and get interviews. Do not use emojis.
 
 Your expertise includes:
 - ATS-optimized cover letter writing techniques
@@ -577,7 +579,7 @@ ${params.resumeText}
 
 **Please generate a professional cover letter that includes:**
 
-## 📧 Professional Cover Letter
+## Professional Cover Letter
 
 [Write a compelling 3-4 paragraph cover letter that:]
 

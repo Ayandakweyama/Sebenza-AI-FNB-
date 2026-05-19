@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,43 +8,64 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  clerkId   String   @unique
-  name      String?
-  email     String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Profile tracking
-  profileViews Int @default(0)
-  monthlyProfileViews Int @default(0)
-  lastMonthProfileViews Int @default(0)
-
-  // Relations
-  profile           UserProfile?
-  accountSettings   AccountSettings?
-  jobPreferences    JobPreferences?
-  documents         Document[]
-  subscriptions     Subscription[]
-  skills            Skill[]
-  careerJourney     CareerJourney?
-  assessments       SkillsAssessment[]
-  applications      Application[]
-  savedJobs         SavedJob[]
-  jobAlerts         JobAlert[]
-  chatSessions      ChatSession[]
-  autoApplySessions AutoApplySession[]
-  interviewSessions InterviewSession[]
+  id                    String                @id @default(cuid())
+  clerkId               String                @unique
+  name                  String?
+  email                 String                @unique
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  profileViews          Int                   @default(0)
+  monthlyProfileViews   Int                   @default(0)
+  lastMonthProfileViews Int                   @default(0)
+  accountSettings       AccountSettings?
+  applications          Application[]
+  auto_apply_sessions   auto_apply_sessions[]
+  careerJourney         CareerJourney?
+  chatSessions          ChatSession[]
+  documents             Document[]
+  interview_sessions    interview_sessions[]
+  jobAlerts             JobAlert[]
+  jobPreferences        JobPreferences?
+  savedJobs             SavedJob[]
+  skills                Skill[]
+  assessments           SkillsAssessment[]
+  subscriptions         Subscription[]
+  profile               UserProfile?
+  profileSnapshot       ProfileSnapshot?
+  atsAnalysisHistory    AtsAnalysisHistory[]
 
   @@map("users")
+}
+
+model ProfileSnapshot {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profile_snapshots")
+}
+
+model AtsAnalysisHistory {
+  id              String   @id @default(cuid())
+  userId          String
+  atsQualityScore Int
+  jobMatchScore   Int?
+  jobDescription  String?
+  analysis        Json
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("ats_analysis_history")
 }
 
 model UserProfile {
   id          String   @id @default(cuid())
   userId      String   @unique
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Personal Information
   firstName   String?
   lastName    String?
   phone       String?
@@ -57,72 +75,56 @@ model UserProfile {
   linkedinUrl String?
   githubUrl   String?
   websiteUrl  String?
-
-  // Professional Information
   title       String?
   company     String?
   experience  String?
   industry    String?
-
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_profiles")
 }
 
 model AccountSettings {
-  id                String   @id @default(cuid())
-  userId            String   @unique
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Notification Preferences
-  emailNotifications    Boolean @default(true)
-  pushNotifications     Boolean @default(true)
-  jobAlerts            Boolean @default(true)
-  weeklyReports        Boolean @default(true)
-  marketingEmails      Boolean @default(false)
-
-  // Privacy Settings
-  profileVisibility     String @default("private") // public, private, connections
-  showEmail            Boolean @default(false)
-  showPhone            Boolean @default(false)
-
-  // Account Preferences
-  language             String @default("en")
-  timezone             String @default("UTC")
-  dateFormat           String @default("MM/DD/YYYY")
-
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  emailNotifications Boolean  @default(true)
+  pushNotifications  Boolean  @default(true)
+  jobAlerts          Boolean  @default(true)
+  weeklyReports      Boolean  @default(true)
+  marketingEmails    Boolean  @default(false)
+  profileVisibility  String   @default("private")
+  showEmail          Boolean  @default(false)
+  showPhone          Boolean  @default(false)
+  language           String   @default("en")
+  timezone           String   @default("UTC")
+  dateFormat         String   @default("MM/DD/YYYY")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("account_settings")
 }
 
 model JobPreferences {
-  id                String   @id @default(cuid())
-  userId            String   @unique
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Job Search Criteria
-  desiredRoles      Json     @default("[]") // Array of job titles
-  industries        Json     @default("[]") // Array of industries
-  locations         Json     @default("[]") // Array of preferred locations
-  remoteWork        Boolean  @default(false)
-  salaryMin         Int?
-  salaryMax         Int?
-  salaryCurrency    String   @default("USD")
-
-  // Career Goals
-  careerLevel       String?  // entry, mid, senior, executive
-  jobType           Json     @default("[]") // full-time, part-time, contract, freelance
-  companySize       Json     @default("[]") // startup, small, medium, large, enterprise
-
-  // Skills & Keywords
-  skills            Json     @default("[]")
-  keywords          Json     @default("[]")
-
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  desiredRoles   Json     @default("[]")
+  industries     Json     @default("[]")
+  locations      Json     @default("[]")
+  remoteWork     Boolean  @default(false)
+  salaryMin      Int?
+  salaryMax      Int?
+  salaryCurrency String   @default("USD")
+  careerLevel    String?
+  jobType        Json     @default("[]")
+  companySize    Json     @default("[]")
+  skills         Json     @default("[]")
+  keywords       Json     @default("[]")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("job_preferences")
 }
@@ -130,136 +132,108 @@ model JobPreferences {
 model Document {
   id          String   @id @default(cuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Document Information
   name        String
-  type        String // resume, cover_letter, portfolio, certificate
+  type        String
   fileName    String
   fileSize    Int
   mimeType    String
   fileUrl     String
-  isPrimary   Boolean @default(false)
-
-  // Metadata
+  isPrimary   Boolean  @default(false)
   description String?
-  tags        Json    @default("[]")
-
+  tags        Json     @default("[]")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, type])
   @@map("documents")
 }
 
 model Subscription {
-  id            String   @id @default(cuid())
-  userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Subscription Details
-  planName      String
-  planType      String // free, basic, premium, enterprise
-  status        String @default("active") // active, cancelled, expired, past_due
-
-  // Billing Information
-  stripeCustomerId  String?
+  id                   String    @id @default(cuid())
+  userId               String
+  planName             String
+  planType             String
+  status               String    @default("active")
+  stripeCustomerId     String?
   stripeSubscriptionId String?
-  currentPeriodStart DateTime?
-  currentPeriodEnd   DateTime?
-
-  // Pricing
-  amount        Int // Amount in cents
-  currency      String @default("usd")
-  interval      String @default("month") // month, year
-
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  amount               Int
+  currency             String    @default("usd")
+  interval             String    @default("month")
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("subscriptions")
 }
 
 model Skill {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   name        String
-  category    String // technical, soft, language, certification
-  proficiency String // beginner, intermediate, advanced, expert
-  level       Int @default(1) // 1-5 scale
-
-  // Verification
-  verified    Boolean @default(false)
+  category    String
+  proficiency String
+  level       Int       @default(1)
+  verified    Boolean   @default(false)
   verifiedBy  String?
   verifiedAt  DateTime?
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, category])
   @@map("skills")
 }
 
 model CareerJourney {
-  id            String   @id @default(cuid())
-  userId        String   @unique
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Career Overview
-  currentGoal   String?
-  timeline      String? // short-term, medium-term, long-term
-  targetRole    String?
+  id             String            @id @default(cuid())
+  userId         String            @unique
+  currentGoal    String?
+  timeline       String?
+  targetRole     String?
   targetIndustry String?
-
-  // Milestones
-  milestones    CareerMilestone[]
-
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  milestones     CareerMilestone[]
 
   @@map("career_journeys")
 }
 
 model CareerMilestone {
-  id              String   @id @default(cuid())
+  id              String        @id @default(cuid())
   careerJourneyId String
-  careerJourney   CareerJourney @relation(fields: [careerJourneyId], references: [id], onDelete: Cascade)
-
   title           String
   description     String?
-  type            String // education, experience, certification, achievement
-  status          String @default("planned") // planned, in_progress, completed
+  type            String
+  status          String        @default("planned")
   targetDate      DateTime?
   completedDate   DateTime?
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  careerJourney   CareerJourney @relation(fields: [careerJourneyId], references: [id], onDelete: Cascade)
 
   @@index([careerJourneyId])
   @@map("career_milestones")
 }
 
 model SkillsAssessment {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Assessment Details
   title       String
-  type        String // technical, behavioral, situational
+  type        String
   score       Int?
   maxScore    Int?
-  status      String @default("in_progress") // in_progress, completed, expired
-
-  // Results
-  results     Json? // Store assessment results as JSON
+  status      String    @default("in_progress")
+  results     Json?
   feedback    String?
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   completedAt DateTime?
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, type])
   @@map("skills_assessments")
@@ -283,64 +257,54 @@ model Company {
   website     String?
   description String?
   industry    String?
-  size        String?  // small, medium, large, enterprise
+  size        String?
   location    String?
-  
-  jobs        Job[]
-  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  jobs        Job[]
 
   @@map("companies")
 }
 
 model Job {
-  id          String   @id @default(cuid())
-  title       String
-  description String
-  companyId   String?
-  company     Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  
-  location    String?
-  type        String   // full-time, part-time, contract, internship
-  level       String?  // entry, mid, senior, lead, executive
-  salary      String?
-  
-  requirements String?
-  benefits     String?
-  
-  postedAt    DateTime @default(now())
-  expiresAt   DateTime?
-  
-  applications Application[]
-  savedJobs    SavedJob[]
-  interviewSessions InterviewSession[]
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                 String               @id @default(cuid())
+  title              String
+  description        String
+  companyId          String?
+  location           String?
+  type               String
+  level              String?
+  salary             String?
+  requirements       String?
+  benefits           String?
+  postedAt           DateTime             @default(now())
+  expiresAt          DateTime?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  applications       Application[]
+  interview_sessions interview_sessions[]
+  company            Company?             @relation(fields: [companyId], references: [id])
+  savedJobs          SavedJob[]
 
   @@index([companyId])
   @@map("jobs")
 }
 
 model Application {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  jobId       String
-  job         Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  
-  status      String   @default("APPLIED") // APPLIED, REVIEWING, INTERVIEW, OFFER, REJECTED, WITHDRAWN
-  coverLetter String?
-  resumeUrl   String?
-  notes       String?
-  
+  id            String    @id @default(cuid())
+  userId        String
+  jobId         String
+  status        String    @default("APPLIED")
+  coverLetter   String?
+  resumeUrl     String?
+  notes         String?
   interviewDate DateTime?
-  interviewType String?  // phone, video, onsite, technical
-  
-  appliedAt   DateTime @default(now())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  interviewType String?
+  appliedAt     DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  job           Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, jobId])
   @@index([userId])
@@ -349,14 +313,13 @@ model Application {
 }
 
 model SavedJob {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  jobId     String
-  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  
-  savedAt   DateTime @default(now())
-  
+  id      String   @id @default(cuid())
+  userId  String
+  jobId   String
+  savedAt DateTime @default(now())
+  job     Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@unique([userId, jobId])
   @@index([userId])
   @@index([jobId])
@@ -364,239 +327,172 @@ model SavedJob {
 }
 
 model JobAlert {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  name        String
-  keywords    String
-  location    String   @default("Any location")
-  frequency   String   @default("weekly") // daily, weekly, monthly
-  isActive    Boolean  @default(true)
-  
-  lastSent    DateTime?
-  newMatches  Int      @default(0)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  id         String    @id @default(cuid())
+  userId     String
+  name       String
+  keywords   String
+  location   String    @default("Any location")
+  frequency  String    @default("weekly")
+  isActive   Boolean   @default(true)
+  lastSent   DateTime?
+  newMatches Int       @default(0)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
   @@index([isActive])
   @@map("job_alerts")
 }
 
 model ChatSession {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  // Session Details
-  title       String   @default("New Chat")
-  type        String   // career-advice, resume-tips, interview-prep, job-search, skill-gap, career-roadmap
-  
-  // Session Metadata
-  lastMessageAt DateTime @default(now())
-  messageCount  Int      @default(0)
-  
-  // Session Context (for better continuity)
-  context     Json?    // Store session-specific context like experience level, industry, etc.
-  
-  messages    ChatMessage[]
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  id            String        @id @default(cuid())
+  userId        String
+  title         String        @default("New Chat")
+  type          String
+  lastMessageAt DateTime      @default(now())
+  messageCount  Int           @default(0)
+  context       Json?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  messages      ChatMessage[]
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId, type])
   @@index([userId, lastMessageAt])
   @@map("chat_sessions")
 }
 
 model ChatMessage {
-  id            String   @id @default(cuid())
-  sessionId     String
-  session       ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  
-  // Message Details
-  role          String   // user, assistant, system
-  content       String
-  
-  // Message Metadata
-  tokens        Int?     // Token count for cost tracking
-  model         String?  // AI model used (e.g., gpt-4o-mini)
-  
-  createdAt     DateTime @default(now())
-  
+  id        String      @id @default(cuid())
+  sessionId String
+  role      String
+  content   String
+  tokens    Int?
+  model     String?
+  createdAt DateTime    @default(now())
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
   @@index([sessionId, createdAt])
   @@map("chat_messages")
 }
 
-// ─── Auto-Apply Agent ────────────────────────────────────────────────────────
+model auto_apply_logs {
+  id                  String              @id
+  sessionId           String
+  jobTitle            String
+  company             String
+  jobUrl              String
+  matchScore          Int?
+  status              String
+  questionsFound      Int                 @default(0)
+  questionsAnswered   Int                 @default(0)
+  aiResponses         Json?
+  failureReason       String?
+  skipReason          String?
+  createdAt           DateTime            @default(now())
+  auto_apply_sessions auto_apply_sessions @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
-model AutoApplySession {
-  id              String   @id @default(cuid())
+  @@index([sessionId])
+}
+
+model auto_apply_sessions {
+  id              String            @id
   userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Search config
   searchQuery     String
-  location        String   @default("South Africa")
+  location        String            @default("South Africa")
   jobType         String?
-  maxApplications Int      @default(10)
+  maxApplications Int               @default(10)
   indeedEmail     String?
-
-  // Progress
-  status          String   @default("pending") // pending, running, paused, completed, failed, cancelled
-  totalFound      Int      @default(0)
-  appliedCount    Int      @default(0)
-  skippedCount    Int      @default(0)
-  failedCount     Int      @default(0)
+  status          String            @default("pending")
+  totalFound      Int               @default(0)
+  appliedCount    Int               @default(0)
+  skippedCount    Int               @default(0)
+  failedCount     Int               @default(0)
   lastError       String?
-
-  // Timestamps
   startedAt       DateTime?
   completedAt     DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  logs            AutoApplyLog[]
-
-  @@index([userId, status])
-  @@map("auto_apply_sessions")
-}
-
-model AutoApplyLog {
-  id                String   @id @default(cuid())
-  sessionId         String
-  session           AutoApplySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-
-  // Job info
-  jobTitle          String
-  company           String
-  jobUrl            String
-  matchScore        Int?
-
-  // Result
-  status            String   // applied, skipped, failed, needs_review
-  questionsFound    Int      @default(0)
-  questionsAnswered Int      @default(0)
-  aiResponses       Json?
-  failureReason     String?
-  skipReason        String?
-
-  createdAt         DateTime @default(now())
-
-  @@index([sessionId])
-  @@map("auto_apply_logs")
-}
-
-// ─── AI Video Interview Analysis ────────────────────────────────────────────
-
-model InterviewSession {
-  id              String   @id @default(cuid())
-  userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  jobId           String?
-  job             Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
-
-  // Session config
-  title           String   @default("Practice Interview")
-  type            String   @default("behavioral") // behavioral, technical, situational, mixed
-  difficulty      String   @default("intermediate") // beginner, intermediate, advanced
-
-  // Progress
-  status          String   @default("pending") // pending, in_progress, analyzing, completed, failed
-  overallScore    Int?
-  startedAt       DateTime?
-  completedAt     DateTime?
-
-  // Relations
-  questions       InterviewQuestion[]
-  report          InterviewReport?
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime
+  auto_apply_logs auto_apply_logs[]
+  users           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status])
-  @@map("interview_sessions")
 }
 
-model InterviewQuestion {
-  id              String   @id @default(cuid())
-  sessionId       String
-  session         InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-
-  questionText    String
-  category        String?  // behavioral, technical, situational, motivational
-  order           Int      @default(0)
-  timeLimitSecs   Int      @default(120) // max recording time in seconds
-
-  // Response
-  response        InterviewResponse?
-
-  createdAt       DateTime @default(now())
+model interview_questions {
+  id                  String               @id
+  sessionId           String
+  questionText        String
+  category            String?
+  order               Int                  @default(0)
+  timeLimitSecs       Int                  @default(120)
+  createdAt           DateTime             @default(now())
+  interview_sessions  interview_sessions   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  interview_responses interview_responses?
 
   @@index([sessionId])
-  @@map("interview_questions")
 }
 
-model InterviewResponse {
-  id                  String   @id @default(cuid())
-  questionId          String   @unique
-  question            InterviewQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+model interview_reports {
+  id                   String             @id
+  sessionId            String             @unique
+  finalScore           Int
+  answerQualityScore   Int?
+  communicationScore   Int?
+  confidenceScore      Int?
+  engagementScore      Int?
+  relevanceScore       Int?
+  strengths            Json               @default("[]")
+  weaknesses           Json               @default("[]")
+  recruiterSummary     String?
+  hiringRecommendation String?
+  aiGeneratedInsights  Json?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime
+  interview_sessions   interview_sessions @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
 
-  // Video / media
+model interview_responses {
+  id                  String              @id
+  questionId          String              @unique
   videoUrl            String?
   audioUrl            String?
   durationSecs        Int?
-
-  // Transcription
   transcript          String?
-
-  // AI scores (0–100)
   clarityScore        Int?
   confidenceScore     Int?
   relevanceScore      Int?
   communicationScore  Int?
   emotionScore        Int?
   facialScore         Int?
-
-  // AI feedback
   aiFeedback          String?
-  keywordsMatched     Json?    // array of matched keywords
-  detailedAnalysis    Json?    // full structured analysis from AI
-
-  // Processing
-  analysisStatus      String   @default("pending") // pending, processing, completed, failed
+  keywordsMatched     Json?
+  detailedAnalysis    Json?
+  analysisStatus      String              @default("pending")
   analysisError       String?
-
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  @@map("interview_responses")
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime
+  interview_questions interview_questions @relation(fields: [questionId], references: [id], onDelete: Cascade)
 }
 
-model InterviewReport {
-  id                  String   @id @default(cuid())
-  sessionId           String   @unique
-  session             InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+model interview_sessions {
+  id                  String                @id
+  userId              String
+  jobId               String?
+  title               String                @default("Practice Interview")
+  type                String                @default("behavioral")
+  difficulty          String                @default("intermediate")
+  status              String                @default("pending")
+  overallScore        Int?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime
+  interview_questions interview_questions[]
+  interview_reports   interview_reports?
+  jobs                Job?                  @relation(fields: [jobId], references: [id])
+  users               User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Scores
-  finalScore          Int
-  answerQualityScore  Int?     // 40% weight
-  communicationScore  Int?     // 20% weight
-  confidenceScore     Int?     // 15% weight
-  engagementScore     Int?     // 15% weight
-  relevanceScore      Int?     // 10% weight
-
-  // Recruiter report
-  strengths           Json     @default("[]") // array of strength strings
-  weaknesses          Json     @default("[]") // array of weakness strings
-  recruiterSummary    String?
-  hiringRecommendation String? // proceed, maybe, reject
-  aiGeneratedInsights Json?    // full structured insights
-
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  @@map("interview_reports")
+  @@index([userId, status])
 }

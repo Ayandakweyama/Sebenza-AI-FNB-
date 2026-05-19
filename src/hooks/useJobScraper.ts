@@ -40,7 +40,7 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
   const scrapeJobs = useCallback(async ({ 
     query, 
     location, 
-    maxPages = 1, // Reduced to 1 page for faster loading
+    maxPages = 2,
     sources = ['indeed', 'jobmail'] // Default to most reliable sources
   }: ScraperOptions) => {
     // Try to get token for enhanced features, but don't require it for basic scraping

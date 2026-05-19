@@ -19,24 +19,10 @@ export interface ScraperConfig {
   maxPages?: number;
 }
 
-export interface ScraperDiagnostics {
-  url?: string;
-  actualUrl?: string;
-  pageTitle?: string;
-  hasMosaic?: boolean;
-  hasCaptcha?: boolean;
-  hasBlock?: boolean;
-  htmlPreview?: string;
-  error?: string;
-  browserType?: string;
-  loadTimeMs?: number;
-}
-
 export interface ScraperResult {
   jobs: Job[];
   success: boolean;
   error?: string;
   source: string;
   count: number;
-  diagnostics?: ScraperDiagnostics;
 }
