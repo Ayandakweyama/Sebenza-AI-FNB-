@@ -1,10 +1,5 @@
 import OpenAI from 'openai';
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 // Log initialization status
 if (typeof window === 'undefined') {
   if (process.env.OPENAI_API_KEY) {
@@ -60,10 +55,13 @@ export async function extractTextFromURL(url: string): Promise<string> {
 // Function to analyze job post and extract keywords using OpenAI GPT-4o-mini
 export async function analyzeJobPost(jobPostText: string): Promise<JobAnalysisResult> {
   // Check if OpenAI is available, if not, use enhanced extraction
-  if (!process.env.OPENAI_API_KEY) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
     console.warn('OpenAI API key not configured, using enhanced keyword extraction');
     return enhancedKeywordExtraction(jobPostText);
   }
+
+  const openai = new OpenAI({ apiKey });
 
   const systemPrompt = `You are an expert ATS (Applicant Tracking System) analyst and job market specialist. Your task is to analyze job postings and extract the exact keywords and phrases that ATS systems would search for when screening candidates.
 
