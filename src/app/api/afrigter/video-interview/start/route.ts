@@ -2,6 +2,7 @@ import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { prisma } from '@/lib/prisma';
+import { ensureDbUser } from '@/lib/auth/ensureDbUser';
 
 function getOpenAI(): OpenAI {
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -26,13 +27,21 @@ export async function POST(req: Request) {
       jobDescription: providedJobDescription = '',
     } = body;
 
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { clerkId: session.userId },
       include: { profile: true, skills: true, jobPreferences: true },
     });
 
     if (!user) {
-      return NextResponse.json({ error: 'User not found. Please sync your profile first.' }, { status: 404 });
+      await ensureDbUser(session.userId);
+      user = await prisma.user.findUnique({
+        where: { clerkId: session.userId },
+        include: { profile: true, skills: true, jobPreferences: true },
+      });
+    }
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     // Use provided job info, or fall back to DB job if jobId is given
@@ -87,7 +96,19 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error('[Interview API] Start error:', error);
-    return NextResponse.json({ error: 'Failed to start interview session' }, { status: 500 });
+    const details =
+      process.env.NODE_ENV !== 'production'
+        ? error instanceof Error
+          ? error.message
+          : String(error)
+        : undefined;
+    return NextResponse.json(
+      {
+        error: 'Failed to start interview session',
+        ...(details ? { details } : {}),
+      },
+      { status: 500 },
+    );
   }
 }
 
@@ -111,7 +132,9 @@ interface GeneratedQuestion {
 }
 
 async function generateInterviewQuestions(params: GenerateQuestionsParams): Promise<GeneratedQuestion[]> {
-  const openai = getOpenAI();
+  if (!process.env.OPENAI_API_KEY) {
+    return getDefaultQuestions(params.questionCount);
+  }
 
   const prompt = `You are an expert interviewer. Generate ${params.questionCount} interview questions.
 
@@ -146,6 +169,7 @@ For situational questions, present hypothetical scenarios.
 Set timeLimitSecs to 90 for short questions, 120 for standard, 180 for complex.`;
 
   try {
+    const openai = getOpenAI();
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [{ role: 'user', content: prompt }],

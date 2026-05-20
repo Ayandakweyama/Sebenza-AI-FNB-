@@ -16,7 +16,6 @@ export async function ensureDbUser(clerkId: string) {
     clerkId,
     email: primaryEmail,
     name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' ') || null,
-    imageUrl: clerkUser.imageUrl || null,
   };
 
   const existingByEmail = userData.email
@@ -26,7 +25,7 @@ export async function ensureDbUser(clerkId: string) {
   if (existingByEmail && existingByEmail.clerkId !== clerkId) {
     return prisma.user.update({
       where: { id: existingByEmail.id },
-      data: { clerkId, name: userData.name, imageUrl: userData.imageUrl },
+      data: { clerkId, name: userData.name },
     });
   }
 

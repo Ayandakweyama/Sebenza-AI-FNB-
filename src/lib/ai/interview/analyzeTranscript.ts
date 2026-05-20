@@ -18,8 +18,10 @@ export interface TranscriptAnalysis {
 
 // ─── OpenAI Client ───────────────────────────────────────────────────────────
 
-function getOpenAI(): OpenAI {
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+function getOpenAI(): OpenAI | null {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+  return new OpenAI({ apiKey });
 }
 
 // ─── Analyze Transcript ─────────────────────────────────────────────────────
@@ -31,6 +33,21 @@ export async function analyzeTranscript(
   userSkills?: string[],
 ): Promise<TranscriptAnalysis> {
   const openai = getOpenAI();
+  if (!openai) {
+    return {
+      clarityScore: clamp(transcript.length > 200 ? 65 : transcript.length > 80 ? 55 : 40, 0, 100),
+      relevanceScore: 50,
+      communicationScore: 50,
+      keywordsMatched: [],
+      feedback: 'AI analysis is currently unavailable. Add your OpenAI key to enable full transcript analysis.',
+      detailedAnalysis: {
+        answerStructure: '',
+        contentDepth: '',
+        grammarAndArticulation: '',
+        improvementSuggestions: [],
+      },
+    };
+  }
 
   const prompt = `You are an expert interview coach and recruiter. Analyze this interview answer transcript.
 
@@ -118,6 +135,9 @@ Respond in JSON format ONLY:
 
 export async function transcribeAudio(audioBuffer: Buffer, fileName: string): Promise<string> {
   const openai = getOpenAI();
+  if (!openai) {
+    throw new Error('OpenAI API key missing');
+  }
 
   try {
     const file = new File([audioBuffer], fileName, { type: 'audio/webm' });

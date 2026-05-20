@@ -1,6 +1,7 @@
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { ensureDbUser } from '@/lib/auth/ensureDbUser';
 
 export async function GET(req: Request) {
   try {
@@ -16,9 +17,16 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'sessionId is required' }, { status: 400 });
     }
 
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { clerkId: session.userId },
     });
+
+    if (!user) {
+      await ensureDbUser(session.userId);
+      user = await prisma.user.findUnique({
+        where: { clerkId: session.userId },
+      });
+    }
 
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -77,6 +85,15 @@ export async function GET(req: Request) {
     });
   } catch (error) {
     console.error('[Interview API] Report error:', error);
-    return NextResponse.json({ error: 'Failed to get report' }, { status: 500 });
+    const details =
+      process.env.NODE_ENV !== 'production'
+        ? error instanceof Error
+          ? error.message
+          : String(error)
+        : undefined;
+    return NextResponse.json(
+      { error: 'Failed to get report', ...(details ? { details } : {}) },
+      { status: 500 },
+    );
   }
 }

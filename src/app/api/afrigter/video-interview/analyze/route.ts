@@ -1,6 +1,7 @@
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { ensureDbUser } from '@/lib/auth/ensureDbUser';
 import { analyzeTranscript, transcribeAudio } from '@/lib/ai/interview/analyzeTranscript';
 import { analyzeTone } from '@/lib/ai/interview/analyzeTone';
 import { scoreFacialMetrics, type FacialMetrics } from '@/lib/ai/interview/analyzeFacialExpressions';
@@ -23,10 +24,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'sessionId is required' }, { status: 400 });
     }
 
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { clerkId: session.userId },
       include: { profile: true, skills: true },
     });
+
+    if (!user) {
+      await ensureDbUser(session.userId);
+      user = await prisma.user.findUnique({
+        where: { clerkId: session.userId },
+        include: { profile: true, skills: true },
+      });
+    }
 
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -66,12 +75,21 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: 'Analysis started. Poll /api/interview/report for results.',
+      message: 'Analysis started. Poll /api/afrigter/video-interview/report for results.',
       sessionId,
     });
   } catch (error) {
     console.error('[Interview API] Analyze error:', error);
-    return NextResponse.json({ error: 'Failed to start analysis' }, { status: 500 });
+    const details =
+      process.env.NODE_ENV !== 'production'
+        ? error instanceof Error
+          ? error.message
+          : String(error)
+        : undefined;
+    return NextResponse.json(
+      { error: 'Failed to start analysis', ...(details ? { details } : {}) },
+      { status: 500 },
+    );
   }
 }
 
@@ -102,7 +120,8 @@ async function runAnalysisPipeline(
       let transcript = response.transcript || '';
       if (!transcript && response.videoUrl) {
         try {
-          const videoPath = path.join(process.cwd(), 'public', response.videoUrl);
+          const relativeVideoPath = response.videoUrl.replace(/^\/+/, '');
+          const videoPath = path.join(process.cwd(), 'public', relativeVideoPath);
           const audioBuffer = await readFile(videoPath);
           transcript = await transcribeAudio(audioBuffer, 'recording.webm');
         } catch (err) {

@@ -45,6 +45,10 @@ const nextConfig: NextConfig = {
   
   // Railway-specific optimizations
   output: 'standalone',
+
+  experimental: {
+    proxyClientMaxBodySize: '50mb',
+  },
 };
 
 export default nextConfig;

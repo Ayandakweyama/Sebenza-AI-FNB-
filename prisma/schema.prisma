@@ -23,7 +23,7 @@ model User {
   careerJourney         CareerJourney?
   chatSessions          ChatSession[]
   documents             Document[]
-  interview_sessions    interview_sessions[]
+  interviewSessions     InterviewSession[]
   jobAlerts             JobAlert[]
   jobPreferences        JobPreferences?
   savedJobs             SavedJob[]
@@ -282,7 +282,7 @@ model Job {
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
   applications       Application[]
-  interview_sessions interview_sessions[]
+  interviewSessions   InterviewSession[]
   company            Company?             @relation(fields: [companyId], references: [id])
   savedJobs          SavedJob[]
 
@@ -420,79 +420,85 @@ model auto_apply_sessions {
   @@index([userId, status])
 }
 
-model interview_questions {
-  id                  String               @id
-  sessionId           String
-  questionText        String
-  category            String?
-  order               Int                  @default(0)
-  timeLimitSecs       Int                  @default(120)
-  createdAt           DateTime             @default(now())
-  interview_sessions  interview_sessions   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  interview_responses interview_responses?
+model InterviewQuestion {
+  id            String            @id @default(cuid())
+  sessionId     String
+  questionText  String
+  category      String?
+  order         Int               @default(0)
+  timeLimitSecs Int               @default(120)
+  createdAt     DateTime          @default(now())
+  session       InterviewSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  response      InterviewResponse?
 
   @@index([sessionId])
+  @@map("interview_questions")
 }
 
-model interview_reports {
-  id                   String             @id
-  sessionId            String             @unique
+model InterviewReport {
+  id                   String           @id @default(cuid())
+  sessionId            String           @unique
   finalScore           Int
   answerQualityScore   Int?
   communicationScore   Int?
   confidenceScore      Int?
   engagementScore      Int?
   relevanceScore       Int?
-  strengths            Json               @default("[]")
-  weaknesses           Json               @default("[]")
+  strengths            Json             @default("[]")
+  weaknesses           Json             @default("[]")
   recruiterSummary     String?
   hiringRecommendation String?
   aiGeneratedInsights  Json?
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime
-  interview_sessions   interview_sessions @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  session              InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("interview_reports")
 }
 
-model interview_responses {
-  id                  String              @id
-  questionId          String              @unique
-  videoUrl            String?
-  audioUrl            String?
-  durationSecs        Int?
-  transcript          String?
-  clarityScore        Int?
-  confidenceScore     Int?
-  relevanceScore      Int?
-  communicationScore  Int?
-  emotionScore        Int?
-  facialScore         Int?
-  aiFeedback          String?
-  keywordsMatched     Json?
-  detailedAnalysis    Json?
-  analysisStatus      String              @default("pending")
-  analysisError       String?
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime
-  interview_questions interview_questions @relation(fields: [questionId], references: [id], onDelete: Cascade)
+model InterviewResponse {
+  id                 String          @id @default(cuid())
+  questionId         String          @unique
+  videoUrl           String?
+  audioUrl           String?
+  durationSecs       Int?
+  transcript         String?
+  clarityScore       Int?
+  confidenceScore    Int?
+  relevanceScore     Int?
+  communicationScore Int?
+  emotionScore       Int?
+  facialScore        Int?
+  aiFeedback         String?
+  keywordsMatched    Json?
+  detailedAnalysis   Json?
+  analysisStatus     String          @default("pending")
+  analysisError      String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  question           InterviewQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@map("interview_responses")
 }
 
-model interview_sessions {
-  id                  String                @id
-  userId              String
-  jobId               String?
-  title               String                @default("Practice Interview")
-  type                String                @default("behavioral")
-  difficulty          String                @default("intermediate")
-  status              String                @default("pending")
-  overallScore        Int?
-  startedAt           DateTime?
-  completedAt         DateTime?
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime
-  interview_questions interview_questions[]
-  interview_reports   interview_reports?
-  jobs                Job?                  @relation(fields: [jobId], references: [id])
-  users               User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+model InterviewSession {
+  id           String            @id @default(cuid())
+  userId       String
+  jobId        String?
+  title        String            @default("Practice Interview")
+  type         String            @default("behavioral")
+  difficulty   String            @default("intermediate")
+  status       String            @default("pending")
+  overallScore Int?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  questions    InterviewQuestion[]
+  report       InterviewReport?
+  job          Job?              @relation(fields: [jobId], references: [id])
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status])
+  @@map("interview_sessions")
 }

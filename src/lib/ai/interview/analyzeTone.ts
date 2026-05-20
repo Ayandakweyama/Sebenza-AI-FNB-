@@ -17,8 +17,10 @@ export interface ToneAnalysis {
 
 // ─── OpenAI Client ───────────────────────────────────────────────────────────
 
-function getOpenAI(): OpenAI {
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+function getOpenAI(): OpenAI | null {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+  return new OpenAI({ apiKey });
 }
 
 // ─── Analyze Tone from Transcript ───────────────────────────────────────────
@@ -30,6 +32,25 @@ function getOpenAI(): OpenAI {
 
 export async function analyzeTone(transcript: string): Promise<ToneAnalysis> {
   const openai = getOpenAI();
+  if (!openai) {
+    const lower = transcript.toLowerCase();
+    const fillers = ['um', 'uh', 'like', 'you know', 'basically', 'sort of'];
+    const found = fillers.filter((w) => lower.includes(w));
+    const confidenceScore = clamp(70 - found.length * 12, 0, 100);
+    const emotionScore = clamp(65 - found.length * 10, 0, 100);
+    return {
+      confidenceScore,
+      emotionScore,
+      dominantEmotion: found.length >= 2 ? 'nervous' : 'neutral',
+      toneAttributes: {
+        pace: 'moderate',
+        energy: 'moderate',
+        hesitation: found.length >= 2 ? 'frequent' : found.length === 1 ? 'minor' : 'none',
+        filler_words: found,
+      },
+      feedback: 'AI tone analysis is currently unavailable. Add your OpenAI key to enable full tone analysis.',
+    };
+  }
 
   const prompt = `You are an expert speech coach and communication analyst.
 

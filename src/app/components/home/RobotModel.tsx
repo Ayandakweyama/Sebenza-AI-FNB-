@@ -12,13 +12,13 @@ function Robot(props: React.JSX.IntrinsicElements['group']) {
   // Gentle idle rotation
   useFrame((state) => {
     if (groupRef.current) {
-      groupRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.3) * 0.2;
-      groupRef.current.position.y = Math.sin(state.clock.elapsedTime * 0.5) * 0.05;
+      groupRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.25) * 0.22;
+      groupRef.current.position.y = Math.sin(state.clock.elapsedTime * 0.45) * 0.08;
     }
   });
 
   return (
-    <Float speed={1.5} rotationIntensity={0.2} floatIntensity={0.5}>
+    <Float speed={1.2} rotationIntensity={0.35} floatIntensity={0.9}>
       <group ref={groupRef} {...props} dispose={null}>
         <mesh
           castShadow

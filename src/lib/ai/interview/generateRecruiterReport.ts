@@ -19,8 +19,10 @@ export interface RecruiterReport {
 
 // ─── OpenAI Client ───────────────────────────────────────────────────────────
 
-function getOpenAI(): OpenAI {
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+function getOpenAI(): OpenAI | null {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+  return new OpenAI({ apiKey });
 }
 
 // ─── Generate Recruiter Report ──────────────────────────────────────────────
@@ -32,6 +34,36 @@ export async function generateRecruiterReport(
   jobTitle?: string,
 ): Promise<RecruiterReport> {
   const openai = getOpenAI();
+  if (!openai) {
+    const name = candidateName || 'Candidate';
+    const position = jobTitle || 'this role';
+    const strengths = [
+      sessionScores.communicationScore >= 70 ? 'Clear, professional communication' : null,
+      sessionScores.confidenceScore >= 70 ? 'Confident delivery' : null,
+      sessionScores.relevanceScore >= 70 ? 'Answers stayed relevant to questions' : null,
+    ].filter(Boolean) as string[];
+    const weaknesses = [
+      sessionScores.communicationScore < 55 ? 'Improve clarity and structure of answers' : null,
+      sessionScores.confidenceScore < 55 ? 'Work on confidence and delivery' : null,
+      sessionScores.relevanceScore < 55 ? 'Tie answers more directly to role requirements' : null,
+    ].filter(Boolean) as string[];
+    const hiringRecommendation: 'proceed' | 'maybe' | 'reject' =
+      sessionScores.finalScore >= 70 ? 'proceed' : sessionScores.finalScore >= 50 ? 'maybe' : 'reject';
+
+    return {
+      strengths,
+      weaknesses,
+      recruiterSummary: `${name} completed an interview simulation for ${position}. Overall score: ${sessionScores.finalScore}/100. AI recruiter report is currently unavailable; enable OpenAI to generate a detailed summary.`,
+      hiringRecommendation,
+      aiGeneratedInsights: {
+        overallImpression: '',
+        communicationStyle: '',
+        technicalDepth: '',
+        cultureFitIndicators: '',
+        riskFactors: [],
+      },
+    };
+  }
 
   const qaSection = questionsAndTranscripts
     .map((qa, i) => `Q${i + 1}: "${qa.question}"\nAnswer: "${qa.transcript.substring(0, 500)}"\nAI Feedback: ${qa.feedback}`)

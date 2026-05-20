@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
-import { MessageCircle, Search, Rocket, Map, BarChart3, FileText } from 'lucide-react';
+import { MessageCircle, Search, Rocket, Map, BarChart3, FileText, Video } from 'lucide-react';
 
 export const metadata: Metadata = {
   title: 'Afrigter - AI Career Mentor',
@@ -47,6 +47,18 @@ export default function AfrigterPage() {
             <h2 className="text-xl font-semibold mb-2 text-white">Interview Prep</h2>
             <p className="text-slate-300 group-hover:text-white transition-colors">Practice common interview questions and get AI-powered feedback.</p>
           </a>
+
+          {/* AI Interview Card - Violet */}
+          <a 
+            href="/afrigter/video-interview" 
+            className="group block p-6 rounded-xl transition-all duration-300 bg-gradient-to-br from-violet-800/30 to-violet-900/50 border border-violet-700/30 hover:border-violet-500/50 hover:shadow-lg hover:shadow-violet-500/20 h-full"
+          >
+            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-violet-500 to-violet-600 flex items-center justify-center mb-4">
+              <Video className="w-6 h-6 text-white" />
+            </div>
+            <h2 className="text-xl font-semibold mb-2 text-white">AI Interview</h2>
+            <p className="text-slate-300 group-hover:text-white transition-colors">Upload a video interview and get structured AI feedback on your delivery.</p>
+          </a>
           
           {/* Job Search Card - Green */}
           <a 
@@ -56,7 +68,7 @@ export default function AfrigterPage() {
             <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center mb-4">
               <Search className="w-6 h-6 text-white" />
             </div>
-            <h2 className="text-xl font-semibold mb-2 text-white">Job Search</h2>
+            <h2 className="text-xl font-semibold mb-2 text-white">Job Search Strategy</h2>
             <p className="text-slate-300 group-hover:text-white transition-colors">Develop an effective job search strategy tailored to your goals.</p>
           </a>
           

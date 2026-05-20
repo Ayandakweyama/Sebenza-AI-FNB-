@@ -184,8 +184,17 @@ export default function VideoInterviewPage() {
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 1280, height: 720, facingMode: 'user' },
-        audio: true,
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 360 },
+          frameRate: { ideal: 24, max: 30 },
+          facingMode: 'user',
+        },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
       });
       streamRef.current = stream;
       if (videoRef.current) {
@@ -228,8 +237,19 @@ export default function VideoInterviewPage() {
     if (!streamRef.current) return;
 
     chunksRef.current = [];
+    const preferredTypes = [
+      'video/webm;codecs=vp9,opus',
+      'video/webm;codecs=vp8,opus',
+      'video/webm',
+    ];
+    const mimeType =
+      preferredTypes.find((t) => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t)) ||
+      undefined;
+
     const mediaRecorder = new MediaRecorder(streamRef.current, {
-      mimeType: 'video/webm;codecs=vp9,opus',
+      ...(mimeType ? { mimeType } : {}),
+      videoBitsPerSecond: 1_200_000,
+      audioBitsPerSecond: 96_000,
     });
 
     mediaRecorder.ondataavailable = (e) => {
@@ -237,7 +257,7 @@ export default function VideoInterviewPage() {
     };
 
     mediaRecorder.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+      const blob = new Blob(chunksRef.current, { type: mimeType || 'video/webm' });
       uploadRecording(blob);
     };
 
@@ -274,6 +294,11 @@ export default function VideoInterviewPage() {
   const uploadRecording = async (blob: Blob) => {
     const currentQ = questions[currentQuestionIndex];
     if (!currentQ) return;
+
+    if (blob.size > 50 * 1024 * 1024) {
+      setError('Recording is too large to upload. Try a shorter answer or check your camera quality.');
+      return;
+    }
 
     setIsLoading(true);
 

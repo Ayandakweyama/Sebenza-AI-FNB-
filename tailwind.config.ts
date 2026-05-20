@@ -107,6 +107,7 @@ export default {
         'breathe': 'breathe 3s ease-in-out infinite',
         'pulse-rotate': 'pulse-rotate 2s ease-in-out infinite',
         'float-up': 'float-up 2s ease-out infinite',
+        'float-slow': 'float-slow 8s ease-in-out infinite',
         'gradient-shift': 'gradient-shift 3s ease infinite',
         'glow-pulse': 'glow-pulse 2s ease-in-out infinite',
         'bounce-subtle': 'bounce-subtle 1s ease-in-out infinite',
@@ -197,6 +198,14 @@ export default {
           '100%': {
             opacity: '0',
             transform: 'translateY(-20px)',
+          },
+        },
+        'float-slow': {
+          '0%, 100%': {
+            transform: 'translateY(0px)',
+          },
+          '50%': {
+            transform: 'translateY(-10px)',
           },
         },
         'gradient-shift': {
