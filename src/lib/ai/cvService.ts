@@ -1,4 +1,4 @@
-import { aiService } from './baseService';
+import { getAIService } from './baseService';
 
 export class CVService {
   /**
@@ -31,7 +31,7 @@ Provide a detailed analysis in JSON format with these keys:
 - keywordAnalysis: Object with missingKeywords and strongKeywords arrays
 - suggestions: Concise suggestions for improvement`;
 
-    const result = await aiService.generateText(template, {
+    const result = await getAIService().generateText(template, {
       resumeText,
       targetJobTitle: targetJobTitle || 'general',
     });
@@ -78,7 +78,7 @@ Provide the tailored resume and a summary of changes made. Format your response 
 - changesMade: Array of specific changes made
 - optimizationTips: Array of tips for further optimization`;
 
-    const result = await aiService.generateText(template, {
+    const result = await getAIService().generateText(template, {
       resumeText,
       jobDescription,
       jobTitle,
@@ -116,7 +116,7 @@ ${skills.join(', ')}
 
 Write a compelling 3-4 sentence professional summary that highlights the most relevant experience and skills.`;
 
-    return await aiService.generateText(template, {
+    return await getAIService().generateText(template, {
       workExperience: workExperience.join('\n'),
       skills: skills.join(', '),
       targetJobTitle: targetJobTitle || 'professional',

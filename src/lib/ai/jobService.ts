@@ -1,4 +1,4 @@
-import { aiService } from './baseService';
+import { getAIService } from './baseService';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 
 export class JobAIService {
@@ -29,7 +29,7 @@ Provide a JSON response with:
 3. strengthAreas: Array of the candidate's strongest matching skills
 4. improvementSuggestions: Brief suggestions for improving the match`;
 
-    const result = await aiService.generateText(template, {
+    const result = await getAIService().generateText(template, {
       jobDescription,
       candidateSkills: candidateSkills.join(', '),
       candidateExperience,
@@ -85,7 +85,7 @@ Generate 3 questions in each category (technical, behavioral, company-specific) 
 
 Format your response as JSON with these keys: technical, behavioral, companySpecific (each an array of strings)`;
 
-    const result = await aiService.generateText(template, {
+    const result = await getAIService().generateText(template, {
       jobTitle,
       jobDescription,
       candidateExperience,
@@ -132,7 +132,7 @@ Skills: {candidateSkills}
 
 Write a compelling cover letter that highlights the candidate's relevant experience and skills.`;
 
-    return await aiService.generateText(template, {
+    return await getAIService().generateText(template, {
       jobTitle,
       companyName,
       jobDescription,

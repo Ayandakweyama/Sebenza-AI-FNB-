@@ -21,8 +21,6 @@ COPY . .
 # Railway automatically injects service env vars as Docker build args.
 ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-ARG CLERK_SECRET_KEY
-ENV CLERK_SECRET_KEY=$CLERK_SECRET_KEY
 
 # Dummy DATABASE_URL for prisma generate during build (real value injected at runtime by Railway)
 ARG DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy
@@ -99,4 +97,4 @@ ENV HOSTNAME="0.0.0.0"
 
 # Push schema at startup (internal DB only reachable at runtime, not build time)
 # Strip surrounding quotes from DATABASE_URL (Railway may wrap values in literal quotes)
-CMD sh -c 'export DATABASE_URL=$(echo "$DATABASE_URL" | sed "s/^\"//;s/\"$//") && echo "DATABASE_URL is ${DATABASE_URL:+set}${DATABASE_URL:-NOT SET}" && node ./node_modules/prisma/build/index.js db push --skip-generate 2>&1 || echo "⚠️ Prisma db push failed, continuing anyway" && node server.js'
+CMD ["sh","-c","export DATABASE_URL=$(echo \"$DATABASE_URL\" | sed 's/^\\\"//;s/\\\"$//') && node ./node_modules/prisma/build/index.js db push --skip-generate 2>&1 || echo \"Prisma db push failed, continuing anyway\" && node server.js"]

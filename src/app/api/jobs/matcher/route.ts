@@ -113,19 +113,32 @@ export async function POST(req: NextRequest) {
       const withAi = await Promise.all(
         topForAi.map(async (item) => {
           const jobDescription = item.job.description || item.job.title;
-          const ai = await jobAIService.matchSkillsToJob(
-            jobDescription,
-            candidateTerms.slice(0, 30),
-            experienceText.slice(0, 2000)
-          );
+          let ai:
+            | {
+                matchScore: number;
+                missingSkills: string[];
+                strengthAreas: string[];
+                improvementSuggestions: string;
+              }
+            | null = null;
 
-          const score = Math.min(100, Math.max(0, Math.round(ai.matchScore || item.heuristicScore)));
+          try {
+            ai = await jobAIService.matchSkillsToJob(
+              jobDescription,
+              candidateTerms.slice(0, 30),
+              experienceText.slice(0, 2000)
+            );
+          } catch {
+            ai = null;
+          }
+
+          const score = Math.min(100, Math.max(0, Math.round((ai?.matchScore || item.heuristicScore) ?? item.heuristicScore)));
           return {
             ...item.job,
             score,
-            matches: ai.strengthAreas?.length ? ai.strengthAreas : item.matchedTerms,
-            missing: ai.missingSkills?.length ? ai.missingSkills : item.missingTerms,
-            explanation: ai.improvementSuggestions || ''
+            matches: ai?.strengthAreas?.length ? ai.strengthAreas : item.matchedTerms,
+            missing: ai?.missingSkills?.length ? ai.missingSkills : item.missingTerms,
+            explanation: ai?.improvementSuggestions || ''
           };
         })
       );

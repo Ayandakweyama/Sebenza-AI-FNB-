@@ -101,4 +101,9 @@ export class AIService {
   }
 }
 
-export const aiService = new AIService();
+let singleton: AIService | null = null;
+
+export const getAIService = () => {
+  if (!singleton) singleton = new AIService();
+  return singleton;
+};

@@ -34,7 +34,6 @@ import {
 } from 'lucide-react';
 import { parseCV, extractSkillsFromCV } from '@/lib/cvParser';
 import { useProfileStrength } from '@/hooks/useProfileStrength';
-import { useUserProfile } from '@/hooks/useUserProfile';
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 import { extractTextFromFile } from '@/lib/fileTextExtractor';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -129,7 +128,7 @@ const formatExperience = (experience: any[]): string =>
     .join('\n\n');
 
 const validateFile = (file: File): { valid: boolean; error?: string } => {
-  const allowedExts = Object.values(ACCEPTED_FILE_TYPES).flat();
+  const allowedExts = Object.values(ACCEPTED_FILE_TYPES).flat() as string[];
   const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
   if (!Object.keys(ACCEPTED_FILE_TYPES).includes(file.type) && !allowedExts.includes(ext)) {
     return { valid: false, error: 'Please upload a PDF, DOC, DOCX, or TXT file.' };
@@ -158,7 +157,7 @@ const fadeUp = {
   visible: (i = 0) => ({
     opacity: 1,
     y: 0,
-    transition: { delay: i * 0.06, duration: 0.4, ease: [0.16, 1, 0.3, 1] },
+    transition: { delay: i * 0.06, duration: 0.4, ease: [0.16, 1, 0.3, 1] as const },
   }),
 };
 
