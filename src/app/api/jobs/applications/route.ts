@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, currentUser, getAuth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
+import { ensureDbUser } from '@/lib/auth/ensureDbUser';
 
 // Helper function to get user from request (supports both session and token)
 async function getUserFromRequest(request: NextRequest) {
@@ -71,7 +72,7 @@ export async function GET(request: NextRequest) {
     console.log('✅ GET /api/jobs/applications - User authenticated:', clerkId);
 
     // Get user with applications from database
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { clerkId },
       include: {
         applications: {
@@ -90,7 +91,28 @@ export async function GET(request: NextRequest) {
     });
 
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      await ensureDbUser(clerkId);
+      user = await prisma.user.findUnique({
+        where: { clerkId },
+        include: {
+          applications: {
+            include: {
+              job: {
+                include: {
+                  company: true
+                }
+              }
+            },
+            orderBy: {
+              appliedAt: 'desc'
+            }
+          }
+        }
+      });
+
+      if (!user) {
+        return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      }
     }
 
     // Transform applications to match expected format
@@ -144,12 +166,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user from database
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { clerkId }
     });
 
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      await ensureDbUser(clerkId);
+      user = await prisma.user.findUnique({ where: { clerkId } });
+
+      if (!user) {
+        return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      }
     }
 
     // Check if job exists in database, if not create it

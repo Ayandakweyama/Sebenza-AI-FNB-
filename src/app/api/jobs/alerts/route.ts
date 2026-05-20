@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, currentUser, getAuth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
+import { ensureDbUser } from '@/lib/auth/ensureDbUser';
 import { rateLimiters } from '@/lib/rate-limit';
 import type { RequestLike } from '@clerk/nextjs/server';
 
@@ -76,7 +77,7 @@ export async function GET(request: NextRequest) {
     console.log('✅ GET /api/jobs/alerts - User authenticated:', clerkId);
 
     // Get user with job alerts from database
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { clerkId },
       include: {
         jobAlerts: {
@@ -88,7 +89,21 @@ export async function GET(request: NextRequest) {
     });
 
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      await ensureDbUser(clerkId);
+      user = await prisma.user.findUnique({
+        where: { clerkId },
+        include: {
+          jobAlerts: {
+            orderBy: {
+              createdAt: 'desc'
+            }
+          }
+        }
+      });
+
+      if (!user) {
+        return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      }
     }
 
     // Transform alerts to match expected format
@@ -144,12 +159,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user from database
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { clerkId }
     });
 
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      await ensureDbUser(clerkId);
+      user = await prisma.user.findUnique({ where: { clerkId } });
+
+      if (!user) {
+        return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      }
     }
 
     // Create new alert in database

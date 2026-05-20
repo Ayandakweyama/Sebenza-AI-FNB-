@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, currentUser, getAuth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
+import { ensureDbUser } from '@/lib/auth/ensureDbUser';
 import type { RequestLike } from '@clerk/nextjs/server';
 
 // Helper function to get user from request (supports both session and token)
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { clerkId },
       include: {
         profile: true,
@@ -90,7 +91,39 @@ export async function GET(request: NextRequest) {
     });
 
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      await ensureDbUser(clerkId);
+      user = await prisma.user.findUnique({
+        where: { clerkId },
+        include: {
+          profile: true,
+          accountSettings: true,
+          jobPreferences: true,
+          profileSnapshot: true,
+          documents: {
+            orderBy: { createdAt: 'desc' }
+          },
+          subscriptions: {
+            orderBy: { createdAt: 'desc' }
+          },
+          skills: {
+            orderBy: { category: 'asc' }
+          },
+          careerJourney: {
+            include: {
+              milestones: {
+                orderBy: { createdAt: 'asc' }
+              }
+            }
+          },
+          assessments: {
+            orderBy: { createdAt: 'desc' }
+          }
+        }
+      });
+
+      if (!user) {
+        return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      }
     }
 
     return NextResponse.json({
@@ -121,12 +154,17 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { profile, jobPreferences, profileSnapshot } = body;
 
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { clerkId }
     });
 
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      await ensureDbUser(clerkId);
+      user = await prisma.user.findUnique({ where: { clerkId } });
+
+      if (!user) {
+        return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      }
     }
 
     // Start a transaction to update both profile and job preferences
