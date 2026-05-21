@@ -1,5 +1,5 @@
 # ── Stage 1: Install dependencies ─────────────────────────────────────────────
-FROM node:20-slim AS deps
+FROM node:20-bookworm AS deps
 
 WORKDIR /app
 
@@ -7,12 +7,9 @@ COPY package.json package-lock.json* ./
 RUN npm ci
 
 # ── Stage 2: Build ────────────────────────────────────────────────────────────
-FROM node:20-slim AS builder
+FROM node:20-bookworm AS builder
 
 WORKDIR /app
-
-# OpenSSL is needed by Prisma
-RUN (sed -i 's|http://deb.debian.org|https://deb.debian.org|g; s|http://security.debian.org|https://security.debian.org|g' /etc/apt/sources.list /etc/apt/sources.list.d/debian.sources 2>/dev/null || true) && apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -32,46 +29,11 @@ RUN npx prisma generate
 RUN npm run build
 
 # ── Stage 3: Production ──────────────────────────────────────────────────────
-FROM node:20-slim AS runner
+FROM ghcr.io/puppeteer/puppeteer:24.26.1 AS runner
 
 WORKDIR /app
 
 ENV NODE_ENV=production
-
-# Install ALL system dependencies required by Puppeteer's bundled Chromium
-# AND openssl for Prisma. node:20-slim is Debian-based.
-RUN (sed -i 's|http://deb.debian.org|https://deb.debian.org|g; s|http://security.debian.org|https://security.debian.org|g' /etc/apt/sources.list /etc/apt/sources.list.d/debian.sources 2>/dev/null || true) && apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    fonts-liberation \
-    openssl \
-    libasound2 \
-    libatk-bridge2.0-0 \
-    libatk1.0-0 \
-    libcairo2 \
-    libcups2 \
-    libdbus-1-3 \
-    libdrm2 \
-    libexpat1 \
-    libgbm1 \
-    libglib2.0-0 \
-    libgtk-3-0 \
-    libnspr4 \
-    libnss3 \
-    libpango-1.0-0 \
-    libpangocairo-1.0-0 \
-    libx11-6 \
-    libx11-xcb1 \
-    libxcb1 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxext6 \
-    libxfixes3 \
-    libxrandr2 \
-    libxshmfence1 \
-    wget \
-    xdg-utils \
-    procps \
-    && rm -rf /var/lib/apt/lists/*
 
 # Copy the standalone Next.js output (includes server.js + node_modules subset)
 COPY --from=builder /app/.next/standalone ./
