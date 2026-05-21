@@ -37,8 +37,6 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = (props) => {
   const router = useRouter();
   const context = useDashboard();
   const [pressedItem, setPressedItem] = useState<number | null>(null);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [scrollY, setScrollY] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -53,38 +51,6 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = (props) => {
     setSidebarCollapsed = () => {}
   } = { ...context, ...props };
   
-  // Track scroll for parallax effects - optimized with requestAnimationFrame
-  useEffect(() => {
-    let ticking = false;
-    const handleScroll = () => {
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          setScrollY(window.scrollY);
-          ticking = false;
-        });
-        ticking = true;
-      }
-    };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-  
-  // Track mouse position for interactive effects - optimized
-  useEffect(() => {
-    let ticking = false;
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          setMousePosition({ x: e.clientX, y: e.clientY });
-          ticking = false;
-        });
-        ticking = true;
-      }
-    };
-    window.addEventListener('mousemove', handleMouseMove, { passive: true });
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
-
   // Loading and visibility animations
   useEffect(() => {
     setIsLoading(true);
@@ -117,8 +83,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = (props) => {
     <div 
       ref={containerRef}
       className={`
-        h-screen overflow-hidden
-        bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 
+        w-full h-full overflow-hidden
         relative
         transition-opacity duration-700
         ${isVisible ? 'opacity-100' : 'opacity-0'}
@@ -126,7 +91,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = (props) => {
     >
       {/* Enhanced Loading overlay with modern spinner */}
       {isLoading && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/95 backdrop-blur-xl">
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#050615]/95 backdrop-blur-xl">
           <div className="relative">
             {/* Outer ring */}
             <div className="w-20 h-20 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin"></div>
@@ -141,110 +106,11 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = (props) => {
           </div>
         </div>
       )}
-      
-      {/* Enhanced Animated Background with Parallax - Fixed positioning */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {/* Mouse-responsive background layer */}
-        <div 
-          className="absolute inset-0 transition-transform duration-300 ease-out will-change-transform"
-          style={{
-            transform: `translate(${mousePosition.x * 0.015}px, ${mousePosition.y * 0.015}px)`
-          }}
-        >
-          {/* Primary floating orbs with enhanced parallax and wave motion */}
-          <div 
-            className="absolute top-0 -left-4 w-96 h-96 bg-purple-500/25 rounded-full mix-blend-multiply filter blur-3xl animate-blob"
-            style={{ 
-              transform: `translateY(${scrollY * 0.3}px) translateX(${Math.sin(Date.now() * 0.0005) * 15}px)`,
-              animationDuration: '15s'
-            }}
-          ></div>
-          <div 
-            className="absolute top-0 -right-4 w-96 h-96 bg-pink-500/25 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000"
-            style={{ 
-              transform: `translateY(${scrollY * 0.2}px) translateX(${Math.cos(Date.now() * 0.0005) * 12}px)`,
-              animationDuration: '18s'
-            }}
-          ></div>
-          <div 
-            className="absolute bottom-0 left-20 w-96 h-96 bg-indigo-500/25 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-4000"
-            style={{ 
-              transform: `translateY(${scrollY * -0.25}px) translateX(${Math.sin(Date.now() * 0.0007) * 20}px)`,
-              animationDuration: '20s'
-            }}
-          ></div>
-        </div>
-        
-        {/* Secondary accent orbs with enhanced mouse interaction */}
-        <div 
-          className="absolute inset-0 transition-transform duration-500 ease-out will-change-transform"
-          style={{
-            transform: `translate(${mousePosition.x * 0.03}px, ${mousePosition.y * 0.03}px)`
-          }}
-        >
-          <div className="absolute top-1/4 -right-8 w-40 h-40 bg-cyan-500/15 rounded-full mix-blend-multiply filter blur-2xl animate-blob animation-delay-1000"></div>
-          <div className="absolute bottom-1/4 -left-8 w-40 h-40 bg-rose-500/15 rounded-full mix-blend-multiply filter blur-2xl animate-blob animation-delay-3000"></div>
-          <div className="absolute top-1/2 right-1/4 w-32 h-32 bg-emerald-500/12 rounded-full mix-blend-multiply filter blur-2xl animate-blob animation-delay-5000"></div>
-          <div className="absolute top-3/4 left-1/3 w-36 h-36 bg-amber-500/10 rounded-full mix-blend-multiply filter blur-2xl animate-blob animation-delay-6000"></div>
-        </div>
-        
-        {/* Enhanced grid pattern with parallax */}
-        <div 
-          className="absolute inset-0 opacity-40 transition-transform duration-100 will-change-transform"
-          style={{
-            transform: `translateY(${scrollY * 0.05}px)`,
-            backgroundImage: `url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjA1KSIgc3Ryb2tlLXdpZHRoPSIwLjUiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')`
-          }}
-        ></div>
-        
-        {/* Enhanced radial gradient overlays with animation */}
-        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 via-transparent to-pink-500/10 animate-pulse-slower"></div>
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-purple-900/15 via-transparent to-transparent"></div>
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,_var(--tw-gradient-stops))] from-indigo-900/15 via-transparent to-transparent"></div>
-        
-        {/* Enhanced floating particles with varied sizes and animations */}
-        {[...Array(15)].map((_, i) => {
-          const size = Math.random() * 3 + 1;
-          return (
-            <div
-              key={i}
-              className="absolute bg-white rounded-full animate-float"
-              style={{
-                width: `${size}px`,
-                height: `${size}px`,
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                animationDelay: `${i * 0.4}s`,
-                animationDuration: `${5 + Math.random() * 8}s`,
-                opacity: Math.random() * 0.4 + 0.2,
-                filter: `blur(${Math.random() * 2}px)`,
-              }}
-            ></div>
-          );
-        })}
-        
-        {/* Enhanced aurora-like flowing gradients */}
-        <div className="absolute inset-0 opacity-30">
-          <div className="absolute top-0 left-0 w-full h-1/3 bg-gradient-to-br from-purple-600/20 via-pink-600/10 to-transparent animate-flow-diagonal"></div>
-          <div className="absolute top-1/3 right-0 w-full h-1/3 bg-gradient-to-bl from-indigo-600/20 via-cyan-600/10 to-transparent animate-flow-diagonal-reverse animation-delay-2000"></div>
-          <div className="absolute bottom-0 left-0 w-full h-1/3 bg-gradient-to-tr from-pink-600/20 via-purple-600/10 to-transparent animate-flow-horizontal animation-delay-4000"></div>
-        </div>
-        
-        {/* Radial spotlight effect following mouse */}
-        <div 
-          className="absolute w-96 h-96 bg-gradient-radial from-white/5 to-transparent rounded-full blur-3xl transition-all duration-700 ease-out pointer-events-none"
-          style={{
-            left: `${mousePosition.x - 192}px`,
-            top: `${mousePosition.y - 192}px`,
-            opacity: mousePosition.x > 0 ? 0.6 : 0,
-          }}
-        ></div>
-      </div>
 
       {/* Content container with fixed height and internal scrolling for cards only */}
-      <div className="h-full flex flex-col">
+      <div className="flex flex-col h-full">
         {/* Premium Header - Fixed at top */}
-        <div className="flex-shrink-0 px-5 py-5 backdrop-blur-3xl bg-gradient-to-r from-slate-900/95 via-slate-800/90 to-slate-900/95 border-b border-white/20 shadow-2xl shadow-black/40 z-30">
+        <div className="sticky top-0 flex-shrink-0 px-5 py-5 backdrop-blur-3xl bg-white/[0.03] border-b border-white/10 shadow-2xl shadow-black/40 z-30">
           <div className="flex items-center justify-between">
             <div className="space-y-1.5">
               <div className="flex items-center gap-3">
@@ -279,10 +145,10 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = (props) => {
         </div>
 
         {/* Scrollable Cards Container - Takes remaining space */}
-        <div className="flex-1 overflow-y-auto md:overflow-hidden overflow-x-hidden scroll-smooth">
+        <div className="overflow-hidden">
           {/* Enhanced Ultra-Modern Navigation Cards */}
           <div className="relative z-10 px-4 py-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-5 pb-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4 pb-2">
               {navigationItems.map((item: NavigationItem, index: number) => {
                 const isHovered = hoveredCard === index;
                 const isPressed = pressedItem === index;
@@ -326,7 +192,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = (props) => {
                       className={`
                         relative overflow-hidden rounded-3xl cursor-pointer
                         transition-all duration-500 ease-out transform will-change-transform
-                        h-[210px] w-full
+                        h-[160px] sm:h-[180px] md:h-[210px] w-full
                         ${
                           isPressed 
                             ? 'scale-[0.94]' 
@@ -336,8 +202,8 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = (props) => {
                         }
                         ${
                           isAfrigterItem 
-                            ? 'bg-gradient-to-br from-pink-500/35 via-purple-500/30 to-indigo-500/35 backdrop-blur-2xl border-2 border-white/25' 
-                            : 'bg-gradient-to-br from-slate-800/70 via-slate-700/60 to-slate-800/80 backdrop-blur-2xl border border-white/15'
+                            ? 'bg-gradient-to-br from-purple-500/20 via-pink-500/16 to-blue-500/16 backdrop-blur-2xl border border-white/14' 
+                            : 'bg-white/[0.03] backdrop-blur-2xl border border-white/10'
                         }
                         shadow-2xl
                         ${isAfrigterItem ? 'shadow-pink-500/40' : 'shadow-black/50'}
@@ -363,7 +229,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = (props) => {
                         ${
                           isAfrigterItem 
                             ? 'bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-pink-500/30 via-purple-500/20 to-transparent' 
-                            : 'bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-slate-600/25 via-slate-700/20 to-transparent'
+                            : 'bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-purple-500/18 via-blue-500/10 to-transparent'
                         }
                         ${isHovered ? 'opacity-100' : ''}
                       `}></div>
@@ -401,7 +267,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = (props) => {
                             ${
                               isAfrigterItem 
                                 ? 'bg-gradient-to-br from-pink-500 via-purple-600 to-indigo-600' 
-                                : 'bg-gradient-to-br from-slate-700/90 via-slate-600/90 to-slate-700/90'
+                                : 'bg-white/[0.05]'
                             }
                             backdrop-blur-xl
                             shadow-2xl
@@ -465,7 +331,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = (props) => {
                               ${
                                 isHovered 
                                   ? 'bg-gradient-to-br from-purple-500/50 to-pink-500/50 border-2 border-white/40 rotate-90 scale-110' 
-                                  : 'bg-slate-800/90 border border-white/15 scale-100 hover:scale-105'
+                                  : 'bg-white/[0.04] border border-white/10 scale-100 hover:scale-105'
                               }
                               shadow-lg
                               before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/25 before:to-transparent before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-300

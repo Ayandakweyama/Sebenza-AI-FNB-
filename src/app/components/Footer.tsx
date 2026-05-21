@@ -1,58 +1,7 @@
-'use client';
-
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRef, useEffect } from 'react';
 import { Linkedin, Twitter, Github, Mail, ArrowRight, Sparkles } from 'lucide-react';
-
-/* ─── Mini Starfield for Footer ─────────────────────────────────────────────── */
-const FooterStars = () => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    let animId: number;
-    const resize = () => { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; };
-    resize();
-    window.addEventListener('resize', resize);
-
-    interface Star { x: number; y: number; z: number; speed: number; r: number; opacity: number; tw: number; ts: number; hue: number; }
-    const N = 180;
-    const stars: Star[] = Array.from({ length: N }, () => {
-      const z = Math.random();
-      return { x: Math.random() * canvas.width, y: Math.random() * canvas.height, z, speed: 0.06 + z * 0.28, r: 0.2 + z * 1.4, opacity: 0.15 + z * 0.65, tw: Math.random() * Math.PI * 2, ts: 0.003 + Math.random() * 0.01, hue: [240,270,300,200][Math.floor(Math.random()*4)] };
-    });
-
-    let t = 0;
-    const draw = () => {
-      t++;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      stars.forEach(s => {
-        s.y += s.speed * 0.4;
-        if (s.y > canvas.height + 2) { s.y = -2; s.x = Math.random() * canvas.width; }
-        const tw = 0.5 + 0.5 * Math.sin(t * s.ts + s.tw);
-        const alpha = s.opacity * tw;
-        if (s.z > 0.65) {
-          const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r * 5);
-          g.addColorStop(0, `hsla(${s.hue},70%,90%,${alpha * 0.5})`);
-          g.addColorStop(1, `hsla(${s.hue},60%,70%,0)`);
-          ctx.beginPath(); ctx.arc(s.x, s.y, s.r * 5, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
-        }
-        ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-        ctx.fillStyle = `hsla(${s.hue},25%,98%,${alpha})`; ctx.fill();
-      });
-      animId = requestAnimationFrame(draw);
-    };
-    draw();
-    return () => { cancelAnimationFrame(animId); window.removeEventListener('resize', resize); };
-  }, []);
-
-  return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 1 }} />;
-};
+import FooterStarsCanvas from './FooterStarsCanvas';
 
 /* ─── Footer ─────────────────────────────────────────────────────────────────── */
 const Footer = () => {
@@ -170,10 +119,13 @@ const Footer = () => {
         .orbit { position:absolute; inset:0; margin:auto; border-radius:50%; border:1px solid; }
       `}</style>
 
-      <footer className="relative overflow-hidden bg-[#050615]">
+      <footer
+        className="relative overflow-hidden bg-[#050615]"
+        style={{ contentVisibility: 'auto', containIntrinsicSize: '620px' }}
+      >
 
         {/* Starfield */}
-        <FooterStars />
+        <FooterStarsCanvas />
 
         {/* Colour wash */}
         <div className="absolute inset-0 animate-[gradient-shift_14s_ease_infinite] [background-size:200%_200%]" style={{
@@ -232,6 +184,7 @@ const Footer = () => {
                 </div>
                 <Link
                   href="/signup"
+                  prefetch={false}
                   className="shrink-0 inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:scale-105 active:scale-100"
                   style={{
                     background: 'linear-gradient(135deg, rgba(139,92,246,.9), rgba(168,85,247,.8))',
@@ -250,7 +203,7 @@ const Footer = () => {
 
               {/* Brand col */}
               <div className="md:col-span-1">
-                <Link href="/dashboard" className="inline-block group">
+                <Link href="/dashboard" prefetch={false} className="inline-block group">
                   <div
                     className="relative h-16 w-16 md:h-18 md:w-18 transition-transform duration-300 group-hover:scale-105"
                     style={{
@@ -282,7 +235,7 @@ const Footer = () => {
                   <ul className="space-y-3">
                     {section.links.map((item) => (
                       <li key={item.name}>
-                        <Link href={item.href} className="footer-link text-sm">
+                        <Link href={item.href} prefetch={false} className="footer-link text-sm">
                           <ArrowRight className="arrow w-3 h-3 mr-1.5 text-purple-400" />
                           {item.name}
                         </Link>
@@ -310,7 +263,7 @@ const Footer = () => {
               <div className="flex items-center gap-1 text-xs" style={{ color: 'rgba(156,163,175,.55)' }}>
                 {[['Privacy Policy','/privacy'],['Terms of Service','/terms'],['Cookie Policy','/cookies']].map(([label, href], i, arr) => (
                   <span key={label} className="flex items-center gap-1">
-                    <Link href={href} className="footer-link text-xs" style={{ color: 'rgba(156,163,175,.55)' }}>{label}</Link>
+                    <Link href={href} prefetch={false} className="footer-link text-xs" style={{ color: 'rgba(156,163,175,.55)' }}>{label}</Link>
                     {i < arr.length - 1 && <span className="opacity-30">·</span>}
                   </span>
                 ))}

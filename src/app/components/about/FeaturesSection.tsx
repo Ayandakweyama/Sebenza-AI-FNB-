@@ -26,7 +26,10 @@ const features = [
 
 const FeaturesSection = () => {
   return (
-    <section className="relative overflow-hidden bg-[#050615] py-20">
+    <section
+      className="relative overflow-hidden bg-[#050615] py-20"
+      style={{ contentVisibility: 'auto', containIntrinsicSize: '900px' }}
+    >
       <div className="absolute inset-0 [background-image:radial-gradient(circle_at_15%_10%,rgba(168,85,247,0.22),transparent_55%),radial-gradient(circle_at_80%_15%,rgba(236,72,153,0.18),transparent_50%),radial-gradient(circle_at_50%_85%,rgba(59,130,246,0.14),transparent_55%)] [background-size:200%_200%] animate-gradient-shift" />
       <div className="absolute inset-0 opacity-25 [background-image:radial-gradient(rgba(255,255,255,0.12)_1px,transparent_1px)] [background-size:26px_26px] [background-position:0_0]" />
       <div className="absolute inset-0 opacity-20 [background-image:radial-gradient(rgba(255,255,255,0.08)_1px,transparent_1px)] [background-size:64px_64px] [background-position:12px_18px]" />

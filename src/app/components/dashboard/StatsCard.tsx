@@ -32,10 +32,10 @@ const iconMap = {
 };
 
 const colorClasses = {
-  purple: 'border-purple-500 hover:border-purple-500 text-purple-400',
-  green: 'border-green-500 hover:border-green-500 text-green-400',
-  blue: 'border-blue-500 hover:border-blue-500 text-blue-400',
-  yellow: 'border-yellow-500 hover:border-yellow-500 text-yellow-400',
+  purple: { accent: 'text-purple-300', ring: 'group-hover:border-purple-400/30' },
+  green: { accent: 'text-emerald-300', ring: 'group-hover:border-emerald-400/30' },
+  blue: { accent: 'text-sky-300', ring: 'group-hover:border-sky-400/30' },
+  yellow: { accent: 'text-amber-300', ring: 'group-hover:border-amber-400/30' },
 };
 
 export const StatsCard: React.FC<StatsCardProps> = ({
@@ -46,16 +46,19 @@ export const StatsCard: React.FC<StatsCardProps> = ({
   color = 'purple'
 }) => {
   return (
-    <div className={`bg-slate-800 p-6 rounded-xl border border-slate-700 transition-colors ${colorClasses[color]}`}>
+    <div
+      className={`group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6 transition-all duration-300 hover:-translate-y-1 ${colorClasses[color].ring}`}
+    >
+      <div className="absolute -inset-px rounded-2xl bg-gradient-to-r from-purple-500/15 via-pink-500/8 to-blue-500/15 opacity-70 blur-xl pointer-events-none" />
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-slate-300 text-sm">{title}</p>
-          <p className="text-3xl font-bold">{value}</p>
+          <p className="text-slate-300/75 text-sm">{title}</p>
+          <p className="text-3xl font-bold text-white">{value}</p>
           <p className={`text-xs mt-1 ${getChangeColorClass(change, color)}`}>
             {change}
           </p>
         </div>
-        <div className="text-slate-400">
+        <div className={`${colorClasses[color].accent}`}>
           {(() => {
             const IconComponent = iconMap[icon as keyof typeof iconMap];
             return IconComponent ? <IconComponent className="w-8 h-8" /> : <div className="text-4xl">{icon}</div>;
@@ -68,7 +71,7 @@ export const StatsCard: React.FC<StatsCardProps> = ({
 
 const getChangeColorClass = (change: string, color: string) => {
   if (change.includes('+') || change.includes('Above')) {
-    return `text-${color}-400`;
+    return colorClasses[color as keyof typeof colorClasses]?.accent ?? 'text-slate-300/70';
   }
-  return 'text-slate-400';
+  return 'text-slate-300/60';
 };
