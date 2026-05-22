@@ -8,6 +8,7 @@ import { ProfileProvider } from "../contexts/ProfileContext";
 import { UserSync } from "@/components/auth/UserSync";
 import AppToaster from "@/components/ui/AppToaster";
 import PwaInstallPrompt from "@/components/pwa/PwaInstallPrompt";
+import ServiceWorkerRegister from "@/components/pwa/ServiceWorkerRegister";
 
 function ProvidersContent({ children }: { children: React.ReactNode }) {
   return (
@@ -38,6 +39,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         </ProvidersContent>
         <AppToaster />
         <PwaInstallPrompt />
+        <ServiceWorkerRegister />
       </UserSync>
     </ClerkProvider>
   );

@@ -27,10 +27,15 @@ export const metadata: Metadata = {
   },
   description: 'AI-Powered Career Acceleration Platform',
   keywords: ['Job Search', 'Career', 'AI', 'Resume Builder', 'ATS'],
+  appleWebApp: {
+    capable: true,
+    title: 'Sebenza AI',
+    statusBarStyle: 'black-translucent',
+  },
   icons: {
     icon: '/favicon.ico',
     shortcut: '/favicon-16x16.png',
-    apple: '/apple-touch-icon.png',
+    apple: '/logo.png',
   },
   manifest: '/site.webmanifest',
 };
