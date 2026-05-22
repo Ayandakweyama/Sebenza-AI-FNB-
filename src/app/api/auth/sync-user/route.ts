@@ -115,8 +115,9 @@ export async function POST(request: NextRequest) {
         console.log(`[sync-user] Creating new user for ${user.id}`);
         
         try {
-          dbUser = await prisma.user.create({
-            data: {
+          dbUser = await prisma.user.upsert({
+            where: { clerkId: user.id },
+            create: {
               clerkId: user.id,
               email: userData.email,
               name: userData.name,
@@ -127,12 +128,28 @@ export async function POST(request: NextRequest) {
                   avatar: user.imageUrl || null,
                 },
               },
-              accountSettings: {
-                create: {},
+              accountSettings: { create: {} },
+              jobPreferences: { create: {} },
+            },
+            update: {
+              email: userData.email,
+              name: userData.name,
+              profile: {
+                upsert: {
+                  create: {
+                    firstName: user.firstName || null,
+                    lastName: user.lastName || null,
+                    avatar: user.imageUrl || null,
+                  },
+                  update: {
+                    firstName: user.firstName ? user.firstName : undefined,
+                    lastName: user.lastName ? user.lastName : undefined,
+                    avatar: user.imageUrl ? user.imageUrl : undefined,
+                  },
+                },
               },
-              jobPreferences: {
-                create: {},
-              },
+              accountSettings: { upsert: { create: {}, update: {} } },
+              jobPreferences: { upsert: { create: {}, update: {} } },
             },
             include: {
               profile: true,
@@ -143,14 +160,50 @@ export async function POST(request: NextRequest) {
           
           console.log(`[sync-user] Created new user: ${dbUser.id}`);
         } catch (error) {
-          console.error('[sync-user] Error creating user:', error);
-          return NextResponse.json(
-            { 
-              error: 'Failed to create user',
-              message: error instanceof Error ? error.message : 'Unknown error',
-            },
-            { status: 500 }
-          );
+          if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
+            const fallbackByClerkId = await prisma.user.findUnique({
+              where: { clerkId: user.id },
+              include: {
+                profile: true,
+                accountSettings: true,
+                jobPreferences: true,
+              },
+            });
+            if (fallbackByClerkId) {
+              dbUser = fallbackByClerkId;
+            } else if (userData.email) {
+              const fallbackByEmail = await prisma.user.findUnique({
+                where: { email: userData.email },
+                include: {
+                  profile: true,
+                  accountSettings: true,
+                  jobPreferences: true,
+                },
+              });
+              if (fallbackByEmail && fallbackByEmail.clerkId !== user.id) {
+                dbUser = await prisma.user.update({
+                  where: { id: fallbackByEmail.id },
+                  data: { clerkId: user.id, name: userData.name },
+                  include: {
+                    profile: true,
+                    accountSettings: true,
+                    jobPreferences: true,
+                  },
+                });
+              }
+            }
+          }
+
+          if (!dbUser) {
+            console.error('[sync-user] Error creating user:', error);
+            return NextResponse.json(
+              { 
+                error: 'Failed to create user',
+                message: error instanceof Error ? error.message : 'Unknown error',
+              },
+              { status: 500 }
+            );
+          }
         }
       }
     } else {

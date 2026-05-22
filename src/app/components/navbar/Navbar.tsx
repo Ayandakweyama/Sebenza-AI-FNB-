@@ -30,6 +30,7 @@ const NavbarContent = () => {
     { name: 'ATS Score Checker', href: '/ats-checker' },
     { name: 'CV Builder', href: '/cvbuilder' },
     { name: 'Pricing', href: '/pricing' },
+    { name: 'Install App', href: '/pwa' },
     { name: 'Contact', href: '/contact' },
   ];
 

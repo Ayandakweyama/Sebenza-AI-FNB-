@@ -48,20 +48,13 @@ export default function PwaPage() {
           </div>
 
           <div className="mt-8 grid grid-cols-1 gap-6">
-            <PwaInstallClient />
-            <div className="rounded-3xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-6">
-              <div className="flex items-start gap-4">
-                <div className="w-11 h-11 rounded-2xl border border-white/10 bg-white/5 flex items-center justify-center">
-                  <ShieldCheck className="w-5 h-5 text-pink-200" />
-                </div>
-                <div className="flex-1">
-                  <h2 className="text-lg font-semibold text-white">Install requirements</h2>
-                  <ul className="mt-2 space-y-2 text-sm text-gray-300/85 leading-relaxed">
-                    <li>Use HTTPS (your site must show as secure).</li>
-                    <li>Use a supported browser (Chrome on Android, Safari on iOS).</li>
-                    <li>If you do not see an install option, open the site in the full browser (not inside an app).</li>
-                  </ul>
-                </div>
+            <div className="rounded-3xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-6 sm:p-7">
+              <PwaInstallClient />
+              <div className="mt-5 flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <ShieldCheck className="w-4 h-4 text-pink-200 mt-0.5" />
+                <p className="text-xs text-gray-300/80 leading-relaxed">
+                  If you do not see the install prompt, open the site in your full browser (not inside an in-app browser).
+                </p>
               </div>
             </div>
           </div>
@@ -70,4 +63,3 @@ export default function PwaPage() {
     </div>
   );
 }
-

@@ -3,7 +3,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useDashboard } from './context/DashboardContext';
 import type { NavigationItem } from './types';
-import { Bot, Briefcase, User, ClipboardList, ChevronRight, Zap, TrendingUp } from 'lucide-react';
+import { Bot, Briefcase, User, ClipboardList, ChevronRight, TrendingUp } from 'lucide-react';
 
 interface MobileDashboardProps {
   navigationItems?: NavigationItem[];
@@ -254,10 +254,9 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = (props) => {
                         </>
                       )}
                       
-                      {/* Content Container */}
-                      <div className="relative z-10 flex flex-col h-full p-6">
+                      <div className="relative z-10 flex flex-col h-full p-4 sm:p-5 md:p-6">
                         {/* Header section */}
-                        <div className="relative flex items-start justify-between mb-6">
+                        <div className="relative flex items-start justify-between mb-4 sm:mb-5 md:mb-6">
                           {/* Ultra-Modern Icon Container */}
                           <div className={`
                             relative flex-shrink-0
@@ -351,10 +350,10 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = (props) => {
                         </div>
                         
                         {/* Text Content - Modern Typography */}
-                        <div className="flex-1 flex flex-col justify-end space-y-3">
+                        <div className="flex-1 flex flex-col justify-end gap-2">
                           {/* Title with gradient and animation */}
                           <h3 className={`
-                            font-black text-lg leading-tight tracking-tight
+                            font-black text-[15px] sm:text-base md:text-lg leading-snug tracking-tight
                             transition-all duration-500
                             ${
                               isAfrigterItem 
@@ -376,7 +375,7 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = (props) => {
                           {/* Description with modern styling */}
                           {item.description && (
                             <p className={`
-                              text-xs font-medium leading-relaxed line-clamp-2
+                              text-[11px] sm:text-xs font-medium leading-snug line-clamp-2
                               transition-all duration-500
                               ${
                                 isAfrigterItem 
@@ -386,27 +385,10 @@ export const MobileDashboard: React.FC<MobileDashboardProps> = (props) => {
                               ${isHovered ? 'text-slate-100 translate-x-1' : ''}
                               drop-shadow-lg
                             `}>
-                              {item.description.length > 60 
-                                ? `${item.description.substring(0, 60)}...` 
-                                : item.description
-                              }
+                              {item.description}
                             </p>
                           )}
                           
-                          {/* Enhanced status indicator */}
-                          <div className={`
-                            inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider
-                            ${isAfrigterItem ? 'text-pink-200/70' : 'text-slate-400/70'}
-                            transition-all duration-500
-                            ${isHovered ? 'opacity-100 translate-x-1' : 'opacity-0'}
-                          `}>
-                            <div className="relative">
-                              <div className={`w-1.5 h-1.5 rounded-full ${isAfrigterItem ? 'bg-pink-400' : 'bg-slate-400'} animate-pulse`}></div>
-                              <div className={`absolute inset-0 w-1.5 h-1.5 rounded-full ${isAfrigterItem ? 'bg-pink-400' : 'bg-slate-400'} animate-ping`}></div>
-                            </div>
-                            <span>Ready</span>
-                            <Zap className="w-3 h-3 animate-pulse" />
-                          </div>
                         </div>
                       </div>
 
