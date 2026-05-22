@@ -1,4 +1,4 @@
-import { clerkClient } from '@clerk/nextjs/server';
+import { clerkClient, currentUser } from '@clerk/nextjs/server';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { prisma } from '@/lib/prisma';
 
@@ -6,7 +6,15 @@ export async function ensureDbUser(clerkId: string) {
   const existing = await prisma.user.findUnique({ where: { clerkId } });
   if (existing) return existing;
 
-  const clerkUser = await clerkClient.users.getUser(clerkId);
+  const sessionUser = await currentUser();
+  const clerkUser =
+    sessionUser && sessionUser.id === clerkId
+      ? sessionUser
+      : await (async () => {
+          const anyClient = clerkClient as any;
+          const resolved = typeof anyClient === 'function' ? await anyClient() : anyClient;
+          return resolved.users.getUser(clerkId);
+        })();
   const primaryEmail =
     clerkUser.emailAddresses.find((e) => e.id === clerkUser.primaryEmailAddressId)?.emailAddress ||
     clerkUser.emailAddresses[0]?.emailAddress ||
