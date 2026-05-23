@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import CustomizableCVTemplate, { CVCustomizationOptions } from '../profile/personal/components/CustomizableCVTemplate';
 import CVCustomizationPanel from '../profile/personal/components/CVCustomizationPanel';
 import { ProfileFormData } from '../profile/personal/profile.schema';
@@ -171,6 +171,26 @@ const CVBuilderPage: React.FC = () => {
   
   // Customization state
   const [customization, setCustomization] = useState<CVCustomizationOptions>(defaultCustomization);
+  const previewContainerRef = useRef<HTMLDivElement | null>(null);
+  const [previewScale, setPreviewScale] = useState(0.8);
+  const baseCvWidth = useMemo(() => 794, []);
+
+  useEffect(() => {
+    if (currentStep !== 6) return;
+    if (typeof window === 'undefined') return;
+
+    const updateScale = () => {
+      const containerWidth = previewContainerRef.current?.clientWidth ?? 0;
+      if (!containerWidth) return;
+      const paddingBudget = isFullScreen ? 24 : 16;
+      const next = (containerWidth - paddingBudget) / baseCvWidth;
+      setPreviewScale(Math.max(0.45, Math.min(1, next)));
+    };
+
+    updateScale();
+    window.addEventListener('resize', updateScale);
+    return () => window.removeEventListener('resize', updateScale);
+  }, [baseCvWidth, currentStep, isFullScreen]);
 
   // Load saved data from localStorage
   useEffect(() => {
@@ -342,25 +362,25 @@ const CVBuilderPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-950">
-      <div className="container mx-auto px-4 pt-20 pb-8">
+      <div className="container mx-auto px-3 sm:px-4 pt-20 pb-8">
         {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-pink-500 to-pink-600 bg-clip-text text-transparent mb-4">
+        <div className="text-center mb-7 sm:mb-8">
+          <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold bg-gradient-to-r from-pink-500 to-pink-600 bg-clip-text text-transparent mb-3 sm:mb-4">
             CV Builder
           </h1>
-          <p className="text-slate-400 text-lg max-w-3xl mx-auto">
+          <p className="text-slate-400 text-base sm:text-lg max-w-3xl mx-auto">
             Create a professional CV with our advanced customization tools. Design your perfect resume in minutes.
           </p>
         </div>
 
         {/* Step Indicator */}
-        <div className="flex justify-center mb-8">
-          <div className="flex items-center space-x-2">
+        <div className="flex justify-center mb-6 sm:mb-8">
+          <div className="flex items-center gap-2 overflow-x-auto max-w-full px-1 py-1">
             {steps.map((step, index) => (
               <React.Fragment key={step.id}>
                 <button
                   onClick={() => setCurrentStep(step.id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all whitespace-nowrap ${
                     currentStep === step.id
                       ? 'bg-blue-600 text-white'
                       : currentStep > step.id
@@ -372,7 +392,7 @@ const CVBuilderPage: React.FC = () => {
                   <span className="hidden sm:inline">{step.title}</span>
                 </button>
                 {index < steps.length - 1 && (
-                  <ChevronRight className="h-4 w-4 text-slate-600" />
+                  <ChevronRight className="hidden sm:block h-4 w-4 text-slate-600" />
                 )}
               </React.Fragment>
             ))}
@@ -383,14 +403,14 @@ const CVBuilderPage: React.FC = () => {
         {currentStep < 6 ? (
           // Form Steps
           <div className="max-w-4xl mx-auto">
-            <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
-              <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="bg-slate-900/40 border border-white/10 rounded-2xl p-4 sm:p-6 backdrop-blur-xl shadow-[0_0_40px_rgba(59,130,246,0.06)]">
+              <div className="mb-5 sm:mb-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                   <span className="text-sm text-slate-400">Experience level for AI tips:</span>
                   <select
                     value={experienceLevel}
                     onChange={(e) => setExperienceLevel(e.target.value)}
-                    className="px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                    className="px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
                   >
                     <option value="Student">Student</option>
                     <option value="Entry-level">Entry-level</option>
@@ -404,7 +424,7 @@ const CVBuilderPage: React.FC = () => {
                   onClick={handleGetTips}
                   disabled={isGettingTips}
                   variant="outline"
-                  className="border-slate-700 hover:bg-slate-800"
+                  className="border-slate-700 hover:bg-slate-800 w-full sm:w-auto"
                 >
                   {isGettingTips ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -452,32 +472,34 @@ const CVBuilderPage: React.FC = () => {
               )}
               
               {/* Navigation */}
-              <div className="flex justify-between mt-8 pt-6 border-t border-slate-800">
-                <Button
-                  onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
-                  disabled={currentStep === 0}
-                  variant="outline"
-                  className="border-slate-700 hover:bg-slate-800"
-                >
-                  <ChevronLeft className="h-4 w-4 mr-2" />
-                  Previous
-                </Button>
-                
+              <div className="mt-7 sm:mt-8 pt-5 sm:pt-6 border-t border-slate-800">
+                <div className="grid grid-cols-2 gap-3 sm:flex sm:justify-between sm:items-center">
+                  <Button
+                    onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
+                    disabled={currentStep === 0}
+                    variant="outline"
+                    className="border-slate-700 hover:bg-slate-800 w-full"
+                  >
+                    <ChevronLeft className="h-4 w-4 mr-2" />
+                    Previous
+                  </Button>
+
+                  <Button
+                    onClick={() => setCurrentStep(Math.min(6, currentStep + 1))}
+                    className="bg-blue-600 hover:bg-blue-700 w-full"
+                  >
+                    {currentStep === 5 ? 'Customize' : 'Next'}
+                    <ChevronRight className="h-4 w-4 ml-2" />
+                  </Button>
+                </div>
+
                 <Button
                   onClick={saveData}
                   variant="outline"
-                  className="border-slate-700 hover:bg-slate-800"
+                  className="border-slate-700 hover:bg-slate-800 w-full mt-3"
                 >
                   <Save className="h-4 w-4 mr-2" />
                   Save Progress
-                </Button>
-                
-                <Button
-                  onClick={() => setCurrentStep(Math.min(6, currentStep + 1))}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  {currentStep === 5 ? 'Customize' : 'Next'}
-                  <ChevronRight className="h-4 w-4 ml-2" />
                 </Button>
               </div>
             </div>
@@ -541,12 +563,19 @@ const CVBuilderPage: React.FC = () => {
               </div>
 
               {/* CV Preview */}
-              <div className={`${isFullScreen ? 'fixed inset-0 z-50 bg-slate-900 p-8 overflow-auto' : 'border border-slate-700 rounded-lg overflow-hidden bg-slate-900 p-4'}`}>
+              <div
+                ref={previewContainerRef}
+                className={`${
+                  isFullScreen
+                    ? 'fixed inset-0 z-50 bg-slate-950 p-4 sm:p-8 overflow-auto'
+                    : 'border border-slate-700 rounded-2xl overflow-hidden bg-slate-900/40 p-3 sm:p-4 backdrop-blur-xl'
+                }`}
+              >
                 <div 
                   id="cv-preview-element"
-                  className={`bg-white rounded shadow-sm overflow-auto ${isFullScreen ? 'max-w-4xl mx-auto' : 'max-h-[800px]'}`}
+                  className={`bg-white rounded shadow-sm overflow-x-hidden overflow-y-auto ${isFullScreen ? 'max-w-4xl mx-auto' : 'max-h-[70vh] sm:max-h-[800px]'}`}
                   style={{
-                    transform: isFullScreen ? 'scale(1)' : 'scale(0.8)',
+                    transform: `scale(${previewScale})`,
                     transformOrigin: 'top center'
                   }}
                 >
@@ -585,7 +614,7 @@ function PersonalInfoStep({ formData, setFormData }: any) {
             type="text"
             value={formData.firstName || ''}
             onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-            className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+            className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
           />
         </div>
         <div>
@@ -594,7 +623,7 @@ function PersonalInfoStep({ formData, setFormData }: any) {
             type="text"
             value={formData.lastName || ''}
             onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-            className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+            className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
           />
         </div>
       </div>
@@ -606,7 +635,7 @@ function PersonalInfoStep({ formData, setFormData }: any) {
             type="email"
             value={formData.email || ''}
             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-            className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+            className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
           />
         </div>
         <div>
@@ -615,7 +644,7 @@ function PersonalInfoStep({ formData, setFormData }: any) {
             type="tel"
             value={formData.phone || ''}
             onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-            className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+            className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
           />
         </div>
       </div>
@@ -626,7 +655,7 @@ function PersonalInfoStep({ formData, setFormData }: any) {
           type="text"
           value={formData.location || ''}
           onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-          className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+          className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
         />
       </div>
 
@@ -636,7 +665,7 @@ function PersonalInfoStep({ formData, setFormData }: any) {
           type="text"
           value={formData.jobTitle || ''}
           onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
-          className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+          className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
         />
       </div>
 
@@ -646,7 +675,7 @@ function PersonalInfoStep({ formData, setFormData }: any) {
           value={formData.bio || ''}
           onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
           rows={4}
-          className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+          className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
         />
       </div>
     </div>
@@ -709,7 +738,7 @@ function ExperienceStep({ formData, setFormData }: any) {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
         <div>
           <h2 className="text-2xl font-bold text-white">Work Experience</h2>
           <p className="text-slate-400">Add your work experience details</p>
@@ -717,7 +746,7 @@ function ExperienceStep({ formData, setFormData }: any) {
         <Button
           onClick={addExperience}
           variant="outline"
-          className="border-slate-700 hover:bg-slate-800"
+          className="border-slate-700 hover:bg-slate-800 w-full sm:w-auto"
         >
           <Briefcase className="h-4 w-4 mr-2" />
           Add Position
@@ -725,7 +754,7 @@ function ExperienceStep({ formData, setFormData }: any) {
       </div>
 
       {(!formData.workExperience || formData.workExperience.length === 0) ? (
-        <div className="text-center py-8 bg-slate-800/30 rounded-lg">
+        <div className="text-center py-8 bg-slate-800/30 rounded-2xl">
           <Briefcase className="h-12 w-12 text-slate-600 mx-auto mb-3" />
           <p className="text-slate-400">No work experience added yet</p>
           <Button
@@ -738,7 +767,7 @@ function ExperienceStep({ formData, setFormData }: any) {
       ) : (
         <div className="space-y-6">
           {formData.workExperience.map((exp: any, index: number) => (
-            <div key={index} className="border border-slate-700 rounded-lg p-6 bg-slate-800/30">
+            <div key={index} className="border border-slate-700 rounded-2xl p-4 sm:p-6 bg-slate-800/30">
               <div className="flex justify-between items-start mb-4">
                 <h3 className="text-lg font-semibold text-white">Position {index + 1}</h3>
                 <Button
@@ -758,7 +787,7 @@ function ExperienceStep({ formData, setFormData }: any) {
                     type="text"
                     value={exp.company || ''}
                     onChange={(e) => updateExperience(index, 'company', e.target.value)}
-                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
                     placeholder="Company Name"
                   />
                 </div>
@@ -768,7 +797,7 @@ function ExperienceStep({ formData, setFormData }: any) {
                     type="text"
                     value={exp.position || ''}
                     onChange={(e) => updateExperience(index, 'position', e.target.value)}
-                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
                     placeholder="Job Title"
                   />
                 </div>
@@ -781,7 +810,7 @@ function ExperienceStep({ formData, setFormData }: any) {
                     type="month"
                     value={exp.startDate ? new Date(exp.startDate).toISOString().slice(0, 7) : ''}
                     onChange={(e) => updateExperience(index, 'startDate', new Date(e.target.value))}
-                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
                   />
                 </div>
                 <div>
@@ -791,7 +820,7 @@ function ExperienceStep({ formData, setFormData }: any) {
                     value={exp.endDate && !exp.current ? new Date(exp.endDate).toISOString().slice(0, 7) : ''}
                     onChange={(e) => updateExperience(index, 'endDate', new Date(e.target.value))}
                     disabled={exp.current}
-                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white disabled:opacity-50"
+                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base disabled:opacity-50"
                   />
                 </div>
                 <div className="flex items-end">
@@ -813,7 +842,7 @@ function ExperienceStep({ formData, setFormData }: any) {
                   value={exp.description || ''}
                   onChange={(e) => updateExperience(index, 'description', e.target.value)}
                   rows={3}
-                  className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                  className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
                   placeholder="Describe your role and responsibilities..."
                 />
               </div>
@@ -836,7 +865,7 @@ function ExperienceStep({ formData, setFormData }: any) {
                       type="text"
                       value={achievement}
                       onChange={(e) => updateAchievement(index, achIndex, e.target.value)}
-                      className="flex-1 px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                      className="flex-1 px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
                       placeholder="Describe an achievement..."
                     />
                     <Button
@@ -890,7 +919,7 @@ function EducationStep({ formData, setFormData }: any) {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
         <div>
           <h2 className="text-2xl font-bold text-white">Education</h2>
           <p className="text-slate-400">Add your educational background</p>
@@ -898,7 +927,7 @@ function EducationStep({ formData, setFormData }: any) {
         <Button
           onClick={addEducation}
           variant="outline"
-          className="border-slate-700 hover:bg-slate-800"
+          className="border-slate-700 hover:bg-slate-800 w-full sm:w-auto"
         >
           <GraduationCap className="h-4 w-4 mr-2" />
           Add Education
@@ -906,7 +935,7 @@ function EducationStep({ formData, setFormData }: any) {
       </div>
 
       {(!formData.education || formData.education.length === 0) ? (
-        <div className="text-center py-8 bg-slate-800/30 rounded-lg">
+        <div className="text-center py-8 bg-slate-800/30 rounded-2xl">
           <GraduationCap className="h-12 w-12 text-slate-600 mx-auto mb-3" />
           <p className="text-slate-400">No education added yet</p>
           <Button
@@ -919,7 +948,7 @@ function EducationStep({ formData, setFormData }: any) {
       ) : (
         <div className="space-y-6">
           {formData.education.map((edu: any, index: number) => (
-            <div key={index} className="border border-slate-700 rounded-lg p-6 bg-slate-800/30">
+            <div key={index} className="border border-slate-700 rounded-2xl p-4 sm:p-6 bg-slate-800/30">
               <div className="flex justify-between items-start mb-4">
                 <h3 className="text-lg font-semibold text-white">Education {index + 1}</h3>
                 <Button
@@ -939,7 +968,7 @@ function EducationStep({ formData, setFormData }: any) {
                     type="text"
                     value={edu.institution || ''}
                     onChange={(e) => updateEducation(index, 'institution', e.target.value)}
-                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
                     placeholder="University/School Name"
                   />
                 </div>
@@ -949,7 +978,7 @@ function EducationStep({ formData, setFormData }: any) {
                     type="text"
                     value={edu.degree || ''}
                     onChange={(e) => updateEducation(index, 'degree', e.target.value)}
-                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
                     placeholder="e.g., Bachelor's, Master's"
                   />
                 </div>
@@ -961,7 +990,7 @@ function EducationStep({ formData, setFormData }: any) {
                   type="text"
                   value={edu.fieldOfStudy || ''}
                   onChange={(e) => updateEducation(index, 'fieldOfStudy', e.target.value)}
-                  className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                  className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
                   placeholder="e.g., Computer Science, Business Administration"
                 />
               </div>
@@ -973,7 +1002,7 @@ function EducationStep({ formData, setFormData }: any) {
                     type="month"
                     value={edu.startDate ? new Date(edu.startDate).toISOString().slice(0, 7) : ''}
                     onChange={(e) => updateEducation(index, 'startDate', new Date(e.target.value))}
-                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
                   />
                 </div>
                 <div>
@@ -983,7 +1012,7 @@ function EducationStep({ formData, setFormData }: any) {
                     value={edu.endDate && !edu.current ? new Date(edu.endDate).toISOString().slice(0, 7) : ''}
                     onChange={(e) => updateEducation(index, 'endDate', new Date(e.target.value))}
                     disabled={edu.current}
-                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white disabled:opacity-50"
+                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base disabled:opacity-50"
                   />
                 </div>
                 <div className="flex items-end">
@@ -1057,8 +1086,8 @@ function SkillsStep({ formData, setFormData }: any) {
       </div>
 
       {/* Technical Skills Section */}
-      <div className="border border-slate-700 rounded-lg p-6 bg-slate-800/30">
-        <div className="flex justify-between items-center mb-4">
+      <div className="border border-slate-700 rounded-2xl p-4 sm:p-6 bg-slate-800/30">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
           <div>
             <h3 className="text-lg font-semibold text-white">Core Skills</h3>
             <p className="text-sm text-slate-400">Tools, methods, and role-specific skills</p>
@@ -1067,7 +1096,7 @@ function SkillsStep({ formData, setFormData }: any) {
             onClick={addTechnicalSkill}
             variant="outline"
             size="sm"
-            className="border-slate-700 hover:bg-slate-800"
+            className="border-slate-700 hover:bg-slate-800 w-full sm:w-auto"
           >
             <Sparkles className="h-4 w-4 mr-2" />
             Add Skill
@@ -1075,7 +1104,7 @@ function SkillsStep({ formData, setFormData }: any) {
         </div>
 
         {(!formData.technicalSkills || formData.technicalSkills.length === 0) ? (
-          <div className="text-center py-6 bg-slate-800/30 rounded-lg">
+          <div className="text-center py-6 bg-slate-800/30 rounded-2xl">
             <Sparkles className="h-10 w-10 text-slate-600 mx-auto mb-2" />
             <p className="text-slate-400 text-sm">No core skills added yet</p>
             <Button
@@ -1089,18 +1118,18 @@ function SkillsStep({ formData, setFormData }: any) {
         ) : (
           <div className="space-y-3">
             {formData.technicalSkills.map((skill: any, index: number) => (
-              <div key={index} className="flex gap-3">
+              <div key={index} className="flex flex-col sm:flex-row gap-3">
                 <input
                   type="text"
                   value={skill.name || ''}
                   onChange={(e) => updateTechnicalSkill(index, 'name', e.target.value)}
-                  className="flex-1 px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                  className="flex-1 px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
                   placeholder="e.g., Excel, Customer service, Cash handling, Inventory, Canva"
                 />
                 <select
                   value={skill.level || 'Intermediate'}
                   onChange={(e) => updateTechnicalSkill(index, 'level', e.target.value)}
-                  className="px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                  className="px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base w-full sm:w-[170px]"
                 >
                   <option value="Beginner">Beginner</option>
                   <option value="Intermediate">Intermediate</option>
@@ -1111,7 +1140,7 @@ function SkillsStep({ formData, setFormData }: any) {
                   onClick={() => removeTechnicalSkill(index)}
                   variant="ghost"
                   size="sm"
-                  className="text-red-400 hover:text-red-300"
+                  className="text-red-400 hover:text-red-300 self-end sm:self-auto"
                 >
                   Remove
                 </Button>
@@ -1122,8 +1151,8 @@ function SkillsStep({ formData, setFormData }: any) {
       </div>
 
       {/* Soft Skills Section */}
-      <div className="border border-slate-700 rounded-lg p-6 bg-slate-800/30">
-        <div className="flex justify-between items-center mb-4">
+      <div className="border border-slate-700 rounded-2xl p-4 sm:p-6 bg-slate-800/30">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
           <div>
             <h3 className="text-lg font-semibold text-white">Soft Skills</h3>
             <p className="text-sm text-slate-400">Personal and interpersonal skills</p>
@@ -1132,7 +1161,7 @@ function SkillsStep({ formData, setFormData }: any) {
             onClick={addSoftSkill}
             variant="outline"
             size="sm"
-            className="border-slate-700 hover:bg-slate-800"
+            className="border-slate-700 hover:bg-slate-800 w-full sm:w-auto"
           >
             <User className="h-4 w-4 mr-2" />
             Add Skill
@@ -1140,7 +1169,7 @@ function SkillsStep({ formData, setFormData }: any) {
         </div>
 
         {(!formData.softSkills || formData.softSkills.length === 0) ? (
-          <div className="text-center py-6 bg-slate-800/30 rounded-lg">
+          <div className="text-center py-6 bg-slate-800/30 rounded-2xl">
             <User className="h-10 w-10 text-slate-600 mx-auto mb-2" />
             <p className="text-slate-400 text-sm">No soft skills added yet</p>
             <Button
@@ -1154,19 +1183,19 @@ function SkillsStep({ formData, setFormData }: any) {
         ) : (
           <div className="space-y-3">
             {formData.softSkills.map((skill: string, index: number) => (
-              <div key={index} className="flex gap-3">
+              <div key={index} className="flex flex-col sm:flex-row gap-3">
                 <input
                   type="text"
                   value={skill || ''}
                   onChange={(e) => updateSoftSkill(index, e.target.value)}
-                  className="flex-1 px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                  className="flex-1 px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
                   placeholder="e.g., Leadership, Communication, Problem Solving"
                 />
                 <Button
                   onClick={() => removeSoftSkill(index)}
                   variant="ghost"
                   size="sm"
-                  className="text-red-400 hover:text-red-300"
+                  className="text-red-400 hover:text-red-300 self-end sm:self-auto"
                 >
                   Remove
                 </Button>
@@ -1177,7 +1206,7 @@ function SkillsStep({ formData, setFormData }: any) {
       </div>
 
       {/* Quick Add Suggestions */}
-      <div className="border border-slate-700 rounded-lg p-6 bg-slate-800/30">
+      <div className="border border-slate-700 rounded-2xl p-4 sm:p-6 bg-slate-800/30">
         <h3 className="text-lg font-semibold text-white mb-3">Quick Add Suggestions</h3>
         
         <div className="mb-4">
@@ -1306,7 +1335,7 @@ function ProjectsStep({ formData, setFormData, customization, setCustomization }
           <Button
             onClick={addProject}
             variant="outline"
-            className="border-slate-700 hover:bg-slate-800"
+            className="border-slate-700 hover:bg-slate-800 w-full sm:w-auto"
           >
             <Folder className="h-4 w-4 mr-2" />
             Add Project
@@ -1315,7 +1344,7 @@ function ProjectsStep({ formData, setFormData, customization, setCustomization }
       </div>
 
       {(!formData.projects || formData.projects.length === 0) ? (
-        <div className="text-center py-8 bg-slate-800/30 rounded-lg">
+        <div className="text-center py-8 bg-slate-800/30 rounded-2xl">
           <Folder className="h-12 w-12 text-slate-600 mx-auto mb-3" />
           <p className="text-slate-400">No projects added</p>
           <Button
@@ -1328,7 +1357,7 @@ function ProjectsStep({ formData, setFormData, customization, setCustomization }
       ) : (
         <div className="space-y-6">
           {formData.projects.map((project: any, index: number) => (
-            <div key={index} className="border border-slate-700 rounded-lg p-6 bg-slate-800/30">
+            <div key={index} className="border border-slate-700 rounded-2xl p-4 sm:p-6 bg-slate-800/30">
               <div className="flex justify-between items-start mb-4">
                 <h3 className="text-lg font-semibold text-white">Project {index + 1}</h3>
                 <Button
@@ -1348,7 +1377,7 @@ function ProjectsStep({ formData, setFormData, customization, setCustomization }
                     type="text"
                     value={project.name || ''}
                     onChange={(e) => updateProject(index, 'name', e.target.value)}
-                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
                     placeholder="e.g., Community Events Website"
                   />
                 </div>
@@ -1358,7 +1387,7 @@ function ProjectsStep({ formData, setFormData, customization, setCustomization }
                     type="text"
                     value={project.technologies || ''}
                     onChange={(e) => updateProject(index, 'technologies', e.target.value)}
-                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
                     placeholder="e.g., Excel, Canva, WordPress"
                   />
                 </div>
@@ -1370,7 +1399,7 @@ function ProjectsStep({ formData, setFormData, customization, setCustomization }
                   type="url"
                   value={project.link || ''}
                   onChange={(e) => updateProject(index, 'link', e.target.value)}
-                  className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                  className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
                   placeholder="https://..."
                 />
               </div>
@@ -1381,7 +1410,7 @@ function ProjectsStep({ formData, setFormData, customization, setCustomization }
                   value={project.description || ''}
                   onChange={(e) => updateProject(index, 'description', e.target.value)}
                   rows={3}
-                  className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                  className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
                   placeholder="What was the project about and what did you achieve?"
                 />
               </div>
@@ -1427,7 +1456,7 @@ function ReferencesStep({ formData, setFormData }: any) {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
         <div>
           <h2 className="text-2xl font-bold text-white">References</h2>
           <p className="text-slate-400">Add referees and optional recommendation quotes</p>
@@ -1435,7 +1464,7 @@ function ReferencesStep({ formData, setFormData }: any) {
         <Button
           onClick={addReference}
           variant="outline"
-          className="border-slate-700 hover:bg-slate-800"
+          className="border-slate-700 hover:bg-slate-800 w-full sm:w-auto"
         >
           <Users className="h-4 w-4 mr-2" />
           Add Reference
@@ -1443,7 +1472,7 @@ function ReferencesStep({ formData, setFormData }: any) {
       </div>
 
       {(!formData.references || formData.references.length === 0) ? (
-        <div className="text-center py-8 bg-slate-800/30 rounded-lg">
+        <div className="text-center py-8 bg-slate-800/30 rounded-2xl">
           <Users className="h-12 w-12 text-slate-600 mx-auto mb-3" />
           <p className="text-slate-400">No references added yet</p>
           <Button
@@ -1456,7 +1485,7 @@ function ReferencesStep({ formData, setFormData }: any) {
       ) : (
         <div className="space-y-6">
           {formData.references.map((ref: any, index: number) => (
-            <div key={index} className="border border-slate-700 rounded-lg p-6 bg-slate-800/30">
+            <div key={index} className="border border-slate-700 rounded-2xl p-4 sm:p-6 bg-slate-800/30">
               <div className="flex justify-between items-start mb-4">
                 <h3 className="text-lg font-semibold text-white">Reference {index + 1}</h3>
                 <Button
@@ -1476,7 +1505,7 @@ function ReferencesStep({ formData, setFormData }: any) {
                     type="text"
                     value={ref.name || ''}
                     onChange={(e) => updateReference(index, 'name', e.target.value)}
-                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
                     placeholder="e.g., Thandi Mokoena"
                   />
                 </div>
@@ -1486,7 +1515,7 @@ function ReferencesStep({ formData, setFormData }: any) {
                     type="text"
                     value={ref.relationship || ''}
                     onChange={(e) => updateReference(index, 'relationship', e.target.value)}
-                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
                     placeholder="e.g., Manager / Supervisor / Lecturer"
                   />
                 </div>
@@ -1499,7 +1528,7 @@ function ReferencesStep({ formData, setFormData }: any) {
                     type="text"
                     value={ref.title || ''}
                     onChange={(e) => updateReference(index, 'title', e.target.value)}
-                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
                     placeholder="e.g., Store Manager"
                   />
                 </div>
@@ -1509,7 +1538,7 @@ function ReferencesStep({ formData, setFormData }: any) {
                     type="text"
                     value={ref.company || ''}
                     onChange={(e) => updateReference(index, 'company', e.target.value)}
-                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
                     placeholder="e.g., FNB"
                   />
                 </div>
@@ -1522,7 +1551,7 @@ function ReferencesStep({ formData, setFormData }: any) {
                     type="email"
                     value={ref.email || ''}
                     onChange={(e) => updateReference(index, 'email', e.target.value)}
-                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
                     placeholder="e.g., thandi@example.com"
                   />
                 </div>
@@ -1532,7 +1561,7 @@ function ReferencesStep({ formData, setFormData }: any) {
                     type="tel"
                     value={ref.phone || ''}
                     onChange={(e) => updateReference(index, 'phone', e.target.value)}
-                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
                     placeholder="e.g., +27 82 123 4567"
                   />
                 </div>
@@ -1544,7 +1573,7 @@ function ReferencesStep({ formData, setFormData }: any) {
                   value={ref.recommendation || ''}
                   onChange={(e) => updateReference(index, 'recommendation', e.target.value)}
                   rows={3}
-                  className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white"
+                  className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white text-base"
                   placeholder="A short quote you want to include, or leave blank."
                 />
               </div>
