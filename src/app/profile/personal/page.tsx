@@ -492,6 +492,7 @@ export default function PersonalProfilePage() {
 // Component to handle form steps rendering
 function FormSteps() {
   const { currentStep, isSubmitting, form, goToStep } = useMultiStepFormContext();
+  const { getToken } = useAuth();
   const [isParsingCv, setIsParsingCv] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [cvFileName, setCvFileName] = useState<string | null>(null);
@@ -514,17 +515,7 @@ function FormSteps() {
       if (form.formState.isDirty) {
         const values = form.getValues();
         localStorage.setItem('profileFormData', JSON.stringify(values));
-
-        void fetch('/api/profile', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            profileSnapshot: values
-          })
-        });
+        void persistSnapshot(values);
       }
     };
 
@@ -645,9 +636,13 @@ function FormSteps() {
 
   const persistSnapshot = async (values: ProfileFormData) => {
     try {
+      const token = await getValidToken(getToken, 2);
       await fetch('/api/profile', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
         credentials: 'include',
         body: JSON.stringify({ profileSnapshot: values })
       });
