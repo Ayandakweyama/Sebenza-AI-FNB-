@@ -196,9 +196,19 @@ export async function POST(request: Request) {
             if (!params.currentRole || !params.targetRole || !params.experienceLevel) {
               throw new Error('Current role, target role, and experience level are required for career roadmap');
             }
+            const currentSkills =
+              Array.isArray((params as any).currentSkills) ? (params as any).currentSkills :
+              Array.isArray((params as any).skills) ? (params as any).skills :
+              undefined;
+            const cvText =
+              typeof (params as any).cvText === 'string' && (params as any).cvText.trim().length > 0
+                ? (params as any).cvText.slice(0, 12000)
+                : undefined;
             response = await mistralService.generateCareerRoadmap({
               ...params,
-              timeline: params.timeline || '6' as const
+              timeline: (params.timeline || '6') as any,
+              currentSkills,
+              cvText
             });
             break;
           }

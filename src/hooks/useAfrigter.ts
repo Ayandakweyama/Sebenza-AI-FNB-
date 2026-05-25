@@ -47,9 +47,12 @@ interface CareerRoadmapOptions {
   type: 'career-roadmap';
   currentRole: string;
   targetRole: string;
-  experienceLevel: string;
-  timeline?: '6' | '12';
-  interests?: string[];
+  experienceLevel: 'entry' | 'mid' | 'senior' | 'executive';
+  timeline?: string;
+  currentSkills?: string[];
+  goals?: string;
+  industry?: string;
+  cvText?: string;
 }
 
 interface SkillGapOptions {

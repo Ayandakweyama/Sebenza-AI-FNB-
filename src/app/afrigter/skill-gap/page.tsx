@@ -245,7 +245,7 @@ export default function SkillGapPage() {
                   ref={cvInputRef}
                   type="file"
                   id="cv-upload"
-                  accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                  accept=".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                   onChange={(e) => handleCvUpload(e.target.files?.[0] ?? null)}
                   disabled={isParsingCv || loading}
                   className="hidden"
@@ -282,14 +282,14 @@ export default function SkillGapPage() {
                     </>
                   ) : (
                     <>
-                      <span className="text-xs text-slate-500 text-center">Upload PDF, DOC, DOCX, TXT</span>
+                      <span className="text-xs text-slate-500 text-center">Upload Word document (DOC or DOCX)</span>
                       <button
                         type="button"
                         onClick={() => cvInputRef.current?.click()}
                         className="px-4 py-2 bg-slate-800/60 hover:bg-slate-800 text-white font-medium rounded-lg transition-all duration-200 border border-slate-700 text-sm inline-flex items-center justify-center"
                       >
                         <Upload className="w-4 h-4 mr-2" />
-                        Upload CV
+                        Upload Word CV
                       </button>
                     </>
                   )}

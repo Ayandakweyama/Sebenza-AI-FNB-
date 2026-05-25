@@ -1,12 +1,15 @@
-if (typeof window !== 'undefined') {
-  import('pdfjs-dist')
-    .then((pdfjs) => {
-      if (!pdfjs.GlobalWorkerOptions.workerSrc) {
-        pdfjs.GlobalWorkerOptions.workerSrc =
-          'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
-      }
-    })
-    .catch(() => {});
+async function ensurePdfWorker(pdfjs: any) {
+  if (typeof window === 'undefined') return;
+
+  if (pdfjs.GlobalWorkerOptions.workerPort || pdfjs.GlobalWorkerOptions.workerSrc) return;
+
+  try {
+    const worker = new Worker(new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url), { type: 'module' });
+    pdfjs.GlobalWorkerOptions.workerPort = worker;
+  } catch {
+    const version = typeof pdfjs.version === 'string' && pdfjs.version ? pdfjs.version : '5.4.54';
+    pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${version}/build/pdf.worker.min.mjs`;
+  }
 }
 
 export async function extractTextFromFile(file: File): Promise<string> {
@@ -17,12 +20,9 @@ export async function extractTextFromFile(file: File): Promise<string> {
   const ext = fileName.slice(fileName.lastIndexOf('.')).toLowerCase();
   const type = file.type;
 
-  if (type === 'application/pdf' || ext === '.pdf') {
+  if (type === 'application/pdf' || type === 'application/x-pdf' || ext === '.pdf') {
     const pdfjs = await import('pdfjs-dist');
-    if (!pdfjs.GlobalWorkerOptions.workerSrc) {
-      pdfjs.GlobalWorkerOptions.workerSrc =
-        'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
-    }
+    await ensurePdfWorker(pdfjs);
 
     const arrayBuffer = await file.arrayBuffer();
 

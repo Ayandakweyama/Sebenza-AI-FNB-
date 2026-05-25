@@ -46,9 +46,11 @@ export interface CareerRoadmapParams {
   currentRole: string;
   targetRole: string;
   experienceLevel: 'entry' | 'mid' | 'senior' | 'executive';
-  timeline: '3' | '6' | '12' | '24';
+  timeline: string;
   currentSkills?: string[];
   industry?: string;
+  goals?: string;
+  cvText?: string;
 }
 
 export interface SkillGapParams {
@@ -368,16 +370,28 @@ Your expertise includes:
 
 Create detailed, realistic roadmaps with specific timelines, milestones, and actionable steps.`;
 
+    const timelineMonths = Math.max(3, Math.min(24, parseInt(params.timeline || '6', 10) || 6));
+    const phase1End = Math.max(1, Math.ceil(timelineMonths / 4));
+    const phase2End = Math.max(phase1End + 1, Math.ceil(timelineMonths / 2));
+    const phase3End = Math.max(phase2End + 1, Math.ceil((timelineMonths * 3) / 4));
+
     const prompt = `Create a comprehensive career roadmap for this transition:
 
 **Current Role:** ${params.currentRole}
 **Target Role:** ${params.targetRole}
 **Experience Level:** ${params.experienceLevel}
-**Timeline:** ${params.timeline} months
+**Timeline:** ${timelineMonths} months
 **Current Skills:** ${params.currentSkills?.join(', ') || 'Not specified'}
 **Industry:** ${params.industry || 'Not specified'}
+${params.goals ? `**Goals:** ${params.goals}\n` : ''}${params.cvText ? `\n**Candidate CV Extract (use as context and source of truth when relevant):**\n${params.cvText}\n` : ''}
 
-**Please create a detailed ${params.timeline}-month career roadmap:**
+**Output requirements**
+- Format as Markdown.
+- Include a "Step-by-step Roadmap" section where each step uses this exact heading pattern: "### Step N — <Title> (Months X-Y)".
+- Each step must include: Objective, Actions (bullets), Deliverable, Resources, and a clear timebox.
+- Keep steps practical and measurable for someone at the ${params.experienceLevel} level.
+
+**Please create a detailed ${timelineMonths}-month career roadmap:**
 
 ## Transition Overview
 [Summary of the career transition and key requirements]
@@ -385,19 +399,19 @@ Create detailed, realistic roadmaps with specific timelines, milestones, and act
 ## Gap Analysis
 [Skills, experience, and qualifications needed for the target role]
 
-## Timeline Breakdown
+## Step-by-step Roadmap
 
-### Months 1-${Math.ceil(parseInt(params.timeline) / 4)}: Foundation Phase
-[Specific goals, activities, and milestones]
+### Step 1 — Foundation (Months 1-${phase1End})
+[Objective, Actions, Deliverable, Resources]
 
-### Months ${Math.ceil(parseInt(params.timeline) / 4) + 1}-${Math.ceil(parseInt(params.timeline) / 2)}: Development Phase
-[Skill building and experience gaining activities]
+### Step 2 — Skill Build (Months ${phase1End + 1}-${phase2End})
+[Objective, Actions, Deliverable, Resources]
 
-### Months ${Math.ceil(parseInt(params.timeline) / 2) + 1}-${Math.ceil(parseInt(params.timeline) * 3 / 4)}: Application Phase
-[Practical application and portfolio building]
+### Step 3 — Portfolio/Experience (Months ${phase2End + 1}-${phase3End})
+[Objective, Actions, Deliverable, Resources]
 
-### Months ${Math.ceil(parseInt(params.timeline) * 3 / 4) + 1}-${params.timeline}: Transition Phase
-[Job search and transition execution]
+### Step 4 — Transition Execution (Months ${phase3End + 1}-${timelineMonths})
+[Objective, Actions, Deliverable, Resources]
 
 ## Learning & Development Plan
 [Specific courses, certifications, and skill development activities]
@@ -411,8 +425,8 @@ Create detailed, realistic roadmaps with specific timelines, milestones, and act
 ## Progress Tracking
 [Key performance indicators and milestone checkpoints]
 
-## Financial Planning
-[Budget considerations for training, certification, potential salary changes]
+## Milestone Checklist
+[A short checklist of milestones to complete by month]
 
 ## Quick Wins
 [Early achievements to build momentum]
