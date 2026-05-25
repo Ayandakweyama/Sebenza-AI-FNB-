@@ -52,11 +52,14 @@ export interface CareerRoadmapParams {
 }
 
 export interface SkillGapParams {
-  currentSkills: string[];
+  currentSkills?: string[];
+  currentRole?: string;
   targetRole: string;
   experienceLevel: 'entry' | 'mid' | 'senior' | 'executive';
   industry?: string;
   timeline?: string;
+  jobDescription?: string;
+  cvText?: string;
 }
 
 export interface CoverLetterParams {
@@ -439,16 +442,21 @@ Provide detailed, actionable skill gap analyses with prioritized learning recomm
 
     const prompt = `Conduct a comprehensive skill gap analysis:
 
-**Current Skills:** ${params.currentSkills.join(', ')}
-**Target Role:** ${params.targetRole}
+${params.currentRole ? `**Current Role:** ${params.currentRole}\n` : ''}**Target Role:** ${params.targetRole}
 **Experience Level:** ${params.experienceLevel}
 **Industry:** ${params.industry || 'Not specified'}
 **Development Timeline:** ${params.timeline || '6 months'}
+${params.currentSkills?.length ? `\n**Current Skills (provided by user):** ${params.currentSkills.join(', ')}` : ''}
+${params.jobDescription ? `\n**Target Job Description (provided by user):**\n${params.jobDescription}\n` : ''}
+${params.cvText ? `\n**Candidate CV Extract (for context — infer skills, experience, and strengths from this):**\n${params.cvText}\n` : ''}
+
+If both a CV extract and a manual skills list exist, treat the CV as the source of truth and use the manual list as extra hints.
 
 **Please provide a detailed skill gap analysis:**
 
 ## Role Requirements Analysis
 [Detailed breakdown of skills required for the target role]
+
 
 ## Current Skills Assessment
 [Evaluation of existing skills and their relevance/transferability]

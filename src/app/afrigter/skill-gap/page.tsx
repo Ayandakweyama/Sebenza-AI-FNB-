@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
+import { extractTextFromFile } from '@/lib/fileTextExtractor';
 
 export default function SkillGapPage() {
   const [currentRole, setCurrentRole] = useState('');
@@ -13,12 +14,15 @@ export default function SkillGapPage() {
   const [showExample, setShowExample] = useState(false);
   const [response, setResponse] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isParsingCv, setIsParsingCv] = useState(false);
+  const [cvFileName, setCvFileName] = useState<string | null>(null);
+  const [cvText, setCvText] = useState<string | null>(null);
   const [error, setError] = useState('');
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!currentRole || !targetRole || (!currentSkills && !jobDescription)) {
+    if (!currentRole || !targetRole || (!currentSkills && !jobDescription && !cvText)) {
       alert('Please fill in all required fields');
       return;
     }
@@ -27,6 +31,7 @@ export default function SkillGapPage() {
     setError('');
     
     try {
+      const trimmedCvText = cvText ? cvText.slice(0, 12000) : undefined;
       const response = await fetch('/api/afrigter', {
         method: 'POST',
         headers: {
@@ -35,10 +40,13 @@ export default function SkillGapPage() {
         body: JSON.stringify({
           type: 'skill-gap',
           currentSkills: currentSkills.split(',').map(skill => skill.trim()).filter(Boolean),
+          currentRole,
           targetRole,
           experienceLevel,
           industry: industry || undefined,
-          timeline: '6'
+          timeline: '6',
+          jobDescription: jobDescription || undefined,
+          cvText: trimmedCvText
         }),
       });
       
@@ -57,6 +65,31 @@ export default function SkillGapPage() {
     }
   };
 
+  const handleCvUpload = async (file: File | null) => {
+    if (!file) return;
+    setError('');
+    setResponse('');
+    setIsParsingCv(true);
+    setCvFileName(file.name);
+    try {
+      const text = await extractTextFromFile(file);
+      const clean = (text || '').trim();
+      if (!clean) throw new Error('No text could be extracted from that file.');
+      setCvText(clean);
+    } catch (err) {
+      setCvText(null);
+      setCvFileName(null);
+      setError(err instanceof Error ? err.message : 'Failed to extract text from the uploaded CV');
+    } finally {
+      setIsParsingCv(false);
+    }
+  };
+
+  const clearCv = () => {
+    setCvText(null);
+    setCvFileName(null);
+  };
+
   const loadExample = () => {
     setCurrentRole('Frontend Developer');
     setTargetRole('Senior Full Stack Developer');
@@ -73,6 +106,7 @@ export default function SkillGapPage() {
     setShowExample(false);
     setResponse('');
     setError('');
+    clearCv();
   };
 
   return (
@@ -124,7 +158,7 @@ export default function SkillGapPage() {
                   id="current-role" 
                   value={currentRole}
                   onChange={(e) => setCurrentRole(e.target.value)}
-                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400 transition-all"
+                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400 transition-all text-base"
                   placeholder="e.g., Junior Developer"
                   required
                 />
@@ -139,7 +173,7 @@ export default function SkillGapPage() {
                   id="target-role" 
                   value={targetRole}
                   onChange={(e) => setTargetRole(e.target.value)}
-                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400 transition-all"
+                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400 transition-all text-base"
                   placeholder="e.g., Senior Developer"
                   required
                 />
@@ -148,14 +182,14 @@ export default function SkillGapPage() {
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium mb-2 text-slate-300" htmlFor="current-skills">
                   Your Current Skills (comma separated) *
-                  <span className="block text-xs text-slate-400 mt-1 font-normal">At least one of skills or job description is required</span>
+                  <span className="block text-xs text-slate-400 mt-1 font-normal">At least one of skills, job description, or CV upload is required</span>
                 </label>
                 <input 
                   type="text" 
                   id="current-skills" 
                   value={currentSkills}
                   onChange={(e) => setCurrentSkills(e.target.value)}
-                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400 transition-all"
+                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400 transition-all text-base"
                   placeholder="e.g., JavaScript, React, Node.js"
                 />
               </div>
@@ -168,7 +202,7 @@ export default function SkillGapPage() {
                   id="experience-level"
                   value={experienceLevel}
                   onChange={(e) => setExperienceLevel(e.target.value)}
-                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white text-base"
                   required
                 >
                   <option value="entry">Entry Level</option>
@@ -187,9 +221,39 @@ export default function SkillGapPage() {
                   id="industry" 
                   value={industry}
                   onChange={(e) => setIndustry(e.target.value)}
-                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400 transition-all"
+                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400 transition-all text-base"
                   placeholder="e.g., Technology, Healthcare, Finance"
                 />
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium mb-2 text-slate-300" htmlFor="cv-upload">
+                Upload Your CV (Optional)
+                <span className="block text-xs text-slate-400 mt-1 font-normal">We’ll extract your experience and skills to personalize the analysis</span>
+              </label>
+              <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                <input
+                  id="cv-upload"
+                  type="file"
+                  accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                  onChange={(e) => handleCvUpload(e.target.files?.[0] ?? null)}
+                  className="w-full sm:flex-1 bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-2.5 text-white file:mr-4 file:rounded-md file:border-0 file:bg-slate-800 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-200 hover:file:bg-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-base"
+                  disabled={isParsingCv || loading}
+                />
+                {cvText && (
+                  <button
+                    type="button"
+                    onClick={clearCv}
+                    className="px-4 py-2.5 bg-slate-700/50 hover:bg-slate-700 text-white font-medium rounded-lg transition-all duration-200 border border-slate-600 w-full sm:w-auto"
+                    disabled={isParsingCv || loading}
+                  >
+                    Remove CV
+                  </button>
+                )}
+              </div>
+              <div className="mt-2 text-xs text-slate-400">
+                {isParsingCv ? 'Extracting text from your CV…' : cvFileName ? `Selected: ${cvFileName}` : 'Accepted: PDF, DOC, DOCX, TXT'}
               </div>
             </div>
             
@@ -203,7 +267,7 @@ export default function SkillGapPage() {
                 rows={4} 
                 value={jobDescription}
                 onChange={(e) => setJobDescription(e.target.value)}
-                className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400 transition-all"
+                className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400 transition-all text-base"
                 placeholder="Paste the job description you're targeting..."
               ></textarea>
             </div>
@@ -211,7 +275,7 @@ export default function SkillGapPage() {
             <div className="flex flex-col sm:flex-row gap-4">
               <button 
                 type="submit"
-                disabled={loading}
+                disabled={loading || isParsingCv}
                 className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium py-2.5 px-6 rounded-lg transition-all duration-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (

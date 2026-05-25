@@ -205,10 +205,20 @@ export async function POST(request: Request) {
           
           case 'skill-gap': {
             const params = data as SkillGapParams;
-            if (!params.currentSkills?.length || !params.targetRole || !params.experienceLevel) {
-              throw new Error('Current skills, target role, and experience level are required for skill gap analysis');
+            const hasSkills = Array.isArray(params.currentSkills) && params.currentSkills.length > 0;
+            const hasCvText = typeof params.cvText === 'string' && params.cvText.trim().length > 0;
+            const hasJobDescription = typeof params.jobDescription === 'string' && params.jobDescription.trim().length > 0;
+            if (!params.targetRole || !params.experienceLevel || (!hasSkills && !hasCvText && !hasJobDescription)) {
+              throw new Error('Target role, experience level, and at least one of current skills, CV text, or job description are required for skill gap analysis');
             }
-            response = await mistralService.analyzeSkillGap(params);
+            const cvText = hasCvText ? params.cvText!.slice(0, 12000) : undefined;
+            const jobDescription = hasJobDescription ? params.jobDescription!.slice(0, 8000) : undefined;
+            response = await mistralService.analyzeSkillGap({
+              ...params,
+              cvText,
+              jobDescription,
+              currentSkills: hasSkills ? params.currentSkills : []
+            });
             break;
           }
           
