@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 import { extractTextFromFile } from '@/lib/fileTextExtractor';
+import { CheckCircle, Loader2, RefreshCw, Upload } from 'lucide-react';
 
 export default function SkillGapPage() {
   const [currentRole, setCurrentRole] = useState('');
@@ -18,12 +19,18 @@ export default function SkillGapPage() {
   const [cvFileName, setCvFileName] = useState<string | null>(null);
   const [cvText, setCvText] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const cvInputRef = useRef<HTMLInputElement | null>(null);
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!currentRole || !targetRole || (!currentSkills && !jobDescription && !cvText)) {
-      alert('Please fill in all required fields');
+    if (!currentRole.trim() || !targetRole.trim()) {
+      alert('Please fill in your current role and target role.');
+      return;
+    }
+
+    if (!currentSkills.trim() && !jobDescription.trim() && !cvText) {
+      alert('Please provide at least one of: current skills, a job description, or a CV upload.');
       return;
     }
     
@@ -88,6 +95,7 @@ export default function SkillGapPage() {
   const clearCv = () => {
     setCvText(null);
     setCvFileName(null);
+    if (cvInputRef.current) cvInputRef.current.value = '';
   };
 
   const loadExample = () => {
@@ -181,7 +189,7 @@ export default function SkillGapPage() {
               
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium mb-2 text-slate-300" htmlFor="current-skills">
-                  Your Current Skills (comma separated) *
+                  Your Current Skills (comma separated)
                   <span className="block text-xs text-slate-400 mt-1 font-normal">At least one of skills, job description, or CV upload is required</span>
                 </label>
                 <input 
@@ -232,28 +240,60 @@ export default function SkillGapPage() {
                 Upload Your CV (Optional)
                 <span className="block text-xs text-slate-400 mt-1 font-normal">We’ll extract your experience and skills to personalize the analysis</span>
               </label>
-              <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+              <div className="border border-dashed border-slate-700 rounded-lg p-4 hover:border-slate-600 transition-colors bg-slate-900/30">
                 <input
-                  id="cv-upload"
+                  ref={cvInputRef}
                   type="file"
+                  id="cv-upload"
                   accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
                   onChange={(e) => handleCvUpload(e.target.files?.[0] ?? null)}
-                  className="w-full sm:flex-1 bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-2.5 text-white file:mr-4 file:rounded-md file:border-0 file:bg-slate-800 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-200 hover:file:bg-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-base"
                   disabled={isParsingCv || loading}
+                  className="hidden"
                 />
-                {cvText && (
-                  <button
-                    type="button"
-                    onClick={clearCv}
-                    className="px-4 py-2.5 bg-slate-700/50 hover:bg-slate-700 text-white font-medium rounded-lg transition-all duration-200 border border-slate-600 w-full sm:w-auto"
-                    disabled={isParsingCv || loading}
-                  >
-                    Remove CV
-                  </button>
-                )}
-              </div>
-              <div className="mt-2 text-xs text-slate-400">
-                {isParsingCv ? 'Extracting text from your CV…' : cvFileName ? `Selected: ${cvFileName}` : 'Accepted: PDF, DOC, DOCX, TXT'}
+                <div className="flex flex-col items-center gap-2">
+                  {isParsingCv ? (
+                    <>
+                      <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+                      <span className="text-xs text-slate-400">Parsing CV…</span>
+                    </>
+                  ) : cvText && cvFileName ? (
+                    <>
+                      <CheckCircle className="w-6 h-6 text-green-500" />
+                      <span className="text-xs text-slate-300 break-all text-center">{cvFileName}</span>
+                      <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                        <button
+                          type="button"
+                          onClick={() => cvInputRef.current?.click()}
+                          className="px-4 py-2 bg-slate-800/60 hover:bg-slate-800 text-white font-medium rounded-lg transition-all duration-200 border border-slate-700 w-full sm:w-auto text-sm inline-flex items-center justify-center"
+                          disabled={loading}
+                        >
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          Replace
+                        </button>
+                        <button
+                          type="button"
+                          onClick={clearCv}
+                          className="px-4 py-2 bg-slate-700/50 hover:bg-slate-700 text-white font-medium rounded-lg transition-all duration-200 border border-slate-600 w-full sm:w-auto text-sm"
+                          disabled={loading}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xs text-slate-500 text-center">Upload PDF, DOC, DOCX, TXT</span>
+                      <button
+                        type="button"
+                        onClick={() => cvInputRef.current?.click()}
+                        className="px-4 py-2 bg-slate-800/60 hover:bg-slate-800 text-white font-medium rounded-lg transition-all duration-200 border border-slate-700 text-sm inline-flex items-center justify-center"
+                      >
+                        <Upload className="w-4 h-4 mr-2" />
+                        Upload CV
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
             
@@ -279,8 +319,13 @@ export default function SkillGapPage() {
                 className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium py-2.5 px-6 rounded-lg transition-all duration-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (
-                  <></>
-                ) : 'Analyze My Skills'}
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Analyzing…
+                  </>
+                ) : (
+                  'Analyze My Skills'
+                )}
               </button>
               <button 
                 type="button" 
@@ -335,6 +380,12 @@ export default function SkillGapPage() {
                     </a>
                   </div>
                 </div>
+              </div>
+            ) : loading ? (
+              <div className="py-14 flex flex-col items-center justify-center text-slate-400">
+                <Loader2 className="w-7 h-7 animate-spin text-blue-400 mb-3" />
+                <p className="text-sm text-slate-300">Generating your skill gap analysis…</p>
+                <p className="text-xs text-slate-500 mt-2">Using your role, target role, and CV/job details</p>
               </div>
             ) : (
               <div className="space-y-6">
