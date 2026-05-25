@@ -37,14 +37,28 @@ export const ProfileProgress: React.FC<ProfileProgressProps> = ({ className = ''
 
   // Calculate profile completion based on saved data
   useEffect(() => {
-    const calculateProgress = () => {
+    let mounted = true;
+
+    const resolveProfileData = async () => {
       // Trigger a custom event to notify other components that profile data has been updated
       const profileUpdateEvent = new CustomEvent('profileDataUpdated');
       window.dispatchEvent(profileUpdateEvent);
       try {
-        // Get saved form data from localStorage
         const savedData = localStorage.getItem('profileFormData');
-        const formData = savedData ? JSON.parse(savedData) : {};
+        let formData = savedData ? JSON.parse(savedData) : null;
+
+        if (!formData) {
+          const response = await fetch('/api/profile', { credentials: 'include' });
+          if (response.ok) {
+            const data = await response.json();
+            if (data.profileSnapshot) {
+              formData = data.profileSnapshot;
+              localStorage.setItem('profileFormData', JSON.stringify(formData));
+            }
+          }
+        }
+
+        formData = formData || {};
 
         const steps: ProfileStep[] = [
           {
@@ -102,11 +116,12 @@ export const ProfileProgress: React.FC<ProfileProgressProps> = ({ className = ''
             title: 'CV Design',
             description: 'Customize and finalize your CV',
             icon: <FileText className="h-5 w-5" />,
-            completed: !!(localStorage.getItem('cvCustomization')),
-            progress: localStorage.getItem('cvCustomization') ? 100 : 0
+            completed: !!(formData.template && formData.colorScheme && formData.fontFamily),
+            progress: formData.template ? 100 : 0
           }
         ];
 
+        if (!mounted) return;
         setProfileSteps(steps);
         
         // Calculate overall progress
@@ -116,14 +131,31 @@ export const ProfileProgress: React.FC<ProfileProgressProps> = ({ className = ''
         
       } catch (error) {
         console.error('Error calculating profile progress:', error);
+        if (!mounted) return;
         setProfileSteps([]);
         setOverallProgress(0);
       } finally {
+        if (!mounted) return;
         setIsLoading(false);
       }
     };
 
-    calculateProgress();
+    const trigger = () => {
+      setIsLoading(true);
+      void resolveProfileData();
+    };
+
+    trigger();
+
+    window.addEventListener('profileDataUpdated', trigger);
+    window.addEventListener('storage', trigger);
+    window.addEventListener('focus', trigger);
+    return () => {
+      mounted = false;
+      window.removeEventListener('profileDataUpdated', trigger);
+      window.removeEventListener('storage', trigger);
+      window.removeEventListener('focus', trigger);
+    };
   }, []);
 
   const calculateStepProgress = (fields: any[]): number => {
@@ -197,15 +229,15 @@ export const ProfileProgress: React.FC<ProfileProgressProps> = ({ className = ''
   }
 
   return (
-    <div className={`relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6 shadow-[0_0_70px_rgba(168,85,247,0.10)] ${className}`}>
+    <div className={`relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-4 sm:p-6 shadow-[0_0_70px_rgba(168,85,247,0.10)] ${className}`}>
       <div className="absolute -inset-px rounded-3xl bg-gradient-to-r from-purple-500/20 via-pink-500/10 to-blue-500/20 opacity-70 blur-xl pointer-events-none" />
       {/* Header */}
-      <div className="relative flex items-center justify-between mb-6">
+      <div className="relative flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div>
           <h3 className="text-lg font-semibold text-white mb-1">Profile Completion</h3>
           <p className="text-slate-300/70 text-sm">Complete your profile to get better job matches.</p>
         </div>
-        <div className="text-right">
+        <div className="sm:text-right">
           <div className={`text-2xl font-bold ${getProgressColor(overallProgress)}`}>
             {overallProgress}%
           </div>
@@ -221,21 +253,19 @@ export const ProfileProgress: React.FC<ProfileProgressProps> = ({ className = ''
       {/* Progress Steps */}
       <div className="relative space-y-3 mb-6">
         {profileSteps.map((step) => (
-          <div key={step.id} className="flex items-center justify-between p-3 rounded-2xl border border-white/10 bg-white/[0.04]">
-            <div className="flex items-center space-x-3">
+          <div key={step.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-2xl border border-white/10 bg-white/[0.04]">
+            <div className="flex items-center gap-3 min-w-0">
               <div className={`p-2 rounded-xl border border-white/10 ${step.completed ? 'bg-emerald-500/15 text-emerald-300' : 'bg-white/[0.04] text-slate-300/70'}`}>
                 {step.completed ? <CheckCircle className="h-4 w-4" /> : step.icon}
               </div>
-              <div>
+              <div className="min-w-0">
                 <h4 className="text-sm font-medium text-white">{step.title}</h4>
                 <p className="text-xs text-slate-300/60">{step.description}</p>
               </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <span className={`text-xs font-medium ${getProgressColor(step.progress)}`}>
-                {step.progress}%
-              </span>
-              <div className="w-12 h-1.5 bg-white/10 rounded-full overflow-hidden">
+            <div className="flex items-center justify-between sm:justify-end gap-2">
+              <span className={`text-xs font-medium ${getProgressColor(step.progress)}`}>{step.progress}%</span>
+              <div className="w-28 sm:w-12 h-1.5 bg-white/10 rounded-full overflow-hidden">
                 <div 
                   className={`h-full ${getProgressBgColor(step.progress)} transition-all duration-300`}
                   style={{ width: `${step.progress}%` }}

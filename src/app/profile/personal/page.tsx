@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { CheckCircle, Loader2, RefreshCw, Upload } from 'lucide-react';
 import { useFormContext } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
 import DashboardNavigation from '@/components/dashboard/DashboardNavigation';
@@ -20,6 +21,7 @@ import { ExistingDataSummary } from './components/ExistingDataSummary';
 import { profileFormSchema, ProfileFormData } from './profile.schema';
 import { useAuth } from '@clerk/nextjs';
 import { getValidToken, exponentialBackoff } from '@/utils/authHelpers';
+import { extractTextFromFile } from '@/lib/fileTextExtractor';
 
 // Function to load existing profile data from API
 const loadProfileData = async (token: string): Promise<Partial<ProfileFormData> | null> => {
@@ -489,7 +491,12 @@ export default function PersonalProfilePage() {
 
 // Component to handle form steps rendering
 function FormSteps() {
-  const { currentStep, isSubmitting, form } = useMultiStepFormContext();
+  const { currentStep, isSubmitting, form, goToStep } = useMultiStepFormContext();
+  const [isParsingCv, setIsParsingCv] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [cvFileName, setCvFileName] = useState<string | null>(null);
+  const cvInputRef = useRef<HTMLInputElement | null>(null);
+  const searchParams = useSearchParams();
 
   // Save form data to localStorage on step change
   useEffect(() => {
@@ -528,6 +535,166 @@ function FormSteps() {
     };
   }, [form, isSubmitting, currentStep]);
 
+  useEffect(() => {
+    const step = searchParams.get('step');
+    if (
+      step === 'personal' ||
+      step === 'education' ||
+      step === 'experience' ||
+      step === 'skills' ||
+      step === 'goals' ||
+      step === 'cv'
+    ) {
+      goToStep(step);
+    }
+  }, [searchParams, goToStep]);
+
+  const applyPatchToForm = (patch: any) => {
+    const current = form.getValues();
+    const next: any = { ...current };
+
+    const setIf = (key: keyof ProfileFormData, value: any) => {
+      if (value === null || value === undefined) return;
+      if (typeof value === 'string' && value.trim() === '') return;
+      (next as any)[key] = value;
+    };
+
+    setIf('firstName', patch.firstName);
+    setIf('lastName', patch.lastName);
+    setIf('email', patch.email);
+    setIf('phone', patch.phone);
+    setIf('location', patch.location);
+    setIf('bio', patch.bio);
+    setIf('jobTitle', patch.jobTitle);
+    setIf('careerGoals', patch.careerGoals);
+    setIf('remotePreference', patch.remotePreference);
+    if (typeof patch.relocation === 'boolean') next.relocation = patch.relocation;
+
+    if (Array.isArray(patch.industries) && patch.industries.length) next.industries = patch.industries;
+    if (Array.isArray(patch.jobTypes) && patch.jobTypes.length) next.jobTypes = patch.jobTypes;
+
+    if (Array.isArray(patch.education) && patch.education.length) {
+      next.education = patch.education.map((edu: any) => ({
+        institution: edu.institution ?? '',
+        degree: edu.degree ?? '',
+        fieldOfStudy: edu.fieldOfStudy ?? '',
+        startDate: edu.startDate ? new Date(edu.startDate) : new Date(),
+        endDate: edu.endDate ? new Date(edu.endDate) : undefined,
+        current: !!edu.current,
+        description: edu.description ?? ''
+      }));
+    }
+
+    if (Array.isArray(patch.workExperience) && patch.workExperience.length) {
+      next.workExperience = patch.workExperience.map((exp: any) => ({
+        company: exp.company ?? '',
+        position: exp.position ?? '',
+        startDate: exp.startDate ? new Date(exp.startDate) : new Date(),
+        endDate: exp.endDate ? new Date(exp.endDate) : undefined,
+        current: !!exp.current,
+        description: exp.description ?? '',
+        achievements: Array.isArray(exp.achievements) ? exp.achievements : []
+      }));
+    }
+
+    if (Array.isArray(patch.technicalSkills) && patch.technicalSkills.length) {
+      next.technicalSkills = patch.technicalSkills
+        .map((s: any) => ({
+          name: typeof s?.name === 'string' ? s.name : '',
+          level: s?.level || 'Intermediate'
+        }))
+        .filter((s: any) => s.name.trim());
+    }
+
+    if (Array.isArray(patch.softSkills) && patch.softSkills.length) {
+      next.softSkills = patch.softSkills.filter((s: any) => typeof s === 'string' && s.trim());
+    }
+
+    if (Array.isArray(patch.languages) && patch.languages.length) {
+      next.languages = patch.languages
+        .map((l: any) => ({
+          name: typeof l?.name === 'string' ? l.name : '',
+          proficiency: l?.proficiency || 'Conversational'
+        }))
+        .filter((l: any) => l.name.trim());
+    }
+
+    if (Array.isArray(patch.projects) && patch.projects.length) {
+      next.projects = patch.projects.map((p: any) => ({
+        name: p.name ?? '',
+        technologies: p.technologies ?? '',
+        description: p.description ?? '',
+        link: p.link ?? ''
+      }));
+    }
+
+    if (Array.isArray(patch.references) && patch.references.length) {
+      next.references = patch.references.map((r: any) => ({
+        name: r.name ?? '',
+        relationship: r.relationship ?? '',
+        title: r.title ?? '',
+        company: r.company ?? '',
+        email: r.email ?? '',
+        phone: r.phone ?? '',
+        recommendation: r.recommendation ?? ''
+      }));
+    }
+
+    form.reset(next, { keepDefaultValues: true });
+  };
+
+  const persistSnapshot = async (values: ProfileFormData) => {
+    try {
+      await fetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ profileSnapshot: values })
+      });
+    } catch {}
+  };
+
+  const handleCvUpload = async (file: File | null) => {
+    if (!file) return;
+    setIsParsingCv(true);
+    setCvFileName(file.name);
+    try {
+      const cvText = (await extractTextFromFile(file)).trim();
+      if (!cvText) throw new Error('No text could be extracted from that file.');
+
+      setIsImporting(true);
+      const response = await fetch('/api/profile/import-cv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ cvText: cvText.slice(0, 12000) })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.message || data?.error || 'Failed to import CV');
+      }
+
+      applyPatchToForm(data.patch);
+      const updated = form.getValues();
+      localStorage.setItem('profileFormData', JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent('profileDataUpdated'));
+      void persistSnapshot(updated);
+      toast.success('Profile auto-filled from your CV');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to import CV');
+      setCvFileName(null);
+    } finally {
+      setIsParsingCv(false);
+      setIsImporting(false);
+    }
+  };
+
+  const clearCv = () => {
+    setCvFileName(null);
+    if (cvInputRef.current) cvInputRef.current.value = '';
+  };
+
   // Render the current step
   const renderStep = () => {
     switch (currentStep) {
@@ -550,6 +717,73 @@ function FormSteps() {
 
   return (
     <div className="relative">
+      <div className="mb-8">
+        <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-5">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="text-white font-semibold">Auto-fill from your CV</div>
+              <div className="text-xs text-slate-400 mt-1">Upload a Word document (DOC or DOCX) to populate your profile automatically.</div>
+            </div>
+            <input
+              ref={cvInputRef}
+              type="file"
+              accept=".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              onChange={(e) => handleCvUpload(e.target.files?.[0] ?? null)}
+              className="hidden"
+              disabled={isSubmitting || isParsingCv || isImporting}
+            />
+            <div className="shrink-0 flex items-center gap-2">
+              {cvFileName ? (
+                <button
+                  type="button"
+                  onClick={clearCv}
+                  disabled={isSubmitting || isParsingCv || isImporting}
+                  className="inline-flex items-center justify-center px-3 py-2 rounded-lg bg-slate-900/40 hover:bg-slate-900/60 text-slate-200 font-medium transition-all duration-200 border border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Remove
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => cvInputRef.current?.click()}
+                disabled={isSubmitting || isParsingCv || isImporting}
+                className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-slate-800/60 hover:bg-slate-800 text-white font-medium transition-all duration-200 border border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {cvFileName ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Replace
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4 mr-2" />
+                    Upload CV
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 flex items-center gap-3">
+            {isParsingCv || isImporting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                <div className="text-xs text-slate-400">
+                  {isParsingCv ? 'Parsing CV…' : 'Importing into your profile…'}
+                </div>
+              </>
+            ) : cvFileName ? (
+              <>
+                <CheckCircle className="w-4 h-4 text-green-500" />
+                <div className="text-xs text-slate-300 break-all">{cvFileName}</div>
+              </>
+            ) : (
+              <div className="text-xs text-slate-500">No CV uploaded yet.</div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Progress Bar */}
       <div className="mb-8">
         <div className="flex justify-between mb-2">

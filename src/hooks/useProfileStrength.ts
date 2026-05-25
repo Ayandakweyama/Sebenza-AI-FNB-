@@ -78,6 +78,11 @@ export function useProfileStrength(): ProfileStrengthData {
           const response = await fetch('/api/profile');
           if (response.ok) {
             const data = await response.json();
+
+            if (data.profileSnapshot) {
+              finalProfileData = data.profileSnapshot as Partial<ProfileFormData>;
+              localStorage.setItem('profileFormData', JSON.stringify(finalProfileData));
+            } else {
           
             // Transform API data to match ProfileFormData structure
             const transformedData: Partial<ProfileFormData> = {
@@ -153,6 +158,7 @@ export function useProfileStrength(): ProfileStrengthData {
             
             // Using API data as fallback
             finalProfileData = transformedData;
+            }
           }
         }
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useUser } from '@clerk/nextjs';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -361,6 +362,7 @@ const ProfileStrengthPanel = ({
   recommendations,
   isLoading,
   error,
+  onGoToStep,
 }: {
   percentage: number;
   label: string;
@@ -368,6 +370,7 @@ const ProfileStrengthPanel = ({
   recommendations: string[];
   isLoading: boolean;
   error: string | null;
+  onGoToStep: (step: 'personal' | 'education' | 'experience' | 'skills' | 'goals' | 'cv') => void;
 }) => {
   if (isLoading) {
     return (
@@ -414,9 +417,24 @@ const ProfileStrengthPanel = ({
         {recommendations.length > 0 && (
           <ul className="space-y-1 mb-3">
             {recommendations.slice(0, 3).map((rec, i) => (
-              <li key={i} className="flex items-start gap-2 text-xs text-slate-400">
-                <span className="mt-1.5 w-1 h-1 rounded-full bg-blue-500 shrink-0" />
-                {rec}
+              <li key={i}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const r = rec.toLowerCase();
+                    if (r.includes('education')) return onGoToStep('education');
+                    if (r.includes('work experience') || r.includes('experience')) return onGoToStep('experience');
+                    if (r.includes('bio')) return onGoToStep('personal');
+                    if (r.includes('skills')) return onGoToStep('skills');
+                    if (r.includes('goal')) return onGoToStep('goals');
+                    if (r.includes('cv')) return onGoToStep('cv');
+                    return onGoToStep('personal');
+                  }}
+                  className="w-full flex items-start gap-2 text-left text-xs text-slate-400 hover:text-slate-200 transition-colors"
+                >
+                  <span className="mt-1.5 w-1 h-1 rounded-full bg-blue-500 shrink-0" />
+                  <span className="flex-1">{rec}</span>
+                </button>
               </li>
             ))}
           </ul>
@@ -426,7 +444,7 @@ const ProfileStrengthPanel = ({
           variant="outline"
           size="sm"
           className="w-full text-xs h-8 border-slate-700 hover:border-slate-500"
-          onClick={() => (window.location.href = '/profile/personal')}
+          onClick={() => onGoToStep('personal')}
         >
           <Award className="w-3.5 h-3.5 mr-1.5" />
           Complete Your Profile
@@ -442,6 +460,7 @@ const ProfileStrengthPanel = ({
 
 export default function ApplicationsPage() {
   const { user } = useUser();
+  const router = useRouter();
 
   const {
     percentage: profileStrength,
@@ -719,13 +738,14 @@ export default function ApplicationsPage() {
         </motion.div>
 
         {/* ── Profile strength ── */}
-        <ProfileStrengthPanel
+            <ProfileStrengthPanel
           percentage={profileStrength}
           label={strengthLabel}
           color={strengthColor}
           recommendations={strengthRecommendations}
           isLoading={isProfileLoading}
           error={profileError}
+              onGoToStep={(step) => router.push(`/profile/personal?step=${step}`)}
         />
 
         {/* ── Tabs ── */}
