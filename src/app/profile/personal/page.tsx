@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { CheckCircle, Loader2, RefreshCw, Upload } from 'lucide-react';
 import { useFormContext } from 'react-hook-form';
@@ -497,7 +496,10 @@ function FormSteps() {
   const [isImporting, setIsImporting] = useState(false);
   const [cvFileName, setCvFileName] = useState<string | null>(null);
   const cvInputRef = useRef<HTMLInputElement | null>(null);
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
+  const appliedInitialStepRef = useRef(false);
 
   // Save form data to localStorage on step change
   useEffect(() => {
@@ -528,6 +530,7 @@ function FormSteps() {
 
   useEffect(() => {
     const step = searchParams.get('step');
+    if (appliedInitialStepRef.current) return;
     if (
       step === 'personal' ||
       step === 'education' ||
@@ -536,9 +539,14 @@ function FormSteps() {
       step === 'goals' ||
       step === 'cv'
     ) {
+      appliedInitialStepRef.current = true;
       goToStep(step);
+      const nextParams = new URLSearchParams(searchParams.toString());
+      nextParams.delete('step');
+      const queryString = nextParams.toString();
+      router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
     }
-  }, [searchParams, goToStep]);
+  }, [searchParams, goToStep, pathname, router]);
 
   const applyPatchToForm = (patch: any) => {
     const current = form.getValues();
