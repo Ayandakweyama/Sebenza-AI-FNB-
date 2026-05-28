@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import { getValidToken } from '@/utils/authHelpers';
 
@@ -34,8 +34,18 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
   const [isLoading, setIsLoading] = useState<{ [key: string]: boolean }>({});
   const [errors, setErrors] = useState<{ [key: string]: string | null }>({});
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [activeRequests, setActiveRequests] = useState<Set<string>>(new Set());
   const { getToken, isLoaded, isSignedIn } = useAuth();
+  const activeRequestsRef = useRef<Set<string>>(new Set());
+  const jobsRef = useRef<Job[]>([]);
+  const callbacksRef = useRef<UseJobScraperProps>({});
+
+  useEffect(() => {
+    callbacksRef.current = { onScrapeStart, onScrapeComplete, onError };
+  }, [onScrapeComplete, onError, onScrapeStart]);
+
+  useEffect(() => {
+    jobsRef.current = jobs;
+  }, [jobs]);
 
   const scrapeJobs = useCallback(async ({ 
     query, 
@@ -58,23 +68,23 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
     const requestKey = `${query}-${location}-${sources.join(',')}-${maxPages}`;
     
     // Check if this exact request is already in progress
-    if (activeRequests.has(requestKey)) {
+    if (activeRequestsRef.current.has(requestKey)) {
       console.warn('🔄 Duplicate request detected, skipping...');
-      return jobs; // Return current jobs if duplicate request
+      return jobsRef.current; // Return current jobs if duplicate request
     }
     
     console.log(`🚀 Starting multi-source job scrape with query: "${query}", location: "${location}"`);
     console.log(`   Sources: ${sources.join(', ')}`);
     
     // Mark this request as active
-    setActiveRequests(prev => new Set(prev).add(requestKey));
+    activeRequestsRef.current.add(requestKey);
     
     sources.forEach(source => {
       setIsLoading(prev => ({ ...prev, [source]: true }));
       setErrors(prev => ({ ...prev, [source]: null }));
     });
     
-    onScrapeStart?.();
+    callbacksRef.current.onScrapeStart?.();
 
     try {
       console.log(`🌐 Making request to multi-source scraper API`);
@@ -213,7 +223,7 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
       setJobs(allJobs as any);
       console.log(`   Jobs state updated with ${allJobs.length} jobs`);
         
-      onScrapeComplete?.(allJobs, sources.join(','));
+      callbacksRef.current.onScrapeComplete?.(allJobs, sources.join(','));
       return allJobs;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
@@ -232,7 +242,7 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
           }));
         });
         console.log('📋 Showing empty results while real scraping continues');
-        onScrapeComplete?.([], sources.join(','));
+        callbacksRef.current.onScrapeComplete?.([], sources.join(','));
         return [];
       }
       
@@ -253,14 +263,10 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
         }));
       });
       
-      onError?.(errorMessage);
+      callbacksRef.current.onError?.(errorMessage);
     } finally {
       // Remove this request from active requests
-      setActiveRequests(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(requestKey);
-        return newSet;
-      });
+      activeRequestsRef.current.delete(requestKey);
       
       sources.forEach(source => {
         setIsLoading(prev => ({
@@ -271,15 +277,15 @@ export const useJobScraper = ({ onScrapeStart, onScrapeComplete, onError }: UseJ
       
       console.log(`🏁 Finished multi-source job scrape`);
     }
-  }, [onScrapeComplete, onError, onScrapeStart, activeRequests, jobs, getToken, isLoaded, isSignedIn]);
+  }, [getToken, isLoaded, isSignedIn]);
 
-  const scrapeAll = useCallback(async (options: Omit<ScraperOptions, 'sources'>) => {
+  const scrapeAll = useCallback(async (options: ScraperOptions) => {
     console.log('🚀 Starting multi-source job search');
     
     // Use Indeed and JobMail for comprehensive results
     return scrapeJobs({
       ...options,
-      sources: ['indeed', 'jobmail']
+      sources: options.sources && options.sources.length ? options.sources : ['indeed', 'jobmail']
     });
   }, [scrapeJobs]);
 

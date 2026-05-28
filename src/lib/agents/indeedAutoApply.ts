@@ -1,3 +1,6 @@
+import { randomUUID } from 'crypto';
+import { spawn } from 'child_process';
+import { createServer } from 'net';
 import type { Browser, Page, Frame } from 'puppeteer';
 import { fastDelay } from '../scrapers/utils';
 import { answerApplicationQuestions, evaluateJobMatch, generateCoverLetter } from '../ai/autoApplyAI';
@@ -17,11 +20,12 @@ export interface AutoApplyConfig {
   minMatchScore: number;
   userProfile: UserProfile;
   resumePath?: string;
+  approvalMode?: 'auto' | 'manual';
 }
 
 export interface AutoApplyProgress {
   sessionId: string;
-  status: 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
+  status: 'running' | 'paused' | 'awaiting_approval' | 'completed' | 'failed' | 'cancelled';
   totalFound: number;
   appliedCount: number;
   skippedCount: number;
@@ -32,13 +36,14 @@ export interface AutoApplyProgress {
 }
 
 export interface ApplyLogEntry {
+  id: string;
   jobTitle: string;
   company: string;
   jobUrl: string;
-  status: 'applied' | 'skipped' | 'failed' | 'needs_review';
+  status: 'applied' | 'skipped' | 'failed' | 'awaiting_approval' | 'needs_review';
   questionsFound: number;
   questionsAnswered: number;
-  aiResponses?: AnsweredQuestion[];
+  aiResponses?: unknown;
   failureReason?: string;
   skipReason?: string;
   matchScore?: number;
@@ -47,8 +52,14 @@ export interface ApplyLogEntry {
 
 // ─── Active Sessions Registry ────────────────────────────────────────────────
 
-const activeSessions = new Map<string, { cancel: boolean; pause: boolean }>();
+const activeSessions = new Map<string, { cancel: boolean; pause: boolean; approvalMode: 'auto' | 'manual' }>();
 const progressCache = new Map<string, AutoApplyProgress>();
+const approvalDecisions = new Map<string, 'approve' | 'skip'>();
+const interactiveLoginRuntime = new Map<
+  string,
+  { display: number; vncPort: number; vncProc: ReturnType<typeof spawn> | null; xvfbProc: ReturnType<typeof spawn> | null; wmProc: ReturnType<typeof spawn> | null }
+>();
+let nextDisplay = 110;
 
 export function cancelSession(sessionId: string) {
   const session = activeSessions.get(sessionId);
@@ -73,6 +84,10 @@ export function getSessionProgress(sessionId: string): AutoApplyProgress | undef
   return progressCache.get(sessionId);
 }
 
+export function submitApprovalDecision(logId: string, decision: 'approve' | 'skip') {
+  approvalDecisions.set(logId, decision);
+}
+
 // ─── Environment Detection ──────────────────────────────────────────────────
 
 function isServerEnvironment(): boolean {
@@ -87,20 +102,93 @@ function isServerEnvironment(): boolean {
   );
 }
 
+function isInteractiveLoginEnabled(): boolean {
+  return process.env.AUTO_APPLY_INTERACTIVE_LOGIN === '1';
+}
+
+async function getFreePort(): Promise<number> {
+  return await new Promise((resolve, reject) => {
+    const server = createServer();
+    server.on('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        server.close(() => reject(new Error('Failed to allocate port')));
+        return;
+      }
+      const port = address.port;
+      server.close(() => resolve(port));
+    });
+  });
+}
+
+async function startInteractiveLoginWindow(sessionId: string): Promise<{ token: string; expiresAt: Date } | null> {
+  if (!isServerEnvironment() || !isInteractiveLoginEnabled()) return null;
+
+  if (interactiveLoginRuntime.has(sessionId)) {
+    const existing = await prisma.autoApplySession.findFirst({ where: { id: sessionId } }).catch(() => null);
+    if (existing?.loginToken && existing.loginExpiresAt && existing.loginExpiresAt.getTime() > Date.now()) {
+      return { token: existing.loginToken, expiresAt: existing.loginExpiresAt };
+    }
+  }
+
+  const display = nextDisplay++;
+  const vncPort = await getFreePort();
+  const token = randomUUID();
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+  const xvfbProc = spawn('Xvfb', [`:${display}`, '-screen', '0', '1366x768x24', '-nolisten', 'tcp'], { stdio: 'ignore' });
+  const wmProc = spawn('fluxbox', [], { env: { ...process.env, DISPLAY: `:${display}` }, stdio: 'ignore' });
+  const vncProc = spawn(
+    'x11vnc',
+    ['-display', `:${display}`, '-rfbport', String(vncPort), '-forever', '-shared', '-nopw', '-noxdamage', '-quiet'],
+    { stdio: 'ignore' }
+  );
+
+  interactiveLoginRuntime.set(sessionId, { display, vncPort, vncProc, xvfbProc, wmProc });
+
+  await prisma.autoApplySession.update({
+    where: { id: sessionId },
+    data: { loginToken: token, loginExpiresAt: expiresAt, loginVncPort: vncPort },
+  });
+
+  setTimeout(() => {
+    const runtime = interactiveLoginRuntime.get(sessionId);
+    if (runtime?.vncProc) {
+      try { runtime.vncProc.kill('SIGKILL'); } catch {}
+      runtime.vncProc = null;
+    }
+    prisma.autoApplySession
+      .update({
+        where: { id: sessionId },
+        data: { loginToken: null, loginExpiresAt: null, loginVncPort: null, loginSecretHash: null },
+      })
+      .catch(() => {});
+  }, Math.max(0, expiresAt.getTime() - Date.now()));
+
+  return { token, expiresAt };
+}
+
 // ─── Browser Launch ──────────────────────────────────────────────────────────
 // Locally: launches a visible Chrome browser so the user can watch.
 // On Railway/production: launches headless Chromium in the container.
 
-async function launchVisibleBrowser(): Promise<Browser> {
+async function launchVisibleBrowser(sessionId: string): Promise<Browser> {
   const puppeteer = await import('puppeteer');
   const isServer = isServerEnvironment();
+  const interactiveRuntime = interactiveLoginRuntime.get(sessionId);
 
-  console.log(`[AutoApply] Environment: ${isServer ? 'SERVER (headless)' : 'LOCAL (visible)'}`);
+  console.log(
+    `[AutoApply] Environment: ${
+      isServer ? (interactiveRuntime ? 'SERVER (interactive)' : 'SERVER (headless)') : 'LOCAL (visible)'
+    }`
+  );
 
   // First try connecting to an already-running debug Chrome (optional)
   try {
+    const debugUrl = process.env.AUTO_APPLY_CHROME_DEBUG_URL || 'http://localhost:9222';
     const browser = await puppeteer.default.connect({
-      browserURL: 'http://localhost:9222',
+      browserURL: debugUrl,
       defaultViewport: null,
     });
     console.log('[AutoApply] ✅ Connected to existing Chrome browser');
@@ -112,11 +200,42 @@ async function launchVisibleBrowser(): Promise<Browser> {
   // Use a persistent profile so cookies/sessions survive across runs
   const pathMod = await import('path');
   const os = await import('os');
-  const userDataDir = pathMod.default.join(os.default.tmpdir(), '.sebenza-chrome-profile');
+  const userDataDir = interactiveRuntime
+    ? pathMod.default.join(os.default.tmpdir(), 'sebenza-auto-apply-profiles', sessionId)
+    : process.env.AUTO_APPLY_CHROME_USER_DATA_DIR ||
+      pathMod.default.join(os.default.tmpdir(), '.sebenza-chrome-profile');
   console.log(`[AutoApply] Using Chrome profile: ${userDataDir}`);
 
   if (isServer) {
-    // ── SERVER / RAILWAY: headless Chromium ─────────────────────────────
+    if (interactiveRuntime) {
+      const browser = await puppeteer.default.launch({
+        headless: false,
+        defaultViewport: { width: 1366, height: 768 },
+        userDataDir,
+        env: { ...process.env, DISPLAY: `:${interactiveRuntime.display}` },
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--disable-blink-features=AutomationControlled',
+          '--disable-web-security',
+          '--disable-features=IsolateOrigins,site-per-process',
+          '--disable-site-isolation-trials',
+          '--disable-features=VizDisplayCompositor',
+          '--disable-background-networking',
+          '--disable-default-apps',
+          '--disable-extensions',
+          '--disable-sync',
+          '--disable-translate',
+          '--disable-infobars',
+          '--window-size=1366,768',
+        ],
+      });
+      console.log('[AutoApply] ✅ Launched interactive Chromium (server mode)');
+      return browser;
+    }
+
     const browser = await puppeteer.default.launch({
       headless: true,
       defaultViewport: { width: 1366, height: 768 },
@@ -183,7 +302,7 @@ export async function runAutoApplyAgent(config: AutoApplyConfig): Promise<AutoAp
   const { sessionId, userProfile } = config;
   let browser: Browser | null = null;
 
-  activeSessions.set(sessionId, { cancel: false, pause: false });
+  activeSessions.set(sessionId, { cancel: false, pause: false, approvalMode: config.approvalMode ?? 'auto' });
 
   const progress: AutoApplyProgress = {
     sessionId,
@@ -210,8 +329,14 @@ export async function runAutoApplyAgent(config: AutoApplyConfig): Promise<AutoAp
     console.log(`[AutoApply] Search: "${config.searchQuery}" in "${config.location}"`);
     console.log(`[AutoApply] Max applications: ${config.maxApplications}`);
 
+    const loginWindow = await startInteractiveLoginWindow(sessionId).catch(() => null);
+    if (loginWindow) {
+      progress.currentStep = `Login window ready: /__auto_apply_login/${loginWindow.token} (expires ${loginWindow.expiresAt.toISOString()})`;
+      await updateSessionProgress(sessionId, progress);
+    }
+
     // Launch a visible Chrome browser
-    browser = await launchVisibleBrowser();
+    browser = await launchVisibleBrowser(sessionId);
     const page = await browser.newPage();
 
     // Anti-detection stealth
@@ -271,7 +396,7 @@ export async function runAutoApplyAgent(config: AutoApplyConfig): Promise<AutoAp
     // Step 1: Navigate to Indeed and give user time to sign in
     progress.currentStep = 'Waiting for Indeed sign-in...';
     await updateSessionProgress(sessionId, progress);
-    await signInToIndeed(page, config.userEmail);
+    await signInToIndeed(page, config.userEmail, sessionId, progress);
 
     // Step 2: Search for jobs
     progress.currentStep = 'Searching for jobs...';
@@ -337,7 +462,9 @@ export async function runAutoApplyAgent(config: AutoApplyConfig): Promise<AutoAp
 
         if (!matchResult.shouldApply || matchResult.score < config.minMatchScore) {
           progress.skippedCount++;
+          const logId = randomUUID();
           const logEntry: ApplyLogEntry = {
+            id: logId,
             jobTitle: job.title, company: job.company, jobUrl: job.url,
             status: 'skipped', questionsFound: 0, questionsAnswered: 0,
             skipReason: `Match score ${matchResult.score}/100: ${matchResult.reason}`,
@@ -345,7 +472,7 @@ export async function runAutoApplyAgent(config: AutoApplyConfig): Promise<AutoAp
           };
           progress.logs.push(logEntry);
           try {
-            await prisma.autoApplyLog.create({ data: { sessionId, jobTitle: job.title, company: job.company, jobUrl: job.url, status: 'skipped', skipReason: logEntry.skipReason, matchScore: matchResult.score } });
+            await prisma.autoApplyLog.create({ data: { id: logId, sessionId, jobTitle: job.title, company: job.company, jobUrl: job.url, status: 'skipped', skipReason: logEntry.skipReason, matchScore: matchResult.score } });
             await prisma.autoApplySession.update({ where: { id: sessionId }, data: { skippedCount: progress.skippedCount } });
           } catch (dbErr) { console.warn('[AutoApply] DB error (skip log):', dbErr); }
           continue;
@@ -355,7 +482,9 @@ export async function runAutoApplyAgent(config: AutoApplyConfig): Promise<AutoAp
         const isExternal = await detectExternalJob(page);
         if (isExternal) {
           progress.skippedCount++;
+          const logId = randomUUID();
           const logEntry: ApplyLogEntry = {
+            id: logId,
             jobTitle: job.title, company: job.company, jobUrl: job.url,
             status: 'skipped', questionsFound: 0, questionsAnswered: 0,
             skipReason: 'External application only — requires company website',
@@ -363,47 +492,172 @@ export async function runAutoApplyAgent(config: AutoApplyConfig): Promise<AutoAp
           };
           progress.logs.push(logEntry);
           try {
-            await prisma.autoApplyLog.create({ data: { sessionId, jobTitle: job.title, company: job.company, jobUrl: job.url, status: 'skipped', skipReason: logEntry.skipReason, matchScore: matchResult.score } });
+            await prisma.autoApplyLog.create({ data: { id: logId, sessionId, jobTitle: job.title, company: job.company, jobUrl: job.url, status: 'skipped', skipReason: logEntry.skipReason, matchScore: matchResult.score } });
             await prisma.autoApplySession.update({ where: { id: sessionId }, data: { skippedCount: progress.skippedCount } });
           } catch (dbErr) { console.warn('[AutoApply] DB error (external skip):', dbErr); }
           console.log(`[AutoApply] ⏭ Skipped external job: ${job.title}`);
           continue;
         }
 
-        // Apply
-        progress.currentStep = `Applying to "${job.title}" at ${job.company}...`;
-        await updateSessionProgress(sessionId, progress);
+        const approvalMode = activeSessions.get(sessionId)?.approvalMode ?? 'auto';
+        const logId = randomUUID();
 
-        const applyResult = await applyToJob(page, job, jobDescription, userProfile, config.resumePath);
+        if (approvalMode === 'manual') {
+          progress.currentStep = `Preparing application preview for "${job.title}"...`;
+          await updateSessionProgress(sessionId, progress);
 
-        const logEntry: ApplyLogEntry = {
-          jobTitle: job.title, company: job.company, jobUrl: job.url,
-          status: applyResult.success ? 'applied' : 'failed',
-          questionsFound: applyResult.questionsFound, questionsAnswered: applyResult.questionsAnswered,
-          aiResponses: applyResult.aiResponses, failureReason: applyResult.error,
-          matchScore: matchResult.score, timestamp: new Date(),
-        };
-        progress.logs.push(logEntry);
+          const preview = await prepareApplicationPreview(page, job, jobDescription, userProfile, config.resumePath);
+          const previewPayload = {
+            matchScore: matchResult.score,
+            matchReason: matchResult.reason,
+            answers: preview.aiResponses,
+            coverLetter: preview.coverLetter,
+          };
 
-        if (applyResult.success) {
-          progress.appliedCount++;
-          console.log(`[AutoApply] ✅ Applied to ${job.title}`);
+          const logEntry: ApplyLogEntry = {
+            id: logId,
+            jobTitle: job.title, company: job.company, jobUrl: job.url,
+            status: 'awaiting_approval',
+            questionsFound: preview.questionsFound,
+            questionsAnswered: preview.questionsAnswered,
+            aiResponses: previewPayload,
+            matchScore: matchResult.score,
+            timestamp: new Date(),
+          };
+          progress.logs.push(logEntry);
+
+          try {
+            await prisma.autoApplyLog.create({
+              data: {
+                id: logId,
+                sessionId,
+                jobTitle: job.title,
+                company: job.company,
+                jobUrl: job.url,
+                status: 'awaiting_approval',
+                questionsFound: preview.questionsFound,
+                questionsAnswered: preview.questionsAnswered,
+                aiResponses: previewPayload as any,
+                matchScore: matchResult.score,
+              },
+            });
+          } catch (dbErr) {
+            console.warn('[AutoApply] DB error (manual preview log):', dbErr);
+          }
+
+          progress.status = 'awaiting_approval';
+          progress.currentStep = `Awaiting approval for "${job.title}"...`;
+          await updateSessionProgress(sessionId, progress);
+
+          const decision = await waitForApprovalDecision(sessionId, logId);
+
+          progress.status = 'running';
+          await updateSessionProgress(sessionId, progress);
+
+          if (decision === 'skip') {
+            progress.skippedCount++;
+            logEntry.status = 'skipped';
+            logEntry.skipReason = 'Rejected by user';
+            try {
+              await prisma.autoApplyLog.update({ where: { id: logId }, data: { status: 'skipped', skipReason: logEntry.skipReason } });
+              await prisma.autoApplySession.update({ where: { id: sessionId }, data: { skippedCount: progress.skippedCount, status: 'running' } });
+            } catch (dbErr) {
+              console.warn('[AutoApply] DB error (manual skip):', dbErr);
+            }
+            continue;
+          }
+
+          progress.currentStep = `Applying to "${job.title}" at ${job.company}...`;
+          await updateSessionProgress(sessionId, progress);
+
+          const applyResult = await applyToJob(page, job, jobDescription, userProfile, config.resumePath);
+
+          logEntry.status = applyResult.success ? 'applied' : 'failed';
+          logEntry.questionsFound = applyResult.questionsFound;
+          logEntry.questionsAnswered = applyResult.questionsAnswered;
+          logEntry.aiResponses = { ...previewPayload, final: applyResult.aiResponses };
+          logEntry.failureReason = applyResult.error;
+
+          if (applyResult.success) {
+            progress.appliedCount++;
+            console.log(`[AutoApply] ✅ Applied to ${job.title}`);
+          } else {
+            progress.failedCount++;
+            console.log(`[AutoApply] ❌ Failed: ${job.title} — ${applyResult.error}`);
+          }
+
+          try {
+            await prisma.autoApplyLog.update({
+              where: { id: logId },
+              data: {
+                status: applyResult.success ? 'applied' : 'failed',
+                questionsFound: applyResult.questionsFound,
+                questionsAnswered: applyResult.questionsAnswered,
+                aiResponses: logEntry.aiResponses as any,
+                failureReason: applyResult.error,
+              },
+            });
+            await prisma.autoApplySession.update({
+              where: { id: sessionId },
+              data: { appliedCount: progress.appliedCount, failedCount: progress.failedCount, status: 'running' },
+            });
+          } catch (dbErr) {
+            console.warn('[AutoApply] DB error (manual apply update):', dbErr);
+          }
+
+          await fastDelay(3000, 8000);
         } else {
-          progress.failedCount++;
-          console.log(`[AutoApply] ❌ Failed: ${job.title} — ${applyResult.error}`);
+          // Apply (auto)
+          progress.currentStep = `Applying to "${job.title}" at ${job.company}...`;
+          await updateSessionProgress(sessionId, progress);
+
+          const applyResult = await applyToJob(page, job, jobDescription, userProfile, config.resumePath);
+
+          const logEntry: ApplyLogEntry = {
+            id: logId,
+            jobTitle: job.title, company: job.company, jobUrl: job.url,
+            status: applyResult.success ? 'applied' : 'failed',
+            questionsFound: applyResult.questionsFound, questionsAnswered: applyResult.questionsAnswered,
+            aiResponses: applyResult.aiResponses, failureReason: applyResult.error,
+            matchScore: matchResult.score, timestamp: new Date(),
+          };
+          progress.logs.push(logEntry);
+
+          if (applyResult.success) {
+            progress.appliedCount++;
+            console.log(`[AutoApply] ✅ Applied to ${job.title}`);
+          } else {
+            progress.failedCount++;
+            console.log(`[AutoApply] ❌ Failed: ${job.title} — ${applyResult.error}`);
+          }
+
+          try {
+            await prisma.autoApplyLog.create({
+              data: {
+                id: logId,
+                sessionId,
+                jobTitle: job.title,
+                company: job.company,
+                jobUrl: job.url,
+                status: applyResult.success ? 'applied' : 'failed',
+                questionsFound: applyResult.questionsFound,
+                questionsAnswered: applyResult.questionsAnswered,
+                aiResponses: applyResult.aiResponses as any,
+                failureReason: applyResult.error,
+                matchScore: matchResult.score,
+              },
+            });
+            await prisma.autoApplySession.update({ where: { id: sessionId }, data: { appliedCount: progress.appliedCount, failedCount: progress.failedCount } });
+          } catch (dbErr) { console.warn('[AutoApply] DB error (apply log):', dbErr); }
+
+          await fastDelay(3000, 8000);
         }
-
-        try {
-          await prisma.autoApplyLog.create({ data: { sessionId, jobTitle: job.title, company: job.company, jobUrl: job.url, status: applyResult.success ? 'applied' : 'failed', questionsFound: applyResult.questionsFound, questionsAnswered: applyResult.questionsAnswered, aiResponses: applyResult.aiResponses as any, failureReason: applyResult.error, matchScore: matchResult.score } });
-          await prisma.autoApplySession.update({ where: { id: sessionId }, data: { appliedCount: progress.appliedCount, failedCount: progress.failedCount } });
-        } catch (dbErr) { console.warn('[AutoApply] DB error (apply log):', dbErr); }
-
-        // Delay between applications
-        await fastDelay(3000, 8000);
       } catch (jobError) {
         console.error(`[AutoApply] Error processing ${job.title}:`, jobError);
         progress.failedCount++;
+        const logId = randomUUID();
         const logEntry: ApplyLogEntry = {
+          id: logId,
           jobTitle: job.title, company: job.company, jobUrl: job.url,
           status: 'failed', questionsFound: 0, questionsAnswered: 0,
           failureReason: jobError instanceof Error ? jobError.message : 'Unknown error',
@@ -411,7 +665,7 @@ export async function runAutoApplyAgent(config: AutoApplyConfig): Promise<AutoAp
         };
         progress.logs.push(logEntry);
         try {
-          await prisma.autoApplyLog.create({ data: { sessionId, jobTitle: job.title, company: job.company, jobUrl: job.url, status: 'failed', failureReason: logEntry.failureReason } });
+          await prisma.autoApplyLog.create({ data: { id: logId, sessionId, jobTitle: job.title, company: job.company, jobUrl: job.url, status: 'failed', failureReason: logEntry.failureReason } });
           await prisma.autoApplySession.update({ where: { id: sessionId }, data: { failedCount: progress.failedCount } });
         } catch (dbErr) { console.warn('[AutoApply] DB error (job error log):', dbErr); }
         await fastDelay(2000, 4000);
@@ -478,7 +732,7 @@ function normaliseIndeedUrl(url: string): string {
 // user to complete sign-in. If timeout, proceeds anyway (jobs needing auth
 // will be skipped individually).
 
-async function signInToIndeed(page: Page, userEmail: string): Promise<void> {
+async function signInToIndeed(page: Page, userEmail: string, sessionId: string, progress: AutoApplyProgress): Promise<void> {
   const isServer = isServerEnvironment();
 
   console.log('[AutoApply] Navigating to Indeed…');
@@ -488,7 +742,7 @@ async function signInToIndeed(page: Page, userEmail: string): Promise<void> {
   // Check for Cloudflare challenge
   if (await isCloudflareChallenge(page)) {
     console.log('[AutoApply] Cloudflare challenge detected on initial navigation');
-    const passed = await waitForCloudflareChallenge(page, 90000); // 90 seconds for manual verification
+    const passed = await waitForCloudflareChallengeHuman(page, sessionId, progress, 90000, 'initial navigation');
     if (!passed) {
       console.log('[AutoApply] ⚠️ Cloudflare challenge failed - cannot proceed');
       throw new Error('Cloudflare challenge failed - Indeed is blocking automated access. Please try again later or use manual job application.');
@@ -501,20 +755,21 @@ async function signInToIndeed(page: Page, userEmail: string): Promise<void> {
     return;
   }
 
-  // ── SERVER MODE (Railway): skip sign-in wait entirely ──────────────────
-  // The headless browser is not accessible to the user, so waiting is pointless.
-  // Indeed allows browsing & searching without auth. Jobs that require sign-in
-  // to apply will be skipped individually with a clear message.
-  if (isServer) {
+  if (isServer && !isInteractiveLoginEnabled()) {
     console.log('[AutoApply] SERVER MODE: Proceeding without sign-in (no interactive browser available)');
     console.log('[AutoApply] Jobs that require Indeed sign-in to apply will be skipped.');
     return;
   }
 
-  // ── LOCAL MODE: Interactive sign-in flow ──────────────────────────────
+  // ── Interactive sign-in flow ──────────────────────────────────────────
   console.log('[AutoApply] Not signed in — opening Indeed sign-in page…');
   await page.goto('https://secure.indeed.com/auth', { waitUntil: 'networkidle2', timeout: 45000 });
   await fastDelay(2000, 3000);
+
+  if (await isCloudflareChallenge(page)) {
+    console.log('[AutoApply] Cloudflare challenge detected on auth page');
+    await waitForCloudflareChallengeHuman(page, sessionId, progress, 90000, 'auth page');
+  }
 
   // Try to pre-fill the email field (best-effort)
   try {
@@ -548,6 +803,9 @@ async function signInToIndeed(page: Page, userEmail: string): Promise<void> {
         try {
           const pUrl = p.url();
           if (pUrl.includes('indeed.com') && !pUrl.includes('/auth')) {
+            if (await isCloudflareChallenge(p)) {
+              await waitForCloudflareChallengeHuman(p, sessionId, progress, 90000, 'sign-in verification');
+            }
             if (await checkIfSignedIn(p)) {
               console.log('[AutoApply] ✅ Successfully signed in to Indeed!');
               if (page.url().includes('/auth')) {
@@ -718,6 +976,42 @@ async function waitForCloudflareChallenge(page: Page, maxWaitMs: number = 60000)
   }
 
   console.log('[AutoApply] ⚠️ Cloudflare challenge timeout');
+  return false;
+}
+
+async function waitForCloudflareChallengeHuman(
+  page: Page,
+  sessionId: string,
+  progress: AutoApplyProgress,
+  maxWaitMs: number,
+  reason: string
+): Promise<boolean> {
+  const runtime = interactiveLoginRuntime.get(sessionId);
+  if (!runtime) {
+    return await waitForCloudflareChallenge(page, maxWaitMs);
+  }
+
+  const session = await prisma.autoApplySession
+    .findFirst({ where: { id: sessionId }, select: { loginExpiresAt: true } })
+    .catch(() => null);
+
+  const boundedWaitMs = session?.loginExpiresAt ? Math.max(maxWaitMs, session.loginExpiresAt.getTime() - Date.now()) : maxWaitMs;
+  const startTime = Date.now();
+
+  progress.currentStep = `Complete Indeed verification in Login Window (${reason})...`;
+  await updateSessionProgress(sessionId, progress);
+
+  while (Date.now() - startTime < boundedWaitMs) {
+    const control = activeSessions.get(sessionId);
+    if (control?.cancel) return false;
+
+    await fastDelay(2000, 2500);
+    if (!(await isCloudflareChallenge(page))) {
+      await fastDelay(1000, 1500);
+      return true;
+    }
+  }
+
   return false;
 }
 
@@ -893,6 +1187,115 @@ interface ApplyResult {
   questionsAnswered: number;
   aiResponses?: AnsweredQuestion[];
   error?: string;
+}
+
+async function prepareApplicationPreview(
+  page: Page,
+  job: JobListing,
+  jobDescription: string,
+  userProfile: UserProfile,
+  resumePath?: string
+): Promise<{ questionsFound: number; questionsAnswered: number; aiResponses: AnsweredQuestion[]; coverLetter: string }> {
+  await page.goto(job.url, { waitUntil: 'domcontentloaded', timeout: 25000 });
+  await fastDelay(2000, 3000);
+
+  const pageUrl = page.url();
+  if (pageUrl.includes('secure.indeed.com/auth') || pageUrl.includes('/login')) {
+    return { questionsFound: 0, questionsAnswered: 0, aiResponses: [], coverLetter: '' };
+  }
+
+  const applyButton = await findApplyButton(page);
+  if (!applyButton) {
+    return { questionsFound: 0, questionsAnswered: 0, aiResponses: [], coverLetter: '' };
+  }
+
+  const newPages: Page[] = [];
+  const newPageHandler = async (target: any) => {
+    try {
+      const p = await target.page();
+      if (p) newPages.push(p);
+    } catch {}
+  };
+  page.browser().on('targetcreated', newPageHandler);
+
+  try {
+    await applyButton.click();
+  } catch {
+    await page.evaluate((el: any) => el.click(), applyButton);
+  }
+  await fastDelay(2500, 4000);
+
+  page.browser().off('targetcreated', newPageHandler);
+
+  let activePage: Page = page;
+  for (const np of newPages) {
+    try {
+      if (!np.isClosed()) {
+        const newUrl = np.url();
+        if (newUrl.includes('indeed.com')) {
+          activePage = np;
+          await activePage.bringToFront();
+          await fastDelay(1500, 2500);
+          break;
+        }
+      }
+    } catch {}
+  }
+
+  let formContext: FormContext | null = null;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    formContext = await getApplyFormContext(activePage);
+    if (formContext) break;
+    await fastDelay(1500, 2200);
+  }
+
+  if (!formContext) {
+    return { questionsFound: 0, questionsAnswered: 0, aiResponses: [], coverLetter: '' };
+  }
+
+  const questions = await extractFormQuestions(formContext);
+  const answers = await answerApplicationQuestions(userProfile, job.title, job.company, jobDescription, questions);
+  const answeredCount = answers.filter((a) => a.answer && a.confidence > 0.15).length;
+
+  try {
+    const fileInput = await formContext.$('input[type="file"]');
+    if (fileInput && resumePath) {
+      await (fileInput as any).uploadFile(resumePath);
+      await fastDelay(700, 1200);
+    }
+  } catch {}
+
+  const coverLetter = await generateCoverLetter(userProfile, job.title, job.company, jobDescription);
+
+  return {
+    questionsFound: questions.length,
+    questionsAnswered: answeredCount,
+    aiResponses: answers,
+    coverLetter,
+  };
+}
+
+async function waitForApprovalDecision(
+  sessionId: string,
+  logId: string
+): Promise<'approve' | 'skip'> {
+  const startedAt = Date.now();
+  const maxWaitMs = 20 * 60 * 1000;
+
+  while (Date.now() - startedAt < maxWaitMs) {
+    const control = activeSessions.get(sessionId);
+    if (control?.cancel) return 'skip';
+
+    const decision = approvalDecisions.get(logId);
+    if (decision) {
+      approvalDecisions.delete(logId);
+      return decision;
+    }
+
+    await fastDelay(1500, 2400);
+  }
+
+  return 'skip';
 }
 
 async function applyToJob(

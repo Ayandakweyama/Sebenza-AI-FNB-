@@ -19,6 +19,7 @@ export async function POST(req: Request) {
       maxApplications = 10,
       minMatchScore = 50,
       cvText,
+      approvalMode = 'auto',
     } = body;
 
     if (!searchQuery) {
@@ -121,6 +122,7 @@ export async function POST(req: Request) {
           jobType,
           maxApplications,
           indeedEmail: user.email || undefined,
+          approvalMode,
           status: 'pending',
         },
       });
@@ -142,6 +144,7 @@ export async function POST(req: Request) {
       minMatchScore,
       userEmail: user.email,
       userProfile,
+      approvalMode,
     }).catch(err => {
       console.error('[AutoApply API] Background agent error:', err);
     });

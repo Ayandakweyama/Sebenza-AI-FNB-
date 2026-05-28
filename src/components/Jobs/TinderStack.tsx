@@ -22,9 +22,9 @@ interface Job {
 
 interface TinderStackProps {
   jobs: Job[];
-  onSwipeLeft: () => void;
-  onSwipeRight: () => void;
-  onSave: (jobId: string) => void;
+  onSwipeLeft: (job: Job) => void;
+  onSwipeRight: (job: Job) => void;
+  onSave: (job: Job) => void;
   onEmpty?: () => void;
   className?: string;
 }
@@ -55,7 +55,7 @@ export function TinderStack({
     
     // Call the callback after animation would be complete
     setTimeout(() => {
-      onSwipeLeft();
+      onSwipeLeft(currentJob);
       setCurrentIndex(prev => prev + 1);
       setIsAnimating(false);
       
@@ -77,7 +77,7 @@ export function TinderStack({
     
     // Call the callback after animation would be complete
     setTimeout(() => {
-      onSwipeRight();
+      onSwipeRight(currentJob);
       setCurrentIndex(prev => prev + 1);
       setIsAnimating(false);
       
@@ -97,10 +97,11 @@ export function TinderStack({
       } else {
         newSaved.add(jobId);
       }
-      onSave(jobId);
+      const job = jobs.find((j) => j.id === jobId);
+      if (job) onSave(job);
       return newSaved;
     });
-  }, [onSave]);
+  }, [jobs, onSave]);
 
   // Handle keyboard navigation
   useEffect(() => {

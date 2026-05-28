@@ -1,11 +1,14 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
   // Use the new serverExternalPackages for Next.js 16
   serverExternalPackages: ["puppeteer-extra", "puppeteer-extra-plugin-stealth", "puppeteer"],
   
-  // Configure Turbopack for Next.js 16 (empty config uses defaults)
-  turbopack: {},
+  // Configure Turbopack for Next.js 16
+  turbopack: {
+    root: path.resolve(__dirname),
+  },
   
   // Configure webpack to handle problematic dependencies (fallback for webpack builds)
   webpack: (config, { isServer }) => {

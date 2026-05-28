@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAfrigter } from '@/hooks/useAfrigter';
 import DashboardNavigation from '@/components/dashboard/DashboardNavigation';
 import { extractTextFromFile } from '@/lib/fileTextExtractor';
@@ -8,6 +8,7 @@ import { CheckCircle, Loader2, RefreshCw, Upload } from 'lucide-react';
 import RoadmapStepViewer from './RoadmapStepViewer';
 
 export default function CareerRoadmapPage() {
+  const [mounted, setMounted] = useState(false);
   const [currentRole, setCurrentRole] = useState('');
   const [targetRole, setTargetRole] = useState('');
   const [timeline, setTimeline] = useState('6');
@@ -21,6 +22,14 @@ export default function CareerRoadmapPage() {
   const cvInputRef = useRef<HTMLInputElement | null>(null);
   
   const { response, loading, error, callAfrigter } = useAfrigter();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return <div className="min-h-screen bg-slate-950" />;
+  }
 
   const handleCvUpload = async (file: File | null) => {
     if (!file) return;

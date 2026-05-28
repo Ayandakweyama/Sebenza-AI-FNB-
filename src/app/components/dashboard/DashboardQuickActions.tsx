@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import React from 'react';
-import { ArrowRight, FileText, Scan, Briefcase, Sparkles, Video } from 'lucide-react';
+import { ArrowRight, FileText, Scan, Sparkles, Video } from 'lucide-react';
 
 const actions = [
   {
@@ -16,12 +16,6 @@ const actions = [
     description: 'Scan your CV for ATS and job match',
     href: '/ats-checker',
     Icon: Scan,
-  },
-  {
-    title: 'Job Matcher',
-    description: 'Find roles that match your skills',
-    href: '/jobs/matcher',
-    Icon: Briefcase,
   },
   {
     title: 'AI Interview',
@@ -78,4 +72,3 @@ const DashboardQuickActions = () => {
 };
 
 export default DashboardQuickActions;
-

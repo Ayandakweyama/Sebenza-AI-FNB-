@@ -114,7 +114,7 @@ export async function GET(req: Request) {
       sessions = await prisma.autoApplySession.findMany({
         where: { userId: user.id },
         include: {
-          logs: { orderBy: { createdAt: 'desc' }, take: 5 },
+          logs: { orderBy: { createdAt: 'desc' }, take: 15 },
         },
         orderBy: { createdAt: 'desc' },
         take: 10,

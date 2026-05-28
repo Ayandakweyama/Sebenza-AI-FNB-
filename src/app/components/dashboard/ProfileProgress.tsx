@@ -38,11 +38,15 @@ export const ProfileProgress: React.FC<ProfileProgressProps> = ({ className = ''
   // Calculate profile completion based on saved data
   useEffect(() => {
     let mounted = true;
+    let inFlight = false;
+    let pending = false;
 
     const resolveProfileData = async () => {
-      // Trigger a custom event to notify other components that profile data has been updated
-      const profileUpdateEvent = new CustomEvent('profileDataUpdated');
-      window.dispatchEvent(profileUpdateEvent);
+      if (inFlight) {
+        pending = true;
+        return;
+      }
+      inFlight = true;
       try {
         const savedData = localStorage.getItem('profileFormData');
         let formData = savedData ? JSON.parse(savedData) : null;
@@ -137,6 +141,12 @@ export const ProfileProgress: React.FC<ProfileProgressProps> = ({ className = ''
       } finally {
         if (!mounted) return;
         setIsLoading(false);
+        inFlight = false;
+        if (pending) {
+          pending = false;
+          setIsLoading(true);
+          void resolveProfileData();
+        }
       }
     };
 

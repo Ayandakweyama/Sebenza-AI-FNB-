@@ -6,7 +6,6 @@ import {
   FileText,
   Wand2,
   Briefcase,
-  Target,
   Sparkles,
   ArrowRight,
 } from 'lucide-react';
@@ -29,12 +28,6 @@ const features = [
     description: 'Build and export a clean, customizable CV with section visibility, order, and style controls.',
     href: '/cvbuilder',
     Icon: Wand2,
-  },
-  {
-    title: 'Job Matcher',
-    description: 'Upload your CV, scrape jobs from multiple sources, and see best-fit matches with scoring and guidance.',
-    href: '/jobs/matcher',
-    Icon: Target,
   },
   {
     title: 'Job Portal',

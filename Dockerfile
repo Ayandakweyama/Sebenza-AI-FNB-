@@ -35,6 +35,10 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends xvfb x11vnc fluxbox && rm -rf /var/lib/apt/lists/*
+USER pptruser
+
 # Copy the standalone Next.js output (includes server.js + node_modules subset)
 COPY --from=builder /app/.next/standalone ./
 # Copy static assets
@@ -42,6 +46,7 @@ COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 # Copy Prisma schema (needed by @prisma/client at runtime)
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/customServer.js ./customServer.js
 
 # The standalone output only bundles a minimal node_modules subset.
 # Puppeteer, Prisma CLI, and their deep transitive deps are missing.
@@ -59,4 +64,4 @@ ENV HOSTNAME="0.0.0.0"
 
 # Push schema at startup (internal DB only reachable at runtime, not build time)
 # Strip surrounding quotes from DATABASE_URL (Railway may wrap values in literal quotes)
-CMD ["sh","-c","export DATABASE_URL=$(echo \"$DATABASE_URL\" | sed 's/^\\\"//;s/\\\"$//') && node ./node_modules/prisma/build/index.js db push --skip-generate 2>&1 || echo \"Prisma db push failed, continuing anyway\" && node server.js"]
+CMD ["sh","-c","export DATABASE_URL=$(echo \"$DATABASE_URL\" | sed 's/^\\\"//;s/\\\"$//') && node ./node_modules/prisma/build/index.js db push --skip-generate 2>&1 || echo \"Prisma db push failed, continuing anyway\" && node customServer.js"]
