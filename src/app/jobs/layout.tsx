@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Briefcase, LayoutDashboard } from 'lucide-react';
+import { Briefcase, LayoutDashboard, Target } from 'lucide-react';
 import { FloatingParticles } from './components/FloatingParticles';
 
 const navItems = [
@@ -17,6 +17,12 @@ const navItems = [
     href: '/jobs/all',
     icon: Briefcase,
     description: 'Browse opportunities'
+  },
+  {
+    name: 'Matcher',
+    href: '/jobs/matcher',
+    icon: Target,
+    description: 'AI match scoring'
   },
 ];
 
@@ -62,7 +68,7 @@ export default function JobsLayout({
             </Link>
 
             <div className="w-full sm:w-auto mx-auto sm:mx-0 max-w-[520px] rounded-2xl border border-white/10 bg-black/10 backdrop-blur-xl p-2">
-              <div className="grid w-full grid-cols-1 min-[420px]:grid-cols-2 gap-2 sm:w-auto sm:flex sm:items-center sm:gap-2 sm:flex-wrap sm:justify-end">
+              <div className="grid w-full grid-cols-1 min-[420px]:grid-cols-3 gap-2 sm:w-auto sm:flex sm:items-center sm:gap-2 sm:flex-wrap sm:justify-end">
                 {navItems.map((item) => {
                   const active = isActive(item.href);
                   const Icon = item.icon;

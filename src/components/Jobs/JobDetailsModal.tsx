@@ -20,6 +20,31 @@ import {
 import { Job } from '@/hooks/useJobScraper';
 import { useState } from 'react';
 
+function sourceLabel(job: Pick<Job, 'source' | 'url'>) {
+  const url = (job.url || '').toLowerCase();
+  const src = (job.source || '').toLowerCase();
+
+  const normalized =
+    url.includes('linkedin.com') ? 'linkedin' :
+    url.includes('indeed.') ? 'indeed' :
+    url.includes('pnet.') ? 'pnet' :
+    url.includes('careerjunction') ? 'careerjunction' :
+    url.includes('career24') ? 'career24' :
+    url.includes('jobmail') ? 'jobmail' :
+    src;
+
+  if (normalized === 'linkedin') return 'LinkedIn';
+  if (normalized === 'careerjunction') return 'CareerJunction';
+  if (normalized === 'career24' || normalized === 'careers24') return 'Careers24';
+  if (normalized === 'jobs-co-za') return 'Jobs.co.za';
+  if (normalized === 'jobmail') return 'JobMail';
+  if (normalized === 'pnet') return 'PNet';
+  if (normalized === 'indeed') return 'Indeed';
+  if (normalized === 'adzuna') return 'Adzuna';
+  if (normalized === 'bestjobs') return 'BestJobs';
+  return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : 'Unknown';
+}
+
 interface JobDetailsModalProps {
   job: Job | null;
   isOpen: boolean;
@@ -201,7 +226,7 @@ const JobDetailsModal = memo(function JobDetailsModal({
                   {job.source && (
                     <div className="flex items-center gap-2">
                       <ExternalLink className="w-5 h-5" />
-                      <span className="capitalize">{job.source}</span>
+                      <span>{sourceLabel(job)}</span>
                     </div>
                   )}
                 </div>

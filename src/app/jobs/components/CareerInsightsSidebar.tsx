@@ -128,29 +128,6 @@ export function CareerInsightsSidebar({
       </div>
 
       <div className="p-5 space-y-4">
-        <div className="grid grid-cols-3 gap-3">
-          <Mini label="Saved" value={savedJobs} />
-          <Mini label="Applied" value={applicationsSent} />
-          <Mini label="Alerts" value={alertsActive} />
-        </div>
-
-        {selectedJob ? (
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <div className="text-xs text-slate-200/70">Selected job</div>
-            <a
-              href={selectedJob.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-2 block rounded-xl border border-white/10 bg-black/10 p-3 hover:bg-black/20 transition-colors"
-            >
-              <div className="text-sm font-semibold text-white">{selectedJob.title}</div>
-              <div className="text-xs text-slate-200/70 mt-1">
-                {selectedJob.company} · {selectedJob.location}
-              </div>
-            </a>
-          </div>
-        ) : null}
-
         <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
           <div className="text-sm font-semibold text-white flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-blue-300" />
@@ -202,12 +179,12 @@ export function CareerInsightsSidebar({
           <div className="flex items-center justify-between gap-3">
             <div className="text-sm font-semibold text-white flex items-center gap-2">
               <Newspaper className="w-4 h-4 text-blue-300" />
-              Workforce sentiment
+              Workforce news
             </div>
             <div className={`text-xs font-semibold ${sentiment.color}`}>{sentiment.label}</div>
           </div>
           <div className="mt-2 text-[11px] text-slate-200/70">
-            Based on the latest South Africa market headlines about hiring, unemployment, policy, and the economy.
+            Latest South Africa headlines that can affect hiring, unemployment, policy, and the economy.
           </div>
           <div className="mt-3 space-y-2">
             {isLoadingNews ? (

@@ -88,7 +88,7 @@ export async function scrapeLinkedIn(config: ScraperConfig): Promise<ScraperResu
                 description: '',
                 url,
                 jobType: 'Full-time',
-                source: 'careerjunction' as const
+                source: 'linkedin' as const
               });
             }
           } catch (error) {
@@ -110,7 +110,7 @@ export async function scrapeLinkedIn(config: ScraperConfig): Promise<ScraperResu
     return {
       jobs: allJobs,
       success: true,
-      source: 'careerjunction',
+      source: 'linkedin',
       count: allJobs.length
     };
     
@@ -120,7 +120,7 @@ export async function scrapeLinkedIn(config: ScraperConfig): Promise<ScraperResu
       jobs: [],
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
-      source: 'careerjunction',
+      source: 'linkedin',
       count: 0
     };
   } finally {

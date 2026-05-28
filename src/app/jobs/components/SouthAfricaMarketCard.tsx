@@ -95,6 +95,8 @@ function clamp01(v: number) {
   return Math.min(1, Math.max(0, v));
 }
 
+const DISALLOWED_INDUSTRY_CHIPS = new Set(['technology', 'general', 'telecommunications']);
+
 function inferProvinceId(location: string) {
   const s = normalize(location);
   if (!s) return null;
@@ -386,7 +388,7 @@ function ProvinceNode({
   );
 }
 
-export function SouthAfricaMarketCard({ jobs }: { jobs?: Job[] }) {
+export function SouthAfricaMarketCard({ jobs, query, location }: { jobs?: Job[]; query?: string; location?: string }) {
   const [hovered, setHovered] = useState<ProvinceView | null>(null);
   const [tickerIndex, setTickerIndex] = useState(0);
   const { profile } = useProfile();
@@ -397,11 +399,68 @@ export function SouthAfricaMarketCard({ jobs }: { jobs?: Job[] }) {
   }, [profile]);
 
   const [selectedIndustry, setSelectedIndustry] = useState('');
+  const searchKey = useMemo(() => `${String(query || '').trim()}|${String(location || '').trim()}`, [location, query]);
+
+  const derivedIndustries = useMemo(() => {
+    const allJobs = Array.isArray(jobs) ? jobs : [];
+    const counts = new Map<string, number>();
+
+    const classify = (j: Job) => {
+      const raw = normalize(j.industry);
+      if (raw) return raw;
+      const hay = `${j.title || ''} ${j.description || ''} ${j.company || ''}`.toLowerCase();
+      if (/(developer|engineer|software|frontend|backend|full[- ]stack|devops|cloud|data|ai|ml|typescript|react|node|python)/.test(hay)) return 'technology';
+      if (/(finance|bank|account|accountant|credit|risk|audit|investment|cfa|treasury)/.test(hay)) return 'finance';
+      if (/(health|medical|clinic|nurse|doctor|pharma|hospital)/.test(hay)) return 'healthcare';
+      if (/(teacher|lecturer|education|school|university|tutor)/.test(hay)) return 'education';
+      if (/(sales|account executive|business development|marketing|seo|brand|campaign)/.test(hay)) return 'sales & marketing';
+      if (/(mining|miner|geology|metall|plant|shift|artisan)/.test(hay)) return 'mining & resources';
+      if (/(logistics|warehouse|driver|supply chain|procurement)/.test(hay)) return 'logistics';
+      return 'general';
+    };
+
+    for (const j of allJobs) {
+      const c = classify(j);
+      counts.set(c, (counts.get(c) || 0) + 1);
+    }
+
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .filter(([k]) => !DISALLOWED_INDUSTRY_CHIPS.has(String(k || '').toLowerCase()))
+      .map(([k, v]) => ({ key: k, label: k === 'sales & marketing' ? 'Sales & Marketing' : k.charAt(0).toUpperCase() + k.slice(1), count: v }))
+      .slice(0, 5);
+  }, [jobs]);
+
+  const availableIndustries = useMemo(() => {
+    const fromProfile = industries
+      .map((i) => i.trim())
+      .filter(Boolean)
+      .filter((i) => !DISALLOWED_INDUSTRY_CHIPS.has(i.toLowerCase()));
+    const fromJobs = derivedIndustries.map((d) => d.label);
+    const merged = [...fromJobs, ...fromProfile];
+    const seen = new Set<string>();
+    return merged.filter((v) => {
+      const k = v.toLowerCase();
+      if (!k || seen.has(k)) return false;
+      if (DISALLOWED_INDUSTRY_CHIPS.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  }, [derivedIndustries, industries]);
 
   useEffect(() => {
-    if (selectedIndustry) return;
-    if (industries.length) setSelectedIndustry(industries[0]);
-  }, [industries, selectedIndustry]);
+    if (!availableIndustries.length) {
+      setSelectedIndustry('');
+      return;
+    }
+    if (selectedIndustry && availableIndustries.some((i) => i.toLowerCase() === selectedIndustry.toLowerCase())) return;
+    setSelectedIndustry(availableIndustries[0] || '');
+  }, [availableIndustries, selectedIndustry]);
+
+  useEffect(() => {
+    setHovered(null);
+    setSelectedIndustry('');
+  }, [searchKey]);
 
   const market = useMemo(() => {
     const allJobs = Array.isArray(jobs) ? jobs : [];
@@ -530,10 +589,20 @@ export function SouthAfricaMarketCard({ jobs }: { jobs?: Job[] }) {
       <div className="p-5 sm:p-6 border-b border-white/10 flex items-center justify-between gap-3">
         <div>
           <div className="text-base font-semibold text-white">South African Job Market Analytics</div>
-          <div className="text-xs text-slate-200/70">Live demand heat + AI insights + province drilldown</div>
+          <div className="text-xs text-slate-200/70">
+            {query || location ? (
+              <>
+                Based on your current search
+                {query ? `: ${query}` : ''}
+                {location ? ` · ${location}` : ''}
+              </>
+            ) : (
+              <>Live demand heat + AI insights + province drilldown</>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
-          {industries.length ? (
+          {availableIndustries.length ? (
             <div className="hidden sm:flex items-center gap-1">
               <button
                 type="button"
@@ -546,7 +615,7 @@ export function SouthAfricaMarketCard({ jobs }: { jobs?: Job[] }) {
               >
                 All
               </button>
-              {industries.slice(0, 3).map((ind) => (
+              {availableIndustries.slice(0, 3).map((ind) => (
                 <button
                   key={ind}
                   type="button"

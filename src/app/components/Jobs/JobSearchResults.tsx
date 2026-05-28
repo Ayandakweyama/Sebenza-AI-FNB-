@@ -1,6 +1,31 @@
 import { useState, useEffect, useRef } from 'react';
 import { Job, useJobScraper } from '@/hooks/useJobScraper';
 import { useJobContext } from '@/contexts/JobContext';
+
+function sourceLabel(job: Pick<Job, 'source' | 'url'>) {
+  const url = (job.url || '').toLowerCase();
+  const src = (job.source || '').toLowerCase();
+
+  const normalized =
+    url.includes('linkedin.com') ? 'linkedin' :
+    url.includes('indeed.') ? 'indeed' :
+    url.includes('pnet.') ? 'pnet' :
+    url.includes('careerjunction') ? 'careerjunction' :
+    url.includes('career24') ? 'career24' :
+    url.includes('jobmail') ? 'jobmail' :
+    src;
+
+  if (normalized === 'linkedin') return 'LinkedIn';
+  if (normalized === 'careerjunction') return 'CareerJunction';
+  if (normalized === 'career24' || normalized === 'careers24') return 'Careers24';
+  if (normalized === 'jobs-co-za') return 'Jobs.co.za';
+  if (normalized === 'jobmail') return 'JobMail';
+  if (normalized === 'pnet') return 'PNet';
+  if (normalized === 'indeed') return 'Indeed';
+  if (normalized === 'adzuna') return 'Adzuna';
+  if (normalized === 'bestjobs') return 'BestJobs';
+  return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : 'Unknown';
+}
 // Custom Button component
 const Button = ({ 
   variant = 'default', 
@@ -355,7 +380,10 @@ export function JobSearchResults({
           <Card
             key={`${job.source}-${index}`}
             className="group cursor-pointer bg-gradient-to-br from-slate-800/80 to-slate-900/80 backdrop-blur-sm border border-slate-700/50 hover:border-pink-500/50 transition-all duration-300 transform hover:scale-[1.02] hover:shadow-2xl hover:shadow-pink-500/30 relative overflow-hidden"
-            onClick={() => onJobSelect?.(job)}
+            onClick={() => {
+              onJobSelect?.(job);
+              if (job.url) window.open(job.url, '_blank', 'noopener,noreferrer');
+            }}
           >
             {/* Pink gradient accent line */}
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-pink-500 via-pink-400 to-pink-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
@@ -411,8 +439,8 @@ export function JobSearchResults({
                 {/* Mobile-optimized action buttons */}
                 <div className="flex items-center justify-between sm:flex-col sm:items-end sm:space-y-2 sm:space-x-0 space-x-2 ml-0 sm:ml-4">
                   {/* Source badge - smaller on mobile */}
-                  <Badge variant="default" className="text-xs capitalize bg-gradient-to-r from-pink-500/20 to-pink-600/20 text-pink-300 border-pink-500/30 shadow-lg shadow-pink-500/20">
-                    {job.source}
+                  <Badge variant="default" className="text-xs bg-gradient-to-r from-pink-500/20 to-pink-600/20 text-pink-300 border-pink-500/30 shadow-lg shadow-pink-500/20">
+                    {sourceLabel(job)}
                   </Badge>
                   
                   {/* Action buttons container */}

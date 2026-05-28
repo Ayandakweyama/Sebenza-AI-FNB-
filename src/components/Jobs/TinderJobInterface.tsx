@@ -314,7 +314,7 @@ export function TinderJobInterface({
                     <select
                       value={filters.salary || ''}
                       onChange={(e) => setFilters(prev => ({ ...prev, salary: e.target.value }))}
-                      className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                      className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                     >
                       <option value="">Any</option>
                       <option value="R20,000">R20,000+</option>
@@ -329,7 +329,7 @@ export function TinderJobInterface({
                     <select
                       value={filters.jobType || ''}
                       onChange={(e) => setFilters(prev => ({ ...prev, jobType: e.target.value }))}
-                      className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                      className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                     >
                       <option value="">Any</option>
                       <option value="full-time">Full-time</option>
@@ -346,7 +346,7 @@ export function TinderJobInterface({
                       placeholder="Company name..."
                       value={filters.company || ''}
                       onChange={(e) => setFilters(prev => ({ ...prev, company: e.target.value }))}
-                      className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 text-white placeholder-slate-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                      className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 text-white placeholder-slate-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                     />
                   </div>
 
@@ -357,7 +357,7 @@ export function TinderJobInterface({
                       placeholder="Industry..."
                       value={filters.industry || ''}
                       onChange={(e) => setFilters(prev => ({ ...prev, industry: e.target.value }))}
-                      className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 text-white placeholder-slate-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                      className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 text-white placeholder-slate-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                     />
                   </div>
                 </div>
@@ -378,7 +378,7 @@ export function TinderJobInterface({
               </div>
               <div className="flex-1 sm:flex-none sm:w-32 h-2 bg-slate-700 rounded-full overflow-hidden">
                 <motion.div
-                  className="h-full bg-gradient-to-r from-purple-500 to-blue-500"
+                className="h-full bg-gradient-to-r from-blue-500 to-indigo-400"
                   style={{ width: `${progress}%` }}
                   transition={{ duration: 0.3 }}
                 />
@@ -406,7 +406,7 @@ export function TinderJobInterface({
               <motion.button
                 onClick={handleUndo}
                 disabled={swipeHistory.length === 0 || currentIndex === 0}
-                className="p-2 text-slate-400 hover:text-purple-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded-lg hover:bg-slate-700/50"
+                className="p-2 text-slate-400 hover:text-blue-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded-lg hover:bg-slate-700/50"
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
               >
@@ -416,7 +416,7 @@ export function TinderJobInterface({
               <motion.button
                 onClick={handleRefresh}
                 disabled={isSearching}
-                className="p-2 text-slate-400 hover:text-purple-400 disabled:opacity-50 transition-colors rounded-lg hover:bg-slate-700/50"
+                className="p-2 text-slate-400 hover:text-blue-300 disabled:opacity-50 transition-colors rounded-lg hover:bg-slate-700/50"
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
               >
@@ -434,13 +434,13 @@ export function TinderJobInterface({
           {/* Loading state */}
           {isSearching && visibleJobs.length === 0 && (
             <motion.div
-              className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl shadow-2xl border border-purple-500/30"
+              className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl shadow-2xl border border-blue-500/25"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
             >
               <div className="relative">
-                <RefreshCw className="w-12 h-12 text-purple-500 animate-spin mb-4" />
-                <div className="absolute inset-0 w-12 h-12 bg-purple-500/20 rounded-full animate-ping"></div>
+                <RefreshCw className="w-12 h-12 text-blue-400 animate-spin mb-4" />
+                <div className="absolute inset-0 w-12 h-12 bg-blue-500/20 rounded-full animate-ping"></div>
               </div>
               <h3 className="text-xl font-semibold text-white mb-2">Finding great jobs...</h3>
               <p className="text-slate-400 text-center">
@@ -463,7 +463,7 @@ export function TinderJobInterface({
               </p>
               <motion.button
                 onClick={handleRefresh}
-                className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 transition-all"
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-medium shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 transition-all"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
@@ -486,7 +486,7 @@ export function TinderJobInterface({
               </p>
               <motion.button
                 onClick={handleRefresh}
-                className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 transition-all flex items-center gap-2"
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-medium shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 transition-all flex items-center gap-2"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
