@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, ExternalLink, Rocket, Sparkles } from 'lucide-react';
+import { Calendar, ExternalLink, Rocket, Sparkles, X } from 'lucide-react';
 import { useAuth } from '@clerk/nextjs';
 import { getValidToken } from '@/utils/authHelpers';
 import { Canvas, useFrame } from '@react-three/fiber';
@@ -111,17 +111,29 @@ function toIcsDateValue(date: Date) {
   return `${y}${m}${d}`;
 }
 
+function toIcsLocalDateTimeValue(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  const ss = String(date.getSeconds()).padStart(2, '0');
+  return `${y}${m}${d}T${hh}${mm}${ss}`;
+}
+
 function escapeIcsText(text: string) {
   return text.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
 }
 
-function downloadDeadlineAlertIcs(input: { title: string; url: string; dateISO: string; reminderDays: number }) {
-  const date = new Date(input.dateISO);
-  const dt = toIcsDateValue(date);
-  const end = new Date(date);
-  end.setUTCDate(end.getUTCDate() + 1);
-  const dtEnd = toIcsDateValue(end);
-  const uid = `${dt}-${Math.random().toString(16).slice(2)}@sebenza.ai`;
+function downloadDeadlineAlertIcs(input: { title: string; url: string; date: string; time: string; reminderDays: number }) {
+  const [y, m, d] = input.date.split('-').map((x) => Number(x));
+  const [hh, mm] = input.time.split(':').map((x) => Number(x));
+  const start = new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0);
+  const end = new Date(start);
+  end.setMinutes(end.getMinutes() + 15);
+  const dtStart = toIcsLocalDateTimeValue(start);
+  const dtEnd = toIcsLocalDateTimeValue(end);
+  const uid = `${dtStart}-${Math.random().toString(16).slice(2)}@sebenza.ai`;
   const now = new Date();
   const stamp = `${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, '0')}${String(now.getUTCDate()).padStart(2, '0')}T${String(now.getUTCHours()).padStart(2, '0')}${String(now.getUTCMinutes()).padStart(2, '0')}${String(now.getUTCSeconds()).padStart(2, '0')}Z`;
   const trigger = `-P${Math.max(0, Math.min(30, Math.round(input.reminderDays)))}D`;
@@ -138,8 +150,8 @@ function downloadDeadlineAlertIcs(input: { title: string; url: string; dateISO: 
     `SUMMARY:${escapeIcsText(`Deadline: ${input.title}`)}`,
     `DESCRIPTION:${escapeIcsText(`Career Launch alert\\n${input.url}`)}`,
     `URL:${escapeIcsText(input.url)}`,
-    `DTSTART;VALUE=DATE:${dt}`,
-    'DTEND;VALUE=DATE:' + dtEnd,
+    `DTSTART:${dtStart}`,
+    `DTEND:${dtEnd}`,
     'BEGIN:VALARM',
     `TRIGGER:${trigger}`,
     'ACTION:DISPLAY',
@@ -583,6 +595,7 @@ function DeadlineControl(props: {
     if (!Number.isFinite(d.getTime())) return '';
     return d.toISOString().slice(0, 10);
   });
+  const [selectedTime, setSelectedTime] = useState<string>('09:00');
   const [reminderDays, setReminderDays] = useState<number>(1);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const onCloseRef = useRef(props.onClose);
@@ -686,19 +699,43 @@ function DeadlineControl(props: {
                 'radial-gradient(ellipse 80% 70% at 15% 20%, rgba(59,130,246,.18) 0%, transparent 55%), radial-gradient(ellipse 70% 60% at 85% 30%, rgba(99,102,241,.16) 0%, transparent 60%)',
             }}
           >
-            <div className="text-xs font-semibold tracking-[0.22em] uppercase text-slate-100/90">Create Alert</div>
-            <div className="mt-1 text-[11px] text-slate-200/70 line-clamp-2">{props.title}</div>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-xs font-semibold tracking-[0.22em] uppercase text-slate-100/90">Create Alert</div>
+                <div className="mt-1 text-[11px] text-slate-200/70 line-clamp-2">{props.title}</div>
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  props.onClose();
+                }}
+                className="h-7 w-7 rounded-lg border border-white/10 bg-white/5 text-slate-200/70 hover:bg-white/10 hover:text-white transition-colors flex items-center justify-center shrink-0"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           <div className="p-4 space-y-3">
             <div>
-              <div className="text-[11px] text-slate-200/70">Deadline</div>
+              <div className="text-[11px] text-slate-200/70">Deadline date</div>
               <input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                disabled={!props.closingDate}
-                className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:opacity-60"
+                className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+              />
+            </div>
+
+            <div>
+              <div className="text-[11px] text-slate-200/70">Alert time</div>
+              <input
+                type="time"
+                value={selectedTime}
+                onChange={(e) => setSelectedTime(e.target.value)}
+                className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
               />
             </div>
 
@@ -743,13 +780,14 @@ function DeadlineControl(props: {
 
             <button
               type="button"
-              disabled={!selectedDate || props.deadline.isClosed}
+              disabled={!selectedDate || !selectedTime || props.deadline.isClosed}
               onClick={() => {
-                if (!selectedDate) return;
+                if (!selectedDate || !selectedTime) return;
                 downloadDeadlineAlertIcs({
                   title: props.title,
                   url: props.url,
-                  dateISO: `${selectedDate}T00:00:00.000Z`,
+                  date: selectedDate,
+                  time: selectedTime,
                   reminderDays,
                 });
                 props.onClose();
