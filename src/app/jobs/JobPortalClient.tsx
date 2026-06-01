@@ -95,6 +95,12 @@ export default function JobPortalClient() {
               >
                 Browse Jobs
               </Link>
+              <Link
+                href="/jobs/career-launch"
+                className="inline-flex items-center justify-center rounded-xl bg-white/5 border border-white/10 text-white px-5 py-2.5 text-sm font-semibold hover:bg-white/10 transition-colors"
+              >
+                Career Launch
+              </Link>
             </div>
           </div>
         </motion.div>
