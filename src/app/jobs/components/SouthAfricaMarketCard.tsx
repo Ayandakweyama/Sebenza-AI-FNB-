@@ -1,12 +1,12 @@
 'use client';
 
 import { Canvas, useFrame } from '@react-three/fiber';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import type { Group, Mesh } from 'three';
 import * as THREE from 'three';
 import { motion } from 'framer-motion';
 import { Globe, TrendingUp } from 'lucide-react';
-import { OrbitControls } from '@react-three/drei';
+import { OrbitControls, useGLTF } from '@react-three/drei';
 import type { Job } from '@/hooks/useJobScraper';
 import { useProfile } from '@/contexts/ProfileContext';
 
@@ -140,99 +140,48 @@ function matchesIndustry(job: Job, industry: string) {
 function MapScene({
   provinces,
   onHover,
-  textureUrl,
+  modelUrl,
 }: {
   provinces: ProvinceView[];
   onHover: (p: ProvinceView | null) => void;
-  textureUrl: string;
+  modelUrl: string;
 }) {
   const group = useRef<Group>(null);
-  const plane = useRef<Mesh>(null);
-  const [mapTexture, setMapTexture] = useState<THREE.Texture | null>(null);
-  const [alphaBounds, setAlphaBounds] = useState<{ minX: number; maxX: number; minY: number; maxY: number } | null>(null);
+  const heatPlane = useRef<Mesh>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    const loader = new THREE.TextureLoader();
-    loader.load(
-      textureUrl,
-      (t) => {
-        if (cancelled) return;
-        t.colorSpace = THREE.SRGBColorSpace;
-        t.anisotropy = 4;
-        setMapTexture(t);
+  const { scene } = useGLTF(modelUrl) as unknown as { scene: THREE.Group };
 
-        try {
-          const img = t.image as HTMLImageElement;
-          if (!img?.width || !img?.height) {
-            setAlphaBounds(null);
-            return;
-          }
+  const model = useMemo(() => scene.clone(true), [scene]);
 
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width;
-          canvas.height = img.height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            setAlphaBounds(null);
-            return;
-          }
+  const modelFrame = useMemo(() => {
+    const box = new THREE.Box3().setFromObject(model);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
 
-          ctx.drawImage(img, 0, 0);
-          const { data } = ctx.getImageData(0, 0, img.width, img.height);
-          let minX = img.width;
-          let maxX = 0;
-          let minY = img.height;
-          let maxY = 0;
-          let found = false;
+    const dims = { x: size.x, y: size.y, z: size.z } as const;
+    const thickness: 'x' | 'y' | 'z' =
+      dims.x <= dims.y && dims.x <= dims.z ? 'x' : dims.y <= dims.x && dims.y <= dims.z ? 'y' : 'z';
 
-          for (let y = 0; y < img.height; y++) {
-            for (let x = 0; x < img.width; x++) {
-              const a = data[(y * img.width + x) * 4 + 3];
-              if (a > 18) {
-                found = true;
-                if (x < minX) minX = x;
-                if (x > maxX) maxX = x;
-                if (y < minY) minY = y;
-                if (y > maxY) maxY = y;
-              }
-            }
-          }
+    const rotation: [number, number, number] =
+      thickness === 'y' ? [-Math.PI / 2, 0, 0] : thickness === 'x' ? [0, Math.PI / 2, 0] : [0, 0, 0];
 
-          if (!found) {
-            setAlphaBounds(null);
-            return;
-          }
+    const planeX: 'x' | 'y' | 'z' = thickness === 'y' ? 'x' : thickness === 'x' ? 'z' : 'x';
+    const planeY: 'x' | 'y' | 'z' = thickness === 'y' ? 'z' : thickness === 'x' ? 'y' : 'y';
 
-          const w = MAP_PLANE.width;
-          const h = MAP_PLANE.height;
+    const width = Math.max(1e-6, (box.max as any)[planeX] - (box.min as any)[planeX]);
+    const height = Math.max(1e-6, (box.max as any)[planeY] - (box.min as any)[planeY]);
+    const scale = 0.96 * Math.min(MAP_PLANE.width / width, MAP_PLANE.height / height);
 
-          const minXw = -w / 2 + (minX / img.width) * w;
-          const maxXw = -w / 2 + ((maxX + 1) / img.width) * w;
-
-          const maxYw = h / 2 - (minY / img.height) * h;
-          const minYw = h / 2 - ((maxY + 1) / img.height) * h;
-
-          setAlphaBounds({ minX: minXw, maxX: maxXw, minY: minYw, maxY: maxYw });
-        } catch {
-          setAlphaBounds(null);
-        }
-      },
-      undefined,
-      () => {
-        if (cancelled) return;
-        setMapTexture(null);
-        setAlphaBounds(null);
-      }
-    );
-    return () => {
-      cancelled = true;
-      setMapTexture((prev) => {
-        prev?.dispose();
-        return null;
-      });
+    return {
+      box,
+      center,
+      rotation,
+      planeX,
+      planeY,
+      thickness,
+      scale,
     };
-  }, [textureUrl]);
+  }, [model]);
 
   const heatTexture = useMemo(() => {
     const canvas = document.createElement('canvas');
@@ -256,14 +205,14 @@ function MapScene({
     if (group.current) {
       group.current.rotation.y = 0.04 * Math.sin(t * 0.35);
     }
-    if (plane.current) {
-      plane.current.material.opacity = 0.22 + 0.06 * Math.sin(t * 0.9);
+    if (heatPlane.current) {
+      (heatPlane.current.material as any).opacity = 0.22 + 0.06 * Math.sin(t * 0.9);
     }
   });
 
   return (
     <group ref={group} position={[0, 0, 0]}>
-      <mesh ref={plane} position={[0, 0, -0.08]}>
+      <mesh ref={heatPlane} position={[0, 0, -0.08]}>
         <planeGeometry args={[MAP_PLANE.width, MAP_PLANE.height]} />
         <meshBasicMaterial map={heatTexture ?? undefined} transparent opacity={0.22} depthWrite={false} />
       </mesh>
@@ -273,28 +222,19 @@ function MapScene({
         <meshStandardMaterial color="#060a18" roughness={0.8} metalness={0.05} emissive="#0b2a6a" emissiveIntensity={0.07} />
       </mesh>
 
-      <mesh position={[0, 0, 0.01]}>
-        <planeGeometry args={[MAP_PLANE.width, MAP_PLANE.height]} />
-        <meshStandardMaterial
-          map={mapTexture ?? undefined}
-          transparent
-          opacity={mapTexture ? 1 : 0.18}
-          roughness={0.65}
-          metalness={0.05}
-          emissive="#0b2a6a"
-          emissiveIntensity={0.12}
-          alphaTest={0.12}
-        />
-      </mesh>
-
       <mesh position={[0, 0, -0.001]} scale={[1.02, 1.02, 1]}>
         <planeGeometry args={[MAP_PLANE.width, MAP_PLANE.height]} />
         <meshBasicMaterial color="#60a5fa" transparent opacity={0.08} depthWrite={false} />
       </mesh>
 
-      {provinces.map((p) => (
-        <ProvinceNode key={p.id} province={p} onHover={onHover} bounds={alphaBounds} />
-      ))}
+      <group rotation={modelFrame.rotation} scale={modelFrame.scale} position={[0, 0, 0.02]}>
+        <group position={[-modelFrame.center.x, -modelFrame.center.y, -modelFrame.center.z]}>
+          <primitive object={model} />
+          {provinces.map((p) => (
+            <ProvinceNode key={p.id} province={p} onHover={onHover} frame={modelFrame} />
+          ))}
+        </group>
+      </group>
     </group>
   );
 }
@@ -302,11 +242,16 @@ function MapScene({
 function ProvinceNode({
   province,
   onHover,
-  bounds,
+  frame,
 }: {
   province: ProvinceView;
   onHover: (p: ProvinceView | null) => void;
-  bounds: { minX: number; maxX: number; minY: number; maxY: number } | null;
+  frame: {
+    box: THREE.Box3;
+    planeX: 'x' | 'y' | 'z';
+    planeY: 'x' | 'y' | 'z';
+    thickness: 'x' | 'y' | 'z';
+  };
 }) {
   const ref = useRef<Mesh>(null);
   const ring = useRef<Mesh>(null);
@@ -318,15 +263,25 @@ function ProvinceNode({
     const uu = clamp01(u);
     const vv = clamp01(v);
 
-    const minX = bounds?.minX ?? -MAP_PLANE.width / 2;
-    const maxX = bounds?.maxX ?? MAP_PLANE.width / 2;
-    const minY = bounds?.minY ?? -MAP_PLANE.height / 2;
-    const maxY = bounds?.maxY ?? MAP_PLANE.height / 2;
+    const minA = (frame.box.min as any)[frame.planeX] as number;
+    const maxA = (frame.box.max as any)[frame.planeX] as number;
+    const minB = (frame.box.min as any)[frame.planeY] as number;
+    const maxB = (frame.box.max as any)[frame.planeY] as number;
 
-    const x = THREE.MathUtils.lerp(minX, maxX, uu);
-    const y = THREE.MathUtils.lerp(maxY, minY, vv);
-    return [x, y, 0.02];
-  }, [bounds?.maxX, bounds?.maxY, bounds?.minX, bounds?.minY, province.geo.lat, province.geo.lon]);
+    const thicknessMin = (frame.box.min as any)[frame.thickness] as number;
+    const thicknessMax = (frame.box.max as any)[frame.thickness] as number;
+
+    const a = THREE.MathUtils.lerp(minA, maxA, uu);
+    const b = THREE.MathUtils.lerp(maxB, minB, vv);
+    const thickness = thicknessMax - thicknessMin;
+    const t = thicknessMax + Math.max(0.025, thickness * 0.12);
+
+    const out: Record<'x' | 'y' | 'z', number> = { x: 0, y: 0, z: 0 };
+    out[frame.planeX] = a;
+    out[frame.planeY] = b;
+    out[frame.thickness] = t;
+    return [out.x, out.y, out.z];
+  }, [frame.box.max, frame.box.min, frame.planeX, frame.planeY, frame.thickness, province.geo.lat, province.geo.lon]);
 
   const color = useMemo(() => {
     const v = Math.min(1, Math.max(0, province.demand));
@@ -584,7 +539,7 @@ export function SouthAfricaMarketCard({ jobs, query, location }: { jobs?: Job[];
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: '-20%' }}
       transition={{ duration: 0.5 }}
-      className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl overflow-hidden"
+      className="rounded-3xl border border-white/10 bg-white/5 overflow-hidden"
     >
       <div className="p-5 sm:p-6 border-b border-white/10 flex items-center justify-between gap-3">
         <div>
@@ -641,17 +596,18 @@ export function SouthAfricaMarketCard({ jobs, query, location }: { jobs?: Job[];
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-0">
         <div className="lg:col-span-7 relative h-[420px] sm:h-[460px]">
           <div className="absolute inset-0 opacity-70" style={{ backgroundImage: 'radial-gradient(ellipse 70% 60% at 10% 10%, rgba(59,130,246,.18) 0%, transparent 62%), radial-gradient(ellipse 55% 50% at 90% 80%, rgba(99,102,241,.16) 0%, transparent 60%)' }} />
-          <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute inset-0 pointer-events-none" style={{ filter: 'blur(10px)', opacity: 0.55 }}>
             <Canvas
               camera={{ position: [0, 0.35, 3.4], fov: 45, near: 0.1, far: 100 }}
               dpr={[1, 1.25]}
               gl={{ antialias: false, alpha: true, powerPreference: 'low-power' }}
-              style={{ filter: 'blur(10px)', opacity: 0.55 }}
             >
               <ambientLight intensity={0.65} color="#dbeafe" />
               <directionalLight position={[3, 4, 4]} intensity={1.25} color="#93c5fd" />
               <pointLight position={[-2.5, 2, 2.5]} intensity={0.8} color="#60a5fa" />
-              <MapScene provinces={provinces} onHover={setHovered} textureUrl="/south-africa.png" />
+              <Suspense fallback={null}>
+                <MapScene provinces={provinces} onHover={setHovered} modelUrl="/south-africa-map.glb" />
+              </Suspense>
               <OrbitControls
                 enableDamping
                 dampingFactor={0.08}
@@ -674,7 +630,7 @@ export function SouthAfricaMarketCard({ jobs, query, location }: { jobs?: Job[];
           </div>
 
           {hovered ? (
-            <div className="absolute left-4 top-4 right-4 sm:right-auto sm:w-[320px] rounded-2xl border border-white/10 bg-black/30 backdrop-blur-xl p-4">
+            <div className="absolute left-4 top-4 right-4 sm:right-auto sm:w-[320px] rounded-2xl border border-white/10 bg-black/30 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="text-sm font-semibold text-white">{hovered.name}</div>

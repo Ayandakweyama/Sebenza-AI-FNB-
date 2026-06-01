@@ -96,7 +96,7 @@ export default function JobsLayout({
                         <Icon className="w-4 h-4 opacity-95" />
                       </span>
                       <span className="hidden sm:inline">{item.name}</span>
-                      <span className="sm:hidden">{item.name.split(' ')[0]}</span>
+                      <span className="sm:hidden">{item.href === '/jobs/all' ? 'All Jobs' : item.name.split(' ')[0]}</span>
                     </Link>
                   );
                 })}
