@@ -40,16 +40,16 @@ class ProfileDataService {
    * Set profile data
    */
   setProfileData(data: Partial<ProfileFormData>): void {
-    this.profileData = data;
+    this.profileData = { ...(this.profileData || {}), ...(data || {}) };
     
     // Save to localStorage for persistence
     if (typeof window !== 'undefined') {
-      localStorage.setItem('profileFormData', JSON.stringify(data));
+      localStorage.setItem('profileFormData', JSON.stringify(this.profileData));
     }
     
     // Dispatch custom event for global listeners
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('profileDataUpdated', { detail: data }));
+      window.dispatchEvent(new CustomEvent('profileDataUpdated', { detail: this.profileData }));
     }
     
     this.notifyListeners();

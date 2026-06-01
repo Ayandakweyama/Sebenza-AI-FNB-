@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { useProfile } from '@/contexts/ProfileContext';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -34,6 +35,7 @@ export function SkillsStepResponsive() {
     getValues 
   } = useFormContextData();
   const router = useRouter();
+  const { saveProfile: saveProfileToContext } = useProfile();
   
   // State for current inputs
   const [currentTechSkill, setCurrentTechSkill] = useState('');
@@ -134,7 +136,7 @@ export function SkillsStepResponsive() {
 
   // Save profile function
   const saveProfile = useCallback(async (showMessage = true) => {
-    if (isSaving) return; // Prevent multiple simultaneous saves
+    if (isSaving) return false;
     
     setIsSaving(true);
     if (showMessage) setSaveMessage('');
@@ -214,47 +216,8 @@ export function SkillsStepResponsive() {
         await Promise.allSettled(skillPromises);
       }
 
-      // Save complete profile data
-      console.log('Saving complete profile with data:', formData);
-      
-      const profileResponse = await fetch('/api/profile', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          profile: {
-            firstName: formData.firstName || '',
-            lastName: formData.lastName || '',
-            phone: formData.phone || '',
-            location: formData.location || '',
-            bio: formData.bio || '',
-            // Include education and experience if available
-            education: formData.education || [],
-            workExperience: formData.workExperience || [],
-            skills: {
-              technical: techSkills.map(s => s.name).filter(Boolean),
-              soft: softSkills,
-              languages: languages.map(l => ({ name: l.name, proficiency: l.proficiency }))
-            }
-          },
-          jobPreferences: {
-            desiredRoles: formData.jobTypes || formData.jobTitle ? [formData.jobTitle].filter(Boolean) : [],
-            industries: formData.industries || [],
-            remoteWork: formData.remotePreference === 'Remote',
-            // Combine all skills into one array for job preferences
-            skills: [
-              ...techSkills.map(s => s.name).filter(Boolean),
-              ...softSkills,
-              ...languages.map(l => l.name).filter(Boolean)
-            ]
-          }
-        }),
-      });
-
-      const responseData = await profileResponse.json();
-      
-      if (profileResponse.ok && responseData.success) {
+      const ok = await saveProfileToContext(formData);
+      if (ok) {
         setLastSaved(new Date());
         
         // Trigger profile update event for other components
@@ -263,23 +226,11 @@ export function SkillsStepResponsive() {
         
         if (showMessage) {
           setSaveMessage('Profile saved successfully!');
-          setTimeout(() => {
-            setSaveMessage('');
-            // If save and continue was clicked, move to next step
-            if (saveAndContinue) {
-              setSaveAndContinue(false);
-              nextStep();
-            }
-            // If save and go to dashboard was clicked, redirect to dashboard
-            if (saveAndGoToDashboard) {
-              setSaveAndGoToDashboard(false);
-              router.push('/dashboard');
-            }
-          }, 1500);
+          setTimeout(() => setSaveMessage(''), 1500);
         }
+        return true;
       } else {
-        const errorMessage = responseData.details || responseData.error || 'Failed to save profile';
-        throw new Error(errorMessage);
+        throw new Error('Failed to save profile');
       }
     } catch (error) {
       console.error('Error saving profile:', error);
@@ -287,10 +238,11 @@ export function SkillsStepResponsive() {
         setSaveMessage('Failed to save. Please try again.');
         setTimeout(() => setSaveMessage(''), 3000);
       }
+      return false;
     } finally {
       setIsSaving(false);
     }
-  }, [isSaving, techSkills, softSkills, languages, getValues]);
+  }, [getValues, isSaving, languages, saveProfileToContext, softSkills, techSkills]);
 
   // Auto-save functionality with debounce (disabled to prevent excessive saves)
   // useEffect(() => {
@@ -641,8 +593,8 @@ export function SkillsStepResponsive() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => saveProfile(true)}
-            disabled={isSaving || totalSkillsCount === 0}
+            onClick={() => void saveProfile(true)}
+            disabled={isSaving}
             className="border-green-600/30 text-green-400 hover:bg-green-500/10 hover:text-green-300 hover:border-green-500/50 w-full sm:w-auto"
           >
             {isSaving ? (
@@ -665,7 +617,11 @@ export function SkillsStepResponsive() {
               variant="outline"
               onClick={() => {
                 setSaveAndContinue(true);
-                saveProfile(true);
+                void (async () => {
+                  const ok = await saveProfile(true);
+                  setSaveAndContinue(false);
+                  if (ok) nextStep();
+                })();
               }}
               disabled={isSaving}
               className="border-blue-600/30 text-blue-400 hover:bg-blue-500/10 hover:text-blue-300 hover:border-blue-500/50 w-full sm:w-auto"
@@ -690,9 +646,13 @@ export function SkillsStepResponsive() {
             variant="outline"
             onClick={() => {
               setSaveAndGoToDashboard(true);
-              saveProfile(true);
+              void (async () => {
+                const ok = await saveProfile(true);
+                setSaveAndGoToDashboard(false);
+                if (ok) router.push('/dashboard');
+              })();
             }}
-            disabled={isSaving || totalSkillsCount === 0}
+            disabled={isSaving}
             className="border-purple-600/30 text-purple-400 hover:bg-purple-500/10 hover:text-purple-300 hover:border-purple-500/50 w-full sm:w-auto"
           >
             {isSaving && saveAndGoToDashboard ? (
@@ -719,12 +679,7 @@ export function SkillsStepResponsive() {
           <Button 
             type="button" 
             onClick={nextStep}
-            disabled={!canProceed}
-            className={`${
-              canProceed 
-                ? 'bg-blue-600 hover:bg-blue-700' 
-                : 'bg-slate-700 cursor-not-allowed opacity-50'
-            } text-white transition-all w-full sm:w-auto`}
+            className="bg-blue-600 hover:bg-blue-700 text-white transition-all w-full sm:w-auto"
           >
             Skip to Career Goals
             <ChevronRight className="ml-2 h-4 w-4" />

@@ -6,6 +6,67 @@ import { getValidToken, exponentialBackoff } from '@/utils/authHelpers';
 import { ProfileFormData } from '@/app/profile/personal/profile.schema';
 import { profileDataService } from '@/services/profileDataService';
 
+function parseMaybeDate(value: any) {
+  if (!value) return undefined;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return undefined;
+  return d;
+}
+
+function normalizeProfileSnapshot(snapshot: any, emailFromAuth?: string): ProfileFormData | null {
+  if (!snapshot || typeof snapshot !== 'object') return null;
+
+  const education = Array.isArray(snapshot.education)
+    ? snapshot.education.map((edu: any) => ({
+        ...edu,
+        startDate: parseMaybeDate(edu?.startDate) || new Date(),
+        endDate: parseMaybeDate(edu?.endDate),
+        current: Boolean(edu?.current),
+      }))
+    : [];
+
+  const workExperience = Array.isArray(snapshot.workExperience)
+    ? snapshot.workExperience.map((exp: any) => ({
+        ...exp,
+        startDate: parseMaybeDate(exp?.startDate) || new Date(),
+        endDate: parseMaybeDate(exp?.endDate),
+        current: Boolean(exp?.current),
+        achievements: Array.isArray(exp?.achievements) ? exp.achievements : [],
+      }))
+    : [];
+
+  const normalized: ProfileFormData = {
+    firstName: snapshot.firstName || '',
+    lastName: snapshot.lastName || '',
+    email: snapshot.email || emailFromAuth || '',
+    phone: snapshot.phone || '',
+    location: snapshot.location || '',
+    bio: snapshot.bio || '',
+    profilePhoto: undefined,
+    education,
+    workExperience,
+    technicalSkills: Array.isArray(snapshot.technicalSkills) ? snapshot.technicalSkills : [],
+    softSkills: Array.isArray(snapshot.softSkills) ? snapshot.softSkills : [],
+    languages: Array.isArray(snapshot.languages) ? snapshot.languages : [],
+    projects: Array.isArray(snapshot.projects) ? snapshot.projects : undefined,
+    references: Array.isArray(snapshot.references) ? snapshot.references : undefined,
+    jobTitle: snapshot.jobTitle || '',
+    industries: Array.isArray(snapshot.industries) ? snapshot.industries : [],
+    jobTypes: Array.isArray(snapshot.jobTypes) ? snapshot.jobTypes : [],
+    salaryExpectation: typeof snapshot.salaryExpectation === 'number' ? snapshot.salaryExpectation : undefined,
+    relocation: Boolean(snapshot.relocation),
+    remotePreference: snapshot.remotePreference || 'Flexible',
+    careerGoals: snapshot.careerGoals || '',
+    template: snapshot.template || 'Professional',
+    colorScheme: snapshot.colorScheme || '#2563eb',
+    fontFamily: snapshot.fontFamily || 'Arial',
+    showPhoto: snapshot.showPhoto !== false,
+    customSections: Array.isArray(snapshot.customSections) ? snapshot.customSections : [],
+  };
+
+  return normalized;
+}
+
 interface ProfileContextType {
   // Profile data
   profile: ProfileFormData | null;
@@ -44,7 +105,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
 
   // Initialize profile data from service
   useEffect(() => {
-    const serviceData = profileDataService.getProfileData();
+    const serviceData = profileDataService.getProfileData() || profileDataService.loadFromStorage();
     if (serviceData) {
       setProfile(serviceData as ProfileFormData);
     }
@@ -83,79 +144,67 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
 
       if (response.ok) {
         const data = await response.json();
-        
-        // Transform API data to match ProfileFormData structure
-        const transformedProfile: ProfileFormData = {
-          // Personal info
-          firstName: data.profile?.firstName || '',
-          lastName: data.profile?.lastName || '',
-          email: data.user?.email || '',
-          phone: data.profile?.phone || '',
-          location: data.profile?.location || '',
-          bio: data.profile?.bio || '',
-          profilePhoto: undefined,
+        const snapshot = normalizeProfileSnapshot(data.profileSnapshot, data.user?.email);
+        const desiredRoles = Array.isArray(data.jobPreferences?.desiredRoles) ? data.jobPreferences.desiredRoles : [];
+        const jobTypes = Array.isArray(data.jobPreferences?.jobType) ? data.jobPreferences.jobType : [];
+        const industries = Array.isArray(data.jobPreferences?.industries) ? data.jobPreferences.industries : [];
+        const salaryMin = typeof data.jobPreferences?.salaryMin === 'number' ? data.jobPreferences.salaryMin : undefined;
 
-          // Education
-          education: data.education?.map((edu: any) => ({
-            institution: edu.institution,
-            degree: edu.degree,
-            fieldOfStudy: edu.fieldOfStudy,
-            startDate: new Date(edu.startDate),
-            endDate: edu.endDate ? new Date(edu.endDate) : undefined,
-            current: edu.current || false,
-            description: edu.description
-          })) || [],
-
-          // Work experience
-          workExperience: data.experience?.map((exp: any) => ({
-            company: exp.company,
-            position: exp.position,
-            startDate: new Date(exp.startDate),
-            endDate: exp.endDate ? new Date(exp.endDate) : undefined,
-            current: exp.current || false,
-            description: exp.description,
-            achievements: exp.achievements || []
-          })) || [],
-
-          // Skills
-          technicalSkills: data.skills
-            ?.filter((s: any) => s.category === 'technical')
-            ?.map((s: any) => ({
-              name: s.name,
-              level: s.proficiency === 'beginner' ? 'Beginner' :
-                     s.proficiency === 'intermediate' ? 'Intermediate' :
-                     s.proficiency === 'advanced' ? 'Advanced' : 'Expert'
-            })) || [],
-
-          softSkills: data.skills
-            ?.filter((s: any) => s.category === 'soft')
-            ?.map((s: any) => s.name) || [],
-
-          languages: data.skills
-            ?.filter((s: any) => s.category === 'language')
-            ?.map((s: any) => ({
-              name: s.name,
-              proficiency: s.proficiency === 'beginner' ? 'Basic' :
-                          s.proficiency === 'intermediate' ? 'Conversational' :
-                          s.proficiency === 'expert' ? 'Fluent' : 'Native'
-            })) || [],
-
-          // Goals & preferences
-          jobTitle: data.jobPreferences?.jobTitle || '',
-          industries: data.jobPreferences?.industries || [],
-          jobTypes: data.jobPreferences?.desiredRoles || [],
-          salaryExpectation: data.jobPreferences?.salaryExpectation,
-          relocation: data.jobPreferences?.relocation || false,
-          remotePreference: data.jobPreferences?.remoteWork ? 'Remote' : 'Flexible',
-          careerGoals: data.jobPreferences?.careerGoals || '',
-
-          // CV Style
-          template: data.cvStyle?.template || 'Professional',
-          colorScheme: data.cvStyle?.colorScheme || '#2563eb',
-          fontFamily: data.cvStyle?.fontFamily || 'Arial',
-          showPhoto: data.cvStyle?.showPhoto !== false,
-          customSections: data.cvStyle?.customSections || []
-        };
+        const transformedProfile: ProfileFormData =
+          snapshot ||
+          ({
+            firstName: data.profile?.firstName || '',
+            lastName: data.profile?.lastName || '',
+            email: data.user?.email || '',
+            phone: data.profile?.phone || '',
+            location: data.profile?.location || '',
+            bio: data.profile?.bio || '',
+            profilePhoto: undefined,
+            education: [],
+            workExperience: [],
+            technicalSkills: data.skills
+              ?.filter((s: any) => s.category === 'technical')
+              ?.map((s: any) => ({
+                name: s.name,
+                level:
+                  s.proficiency === 'beginner'
+                    ? 'Beginner'
+                    : s.proficiency === 'intermediate'
+                      ? 'Intermediate'
+                      : s.proficiency === 'advanced'
+                        ? 'Advanced'
+                        : 'Expert',
+              })) || [],
+            softSkills: data.skills?.filter((s: any) => s.category === 'soft')?.map((s: any) => s.name) || [],
+            languages:
+              data.skills
+                ?.filter((s: any) => s.category === 'language')
+                ?.map((s: any) => ({
+                  name: s.name,
+                  proficiency:
+                    s.proficiency === 'beginner'
+                      ? 'Basic'
+                      : s.proficiency === 'intermediate'
+                        ? 'Conversational'
+                        : s.proficiency === 'expert'
+                          ? 'Fluent'
+                          : 'Native',
+                })) || [],
+            projects: undefined,
+            references: undefined,
+            jobTitle: String(desiredRoles?.[0] || ''),
+            industries,
+            jobTypes,
+            salaryExpectation: salaryMin,
+            relocation: false,
+            remotePreference: data.jobPreferences?.remoteWork ? 'Remote' : 'Flexible',
+            careerGoals: '',
+            template: 'Professional',
+            colorScheme: '#2563eb',
+            fontFamily: 'Arial',
+            showPhoto: true,
+            customSections: [],
+          } as ProfileFormData);
 
         setProfile(transformedProfile);
         
@@ -186,61 +235,42 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
           
           if (retryResponse.ok) {
             const data = await retryResponse.json();
-            
-            // Transform API data to match ProfileFormData structure
-            const transformedProfile: ProfileFormData = {
-              // Personal info (flattened)
-              firstName: data.firstName || '',
-              lastName: data.lastName || '',
-              email: data.email || '',
-              phone: data.phone || '',
-              location: data.location || '',
-              bio: data.bio || '',
-              profilePhoto: data.profilePhoto || null,
-              
-              // Education
-              education: data.education || [{
-                institution: '',
-                degree: '',
-                fieldOfStudy: '',
-                startDate: new Date(),
-                current: false,
-                endDate: undefined,
-                description: ''
-              }],
-              
-              // Work Experience
-              workExperience: data.workExperience || [{
-                company: '',
-                position: '',
-                description: '',
-                startDate: new Date(),
-                endDate: undefined,
-                current: false,
-                achievements: []
-              }],
-              
-              // Skills (flattened structure)
-              technicalSkills: data.technicalSkills || [],
-              softSkills: data.softSkills || [],
-              languages: data.languages || [],
+            const snapshot = normalizeProfileSnapshot(data.profileSnapshot, data.user?.email);
+            const desiredRoles = Array.isArray(data.jobPreferences?.desiredRoles) ? data.jobPreferences.desiredRoles : [];
+            const jobTypes = Array.isArray(data.jobPreferences?.jobType) ? data.jobPreferences.jobType : [];
+            const industries = Array.isArray(data.jobPreferences?.industries) ? data.jobPreferences.industries : [];
+            const salaryMin = typeof data.jobPreferences?.salaryMin === 'number' ? data.jobPreferences.salaryMin : undefined;
 
-              // Goals & preferences (flattened structure)
-              jobTitle: data.jobTitle || '',
-              industries: data.industries || [],
-              jobTypes: data.jobTypes || [],
-              salaryExpectation: data.salaryExpectation,
-              relocation: data.relocation || false,
-              remotePreference: data.remotePreference || 'Flexible',
-              careerGoals: data.careerGoals || '',
-              
-              // CV preferences (flattened structure)
-              template: data.template || 'Modern',
-              colorScheme: data.colorScheme || '#2563eb',
-              fontFamily: data.fontFamily || 'Arial',
-              showPhoto: data.showPhoto !== false,
-              customSections: data.customSections || []
-            };
+            const transformedProfile: ProfileFormData =
+              snapshot ||
+              ({
+                firstName: data.profile?.firstName || '',
+                lastName: data.profile?.lastName || '',
+                email: data.user?.email || '',
+                phone: data.profile?.phone || '',
+                location: data.profile?.location || '',
+                bio: data.profile?.bio || '',
+                profilePhoto: undefined,
+                education: [],
+                workExperience: [],
+                technicalSkills: [],
+                softSkills: [],
+                languages: [],
+                projects: undefined,
+                references: undefined,
+                jobTitle: String(desiredRoles?.[0] || ''),
+                industries,
+                jobTypes,
+                salaryExpectation: salaryMin,
+                relocation: false,
+                remotePreference: data.jobPreferences?.remoteWork ? 'Remote' : 'Flexible',
+                careerGoals: '',
+                template: 'Professional',
+                colorScheme: '#2563eb',
+                fontFamily: 'Arial',
+                showPhoto: true,
+                customSections: [],
+              } as ProfileFormData);
             
             setProfile(transformedProfile);
             
@@ -257,7 +287,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [getToken, isLoaded, isSignedIn]);
+  }, [getToken, isLoaded, isSignedIn, profile]);
 
   // Update profile (partial update)
   const updateProfile = useCallback(async (data: Partial<ProfileFormData>): Promise<boolean> => {
@@ -275,15 +305,19 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Separate profile and job preferences
-      const { education, workExperience, skills, jobTypes, industries, ...profileData } = data;
+      const nextProfile = (profile ? { ...profile, ...data } : (data as ProfileFormData)) as ProfileFormData;
+      setProfile(nextProfile);
+      profileDataService.setProfileData(nextProfile);
+
+      const { education, workExperience, technicalSkills, softSkills, languages, projects, references, template, colorScheme, fontFamily, showPhoto, customSections, jobTitle, industries, jobTypes, salaryExpectation, relocation, remotePreference, careerGoals, profilePhoto, email, ...profileData } = nextProfile;
       const jobPreferences = {
-        jobTitle: data.jobTitle,
-        industries: data.industries,
-        desiredRoles: data.jobTypes,
-        salaryExpectation: data.salaryExpectation,
-        relocation: data.relocation,
-        remoteWork: data.remotePreference === 'Remote',
-        careerGoals: data.careerGoals
+        desiredRoles: jobTitle ? [jobTitle] : [],
+        industries: Array.isArray(industries) ? industries : [],
+        jobType: Array.isArray(jobTypes) ? jobTypes : [],
+        remoteWork: remotePreference === 'Remote',
+        locations: nextProfile.location ? [nextProfile.location] : [],
+        salaryMin: typeof salaryExpectation === 'number' ? salaryExpectation : undefined,
+        salaryMax: undefined
       };
 
       const response = await fetch('/api/profile', {
@@ -294,22 +328,12 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
         },
         body: JSON.stringify({
           profile: profileData,
-          jobPreferences
+          jobPreferences,
+          profileSnapshot: { ...nextProfile, profilePhoto: undefined }
         })
       });
 
       if (response.ok) {
-        const result = await response.json();
-        
-        // Update local state with new data
-        setProfile(prev => prev ? { ...prev, ...data } : null);
-        
-        // Update the profile data service
-        profileDataService.setProfileData(data);
-        
-        // Dispatch event for other components
-        window.dispatchEvent(new CustomEvent('profileDataUpdated', { detail: data }));
-        
         return true;
       } else {
         throw new Error('Failed to update profile');

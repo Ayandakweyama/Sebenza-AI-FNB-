@@ -4,6 +4,88 @@ import { prisma } from '@/lib/prisma';
 import { ensureDbUser } from '@/lib/auth/ensureDbUser';
 import type { RequestLike } from '@clerk/nextjs/server';
 
+function toJsonArray(value: any): any[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function toInt(value: any): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  return Math.round(value);
+}
+
+function pickUserProfileFields(input: any) {
+  if (!input || typeof input !== 'object') return {};
+  const allowed = [
+    'firstName',
+    'lastName',
+    'phone',
+    'location',
+    'bio',
+    'avatar',
+    'linkedinUrl',
+    'githubUrl',
+    'websiteUrl',
+    'title',
+    'company',
+    'experience',
+    'industry',
+  ] as const;
+
+  const out: Record<string, any> = {};
+  for (const key of allowed) {
+    if (input[key] !== undefined) out[key] = input[key];
+  }
+  return out;
+}
+
+function normalizeJobPreferences(input: any) {
+  if (!input || typeof input !== 'object') return {};
+
+  const desiredRoles = [...toJsonArray(input.desiredRoles)];
+  if (!desiredRoles.length && typeof input.jobTitle === 'string' && input.jobTitle.trim()) {
+    desiredRoles.push(input.jobTitle.trim());
+  }
+
+  const industries = toJsonArray(input.industries);
+  const locations = toJsonArray(input.locations);
+
+  const jobType = [...toJsonArray(input.jobType)];
+  if (!jobType.length && Array.isArray(input.jobTypes)) jobType.push(...input.jobTypes);
+
+  const remoteWork =
+    typeof input.remoteWork === 'boolean'
+      ? input.remoteWork
+      : input.remotePreference === 'Remote' || input.remotePreference === 'remote';
+
+  const salaryMin = toInt(input.salaryMin ?? input.salaryExpectation);
+  const salaryMax = toInt(input.salaryMax);
+
+  const skills = toJsonArray(input.skills);
+  const keywords = toJsonArray(input.keywords);
+  const companySize = toJsonArray(input.companySize);
+
+  const out: Record<string, any> = {
+    desiredRoles,
+    industries,
+    locations,
+    remoteWork,
+    salaryMin,
+    salaryMax,
+    salaryCurrency: input.salaryCurrency,
+    careerLevel: input.careerLevel,
+    jobType,
+    companySize,
+    skills,
+    keywords,
+  };
+
+  Object.keys(out).forEach((k) => {
+    if (out[k] === undefined) delete out[k];
+  });
+
+  return out;
+}
+
 // Helper function to get user from request (supports both session and token)
 async function getUserFromRequest(request: NextRequest) {
   try {
@@ -175,7 +257,7 @@ export async function PUT(request: NextRequest) {
 
       // Update profile if provided
       if (profile) {
-        const { skills, education, workExperience, cvStyle, ...profileDataWithoutExtras } = profile;
+        const profileDataWithoutExtras = pickUserProfileFields(profile);
         
         updatedProfile = await tx.userProfile.upsert({
           where: { userId: user.id },
@@ -189,20 +271,13 @@ export async function PUT(request: NextRequest) {
 
       // Update job preferences if provided
       if (jobPreferences) {
-        // Remove languages from jobPreferences as it's not a field in the schema
-        const { languages, ...jobPrefsWithoutLanguages } = jobPreferences;
-        
-        // Ensure skills is an array
-        if (jobPrefsWithoutLanguages.skills && !Array.isArray(jobPrefsWithoutLanguages.skills)) {
-          jobPrefsWithoutLanguages.skills = [];
-        }
-        
+        const jobPrefsNormalized = normalizeJobPreferences(jobPreferences);
         updatedJobPreferences = await tx.jobPreferences.upsert({
           where: { userId: user.id },
-          update: jobPrefsWithoutLanguages,
+          update: jobPrefsNormalized,
           create: {
             userId: user.id,
-            ...jobPrefsWithoutLanguages
+            ...jobPrefsNormalized
           }
         });
       }
