@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, ExternalLink, Rocket, Sparkles, Star } from 'lucide-react';
+import { Calendar, ExternalLink, Rocket, Sparkles } from 'lucide-react';
 import { useAuth } from '@clerk/nextjs';
 import { getValidToken } from '@/utils/authHelpers';
 import { Canvas, useFrame } from '@react-three/fiber';
@@ -35,20 +35,129 @@ function daysUntil(iso: string | null) {
   return diff;
 }
 
-function loadTracked() {
-  if (typeof window === 'undefined') return new Set<string>();
-  try {
-    const raw = localStorage.getItem('careerLaunchTracked');
-    const arr = raw ? (JSON.parse(raw) as string[]) : [];
-    return new Set(Array.isArray(arr) ? arr : []);
-  } catch {
-    return new Set<string>();
+function deadlineMeta(closingDate: string | null) {
+  if (!closingDate) {
+    return {
+      dot: 'bg-slate-400',
+      ping: 'bg-slate-400',
+      pill: 'border-white/10 bg-white/5 text-slate-100',
+      label: 'TBD',
+      dateText: 'Closing date unknown',
+      isClosed: false,
+    };
   }
+
+  const d = daysUntil(closingDate);
+  const dateText = new Date(closingDate).toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  if (typeof d !== 'number') {
+    return {
+      dot: 'bg-slate-400',
+      ping: 'bg-slate-400',
+      pill: 'border-white/10 bg-white/5 text-slate-100',
+      label: 'TBD',
+      dateText,
+      isClosed: false,
+    };
+  }
+
+  if (d < 0) {
+    return {
+      dot: 'bg-slate-400',
+      ping: 'bg-slate-400',
+      pill: 'border-white/10 bg-white/5 text-slate-100',
+      label: 'CLOSED',
+      dateText,
+      isClosed: true,
+    };
+  }
+
+  if (d <= 3) {
+    return {
+      dot: 'bg-rose-300',
+      ping: 'bg-rose-300',
+      pill: 'border-rose-500/25 bg-rose-500/10 text-rose-100',
+      label: d === 0 ? 'T-0D' : `T-${d}D`,
+      dateText,
+      isClosed: false,
+    };
+  }
+
+  if (d <= 10) {
+    return {
+      dot: 'bg-amber-300',
+      ping: 'bg-amber-300',
+      pill: 'border-amber-500/25 bg-amber-500/10 text-amber-100',
+      label: `T-${d}D`,
+      dateText,
+      isClosed: false,
+    };
+  }
+
+  return {
+    dot: 'bg-cyan-300',
+    ping: 'bg-cyan-300',
+    pill: 'border-cyan-500/25 bg-cyan-500/10 text-cyan-100',
+    label: `T-${d}D`,
+    dateText,
+    isClosed: false,
+  };
 }
 
-function saveTracked(set: Set<string>) {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem('careerLaunchTracked', JSON.stringify(Array.from(set)));
+function toIcsDateValue(date: Date) {
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(date.getUTCDate()).padStart(2, '0');
+  return `${y}${m}${d}`;
+}
+
+function escapeIcsText(text: string) {
+  return text.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
+}
+
+function downloadDeadlineAlertIcs(input: { title: string; url: string; dateISO: string; reminderDays: number }) {
+  const date = new Date(input.dateISO);
+  const dt = toIcsDateValue(date);
+  const end = new Date(date);
+  end.setUTCDate(end.getUTCDate() + 1);
+  const dtEnd = toIcsDateValue(end);
+  const uid = `${dt}-${Math.random().toString(16).slice(2)}@sebenza.ai`;
+  const now = new Date();
+  const stamp = `${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, '0')}${String(now.getUTCDate()).padStart(2, '0')}T${String(now.getUTCHours()).padStart(2, '0')}${String(now.getUTCMinutes()).padStart(2, '0')}${String(now.getUTCSeconds()).padStart(2, '0')}Z`;
+  const trigger = `-P${Math.max(0, Math.min(30, Math.round(input.reminderDays)))}D`;
+
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Sebenza AI//Career Launch//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    `UID:${uid}`,
+    `DTSTAMP:${stamp}`,
+    `SUMMARY:${escapeIcsText(`Deadline: ${input.title}`)}`,
+    `DESCRIPTION:${escapeIcsText(`Career Launch alert\\n${input.url}`)}`,
+    `URL:${escapeIcsText(input.url)}`,
+    `DTSTART;VALUE=DATE:${dt}`,
+    'DTEND;VALUE=DATE:' + dtEnd,
+    'BEGIN:VALARM',
+    `TRIGGER:${trigger}`,
+    'ACTION:DISPLAY',
+    `DESCRIPTION:${escapeIcsText('Career Launch deadline reminder')}`,
+    'END:VALARM',
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n');
+
+  const blob = new Blob([lines], { type: 'text/calendar;charset=utf-8' });
+  const href = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = 'career-launch-alert.ics';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(href);
 }
 
 export default function CareerLaunchPage() {
@@ -58,8 +167,9 @@ export default function CareerLaunchPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [typeFilter, setTypeFilter] = useState<OpportunityType | 'All'>('All');
-  const [tracked, setTracked] = useState<Set<string>>(() => loadTracked());
   const [fieldFilter, setFieldFilter] = useState<string>('All fields');
+  const [hoverCapable, setHoverCapable] = useState(false);
+  const [activeDeadline, setActiveDeadline] = useState<string | null>(null);
 
   const [linkedinUrl, setLinkedinUrl] = useState('');
   const [linkedinText, setLinkedinText] = useState('');
@@ -105,6 +215,15 @@ export default function CareerLaunchPage() {
     void refresh();
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(hover: hover) and (pointer: fine)');
+    const update = () => setHoverCapable(mq.matches);
+    update();
+    mq.addEventListener?.('change', update);
+    return () => mq.removeEventListener?.('change', update);
+  }, []);
+
   const visible = useMemo(() => {
     const filtered = items.filter((it) => {
       if (typeFilter !== 'All' && it.type !== typeFilter) return false;
@@ -113,18 +232,6 @@ export default function CareerLaunchPage() {
     });
     return filtered.slice(0, 80);
   }, [fieldFilter, items, typeFilter]);
-
-  const trackedCount = tracked.size;
-
-  const toggleTrack = (url: string) => {
-    setTracked((prev) => {
-      const next = new Set(prev);
-      if (next.has(url)) next.delete(url);
-      else next.add(url);
-      saveTracked(next);
-      return next;
-    });
-  };
 
   const runAudit = async () => {
     setAuditLoading(true);
@@ -265,8 +372,7 @@ export default function CareerLaunchPage() {
 
             <div className="p-5 sm:p-6 space-y-3">
               {visible.map((it) => {
-                const d = daysUntil(it.closingDate);
-                const trackedOn = tracked.has(it.url);
+                const deadline = deadlineMeta(it.closingDate);
                 return (
                   <div
                     key={it.id}
@@ -294,36 +400,22 @@ export default function CareerLaunchPage() {
                         </div>
                         <div className="mt-2 text-xs text-slate-200/70 flex flex-wrap gap-x-3 gap-y-1">
                           {it.location ? <span>{it.location}</span> : null}
-                          {it.closingDate ? (
-                            <span className="inline-flex items-center gap-1">
-                              <Calendar className="w-3.5 h-3.5" />
-                              Closes {new Date(it.closingDate).toLocaleDateString('en-ZA')}
-                              {typeof d === 'number' ? ` · ${d}d` : ''}
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1">
-                              <Calendar className="w-3.5 h-3.5" />
-                              Closing date unknown
-                            </span>
-                          )}
+                          <DeadlineControl
+                            id={it.id}
+                            title={it.title}
+                            url={it.url}
+                            closingDate={it.closingDate}
+                            deadline={deadline}
+                            hoverCapable={hoverCapable}
+                            open={activeDeadline === it.id}
+                            onOpen={() => setActiveDeadline(it.id)}
+                            onClose={() => setActiveDeadline((prev) => (prev === it.id ? null : prev))}
+                          />
                         </div>
                         {it.snippet ? <div className="mt-2 text-xs text-slate-200/75">{it.snippet}</div> : null}
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleTrack(it.url);
-                          }}
-                          className={`h-10 w-10 rounded-xl border flex items-center justify-center transition-colors ${
-                            trackedOn ? 'border-amber-500/30 bg-amber-500/15 text-amber-100' : 'border-white/10 bg-white/5 text-slate-200/70 hover:bg-white/10'
-                          }`}
-                          aria-label="Track"
-                        >
-                          <Star className="w-4 h-4" />
-                        </button>
                         <button
                           type="button"
                           onClick={(e) => {
@@ -471,6 +563,215 @@ export default function CareerLaunchPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function DeadlineControl(props: {
+  id: string;
+  title: string;
+  url: string;
+  closingDate: string | null;
+  deadline: ReturnType<typeof deadlineMeta>;
+  hoverCapable: boolean;
+  open: boolean;
+  onOpen: () => void;
+  onClose: () => void;
+}) {
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    if (!props.closingDate) return '';
+    const d = new Date(props.closingDate);
+    if (!Number.isFinite(d.getTime())) return '';
+    return d.toISOString().slice(0, 10);
+  });
+  const [reminderDays, setReminderDays] = useState<number>(1);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const onCloseRef = useRef(props.onClose);
+
+  useEffect(() => {
+    onCloseRef.current = props.onClose;
+  }, [props.onClose]);
+
+  useEffect(() => {
+    if (!props.open) return;
+    if (typeof window === 'undefined') return;
+    const onDown = (e: MouseEvent) => {
+      const el = panelRef.current;
+      if (!el) return;
+      if (el.contains(e.target as Node)) return;
+      onCloseRef.current();
+    };
+    window.addEventListener('mousedown', onDown);
+    return () => window.removeEventListener('mousedown', onDown);
+  }, [props.open]);
+
+  useEffect(() => {
+    if (selectedDate) return;
+    if (!props.closingDate) return;
+    const d = new Date(props.closingDate);
+    if (!Number.isFinite(d.getTime())) return;
+    setSelectedDate(d.toISOString().slice(0, 10));
+  }, [props.closingDate, selectedDate]);
+
+  const pill = (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        if (props.hoverCapable) return;
+        if (props.open) props.onClose();
+        else props.onOpen();
+      }}
+      className={`relative inline-flex items-center gap-2 rounded-full border px-2.5 py-1 ${props.deadline.pill}`}
+      style={{
+        backgroundImage:
+          props.deadline.isClosed
+            ? undefined
+            : 'radial-gradient(ellipse 80% 70% at 20% 20%, rgba(59,130,246,.18) 0%, transparent 60%), radial-gradient(ellipse 70% 60% at 90% 30%, rgba(99,102,241,.16) 0%, transparent 62%)',
+      }}
+    >
+      <span className="relative flex h-2 w-2">
+        <span className={`absolute inline-flex h-full w-full rounded-full opacity-60 animate-ping ${props.deadline.ping}`} />
+        <span className={`relative inline-flex rounded-full h-2 w-2 ${props.deadline.dot}`} />
+      </span>
+      <Calendar className="w-3.5 h-3.5 opacity-80" />
+      <span className="text-[10px] font-semibold tracking-[0.22em] uppercase">Deadline</span>
+      <span className="text-[11px] font-mono tracking-wider">{props.deadline.label}</span>
+      <span className="text-[11px] text-slate-200/75">{props.deadline.dateText}</span>
+    </button>
+  );
+
+  return (
+    <span
+      className="relative inline-flex"
+      onClick={(e) => e.stopPropagation()}
+      onMouseEnter={
+        props.hoverCapable
+          ? () => {
+              props.onOpen();
+            }
+          : undefined
+      }
+      onMouseLeave={
+        props.hoverCapable
+          ? () => {
+              props.onClose();
+            }
+          : undefined
+      }
+    >
+      {pill}
+      {props.open ? (
+        <div
+          ref={panelRef}
+          className="absolute left-0 top-full mt-2 z-30 w-[300px] rounded-2xl border border-white/10 bg-slate-950/95 backdrop-blur-xl shadow-2xl shadow-black/40 overflow-hidden"
+          onMouseEnter={
+            props.hoverCapable
+              ? () => {
+                  props.onOpen();
+                }
+              : undefined
+          }
+          onMouseLeave={
+            props.hoverCapable
+              ? () => {
+                  props.onClose();
+                }
+              : undefined
+          }
+        >
+          <div
+            className="px-4 py-3 border-b border-white/10"
+            style={{
+              backgroundImage:
+                'radial-gradient(ellipse 80% 70% at 15% 20%, rgba(59,130,246,.18) 0%, transparent 55%), radial-gradient(ellipse 70% 60% at 85% 30%, rgba(99,102,241,.16) 0%, transparent 60%)',
+            }}
+          >
+            <div className="text-xs font-semibold tracking-[0.22em] uppercase text-slate-100/90">Create Alert</div>
+            <div className="mt-1 text-[11px] text-slate-200/70 line-clamp-2">{props.title}</div>
+          </div>
+
+          <div className="p-4 space-y-3">
+            <div>
+              <div className="text-[11px] text-slate-200/70">Deadline</div>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                disabled={!props.closingDate}
+                className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:opacity-60"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setReminderDays(0)}
+                className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
+                  reminderDays === 0 ? 'border-blue-400/30 bg-gradient-to-r from-blue-500/20 to-cyan-400/10 text-blue-100' : 'border-white/10 bg-white/5 text-slate-200/80 hover:bg-white/10'
+                }`}
+              >
+                Same day
+              </button>
+              <button
+                type="button"
+                onClick={() => setReminderDays(1)}
+                className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
+                  reminderDays === 1 ? 'border-blue-400/30 bg-gradient-to-r from-blue-500/20 to-cyan-400/10 text-blue-100' : 'border-white/10 bg-white/5 text-slate-200/80 hover:bg-white/10'
+                }`}
+              >
+                1 day before
+              </button>
+              <button
+                type="button"
+                onClick={() => setReminderDays(3)}
+                className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
+                  reminderDays === 3 ? 'border-blue-400/30 bg-gradient-to-r from-blue-500/20 to-cyan-400/10 text-blue-100' : 'border-white/10 bg-white/5 text-slate-200/80 hover:bg-white/10'
+                }`}
+              >
+                3 days before
+              </button>
+              <button
+                type="button"
+                onClick={() => setReminderDays(7)}
+                className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
+                  reminderDays === 7 ? 'border-blue-400/30 bg-gradient-to-r from-blue-500/20 to-cyan-400/10 text-blue-100' : 'border-white/10 bg-white/5 text-slate-200/80 hover:bg-white/10'
+                }`}
+              >
+                7 days before
+              </button>
+            </div>
+
+            <button
+              type="button"
+              disabled={!selectedDate || props.deadline.isClosed}
+              onClick={() => {
+                if (!selectedDate) return;
+                downloadDeadlineAlertIcs({
+                  title: props.title,
+                  url: props.url,
+                  dateISO: `${selectedDate}T00:00:00.000Z`,
+                  reminderDays,
+                });
+                props.onClose();
+              }}
+              className="w-full inline-flex items-center justify-center rounded-xl bg-white text-[#050815] px-4 py-2.5 text-sm font-semibold hover:bg-slate-100 transition-colors disabled:opacity-60"
+            >
+              Create alert
+            </button>
+
+            <a
+              href={props.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block text-center text-xs text-slate-200/75 hover:text-white transition-colors"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Open opportunity
+            </a>
+          </div>
+        </div>
+      ) : null}
+    </span>
   );
 }
 

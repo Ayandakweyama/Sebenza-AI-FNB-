@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { Job, useJobScraper } from '@/hooks/useJobScraper';
-import { useJobContext } from '@/contexts/JobContext';
 
 function sourceLabel(job: Pick<Job, 'source' | 'url'>) {
   const url = (job.url || '').toLowerCase();
@@ -222,42 +221,10 @@ export function JobSearchResults({
   const isLoading = sharedIsLoading !== undefined ? sharedIsLoading : localScraper.isLoading;
   const error = localScraper.error;
 
-  // Job context for saving functionality
-  const { saveJob, unsaveJob, isSaved } = useJobContext();
-
-  // Safety check for isSaved function
-  const checkIsSaved = (jobId: string) => {
-    if (!isSaved || typeof isSaved !== 'function') {
-      return false;
-    }
-    return isSaved(jobId);
-  };
-
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim() && location.trim()) {
       scrapeAll({ query, location, maxPages: 2 });
-    }
-  };
-
-  const handleSave = async (jobId: string) => {
-    // Find the job using multiple ID formats
-    const job = filteredJobs.find(j => 
-      j.id === jobId || 
-      j.url === jobId || 
-      `${j.company}-${j.title}` === jobId
-    );
-    
-    if (!job) return;
-
-    try {
-      if (checkIsSaved(jobId)) {
-        await unsaveJob(jobId);
-      } else {
-        await saveJob(job);
-      }
-    } catch (error) {
-      console.error('Failed to save/unsave job:', error);
     }
   };
 
@@ -445,38 +412,6 @@ export function JobSearchResults({
                   
                   {/* Action buttons container */}
                   <div className="flex items-center space-x-1 sm:space-x-2">
-                    {/* Save button with larger touch target on mobile */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // Use consistent ID format for save/unsave
-                        const jobId = job.id || job.url || `${job.company}-${job.title}`;
-                        handleSave(jobId);
-                      }}
-                      className={`p-2.5 sm:p-2 rounded-lg transition-all duration-300 relative ${
-                        checkIsSaved(job.id || job.url || `${job.company}-${job.title}`)
-                          ? 'text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20 shadow-lg shadow-yellow-500/20'
-                          : 'text-slate-400 hover:text-pink-400 hover:bg-pink-500/10 hover:shadow-lg hover:shadow-pink-500/20'
-                      }`}
-                      aria-label={checkIsSaved(job.id || job.url || `${job.company}-${job.title}`) ? 'Unsave job' : 'Save job'}
-                    >
-                      <svg
-                        className={`h-4 w-4 sm:h-5 sm:w-5 ${checkIsSaved(job.id || job.url || `${job.company}-${job.title}`) ? 'fill-current' : ''}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
-                        />
-                      </svg>
-                      {/* Pink ring on hover */}
-                      <div className={`absolute inset-0 rounded-lg border-2 border-pink-500/0 hover:border-pink-500/50 transition-all duration-300 ${checkIsSaved(job.id || job.url || `${job.company}-${job.title}`) ? 'opacity-0' : ''}`}></div>
-                    </button>
-                    
                     {/* External link button with larger touch target on mobile */}
                     <a
                       href={job.url}
