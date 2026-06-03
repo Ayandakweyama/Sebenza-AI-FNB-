@@ -104,13 +104,6 @@ function deadlineMeta(closingDate: string | null) {
   };
 }
 
-function toIcsDateValue(date: Date) {
-  const y = date.getUTCFullYear();
-  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const d = String(date.getUTCDate()).padStart(2, '0');
-  return `${y}${m}${d}`;
-}
-
 function toIcsLocalDateTimeValue(date: Date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -125,9 +118,9 @@ function escapeIcsText(text: string) {
   return text.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
 }
 
-function downloadDeadlineAlertIcs(input: { title: string; url: string; date: string; time: string; reminderDays: number }) {
-  const [y, m, d] = input.date.split('-').map((x) => Number(x));
-  const [hh, mm] = input.time.split(':').map((x) => Number(x));
+function downloadDeadlineAlertIcs(input: { title: string; url: string; alertDate: string; alertTime: string; deadlineISO: string | null }) {
+  const [y, m, d] = input.alertDate.split('-').map((x) => Number(x));
+  const [hh, mm] = input.alertTime.split(':').map((x) => Number(x));
   const start = new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0);
   const end = new Date(start);
   end.setMinutes(end.getMinutes() + 15);
@@ -136,7 +129,8 @@ function downloadDeadlineAlertIcs(input: { title: string; url: string; date: str
   const uid = `${dtStart}-${Math.random().toString(16).slice(2)}@sebenza.ai`;
   const now = new Date();
   const stamp = `${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, '0')}${String(now.getUTCDate()).padStart(2, '0')}T${String(now.getUTCHours()).padStart(2, '0')}${String(now.getUTCMinutes()).padStart(2, '0')}${String(now.getUTCSeconds()).padStart(2, '0')}Z`;
-  const trigger = `-P${Math.max(0, Math.min(30, Math.round(input.reminderDays)))}D`;
+  const trigger = '-PT0M';
+  const deadlineText = input.deadlineISO ? new Date(input.deadlineISO).toLocaleString('en-ZA') : 'Unknown';
 
   const lines = [
     'BEGIN:VCALENDAR',
@@ -147,8 +141,8 @@ function downloadDeadlineAlertIcs(input: { title: string; url: string; date: str
     'BEGIN:VEVENT',
     `UID:${uid}`,
     `DTSTAMP:${stamp}`,
-    `SUMMARY:${escapeIcsText(`Deadline: ${input.title}`)}`,
-    `DESCRIPTION:${escapeIcsText(`Career Launch alert\\n${input.url}`)}`,
+    `SUMMARY:${escapeIcsText(`Career Launch Alert: ${input.title}`)}`,
+    `DESCRIPTION:${escapeIcsText(`Deadline reminder: ${deadlineText}\\n${input.url}`)}`,
     `URL:${escapeIcsText(input.url)}`,
     `DTSTART:${dtStart}`,
     `DTEND:${dtEnd}`,
@@ -593,16 +587,28 @@ function DeadlineControl(props: {
     if (!props.closingDate) return '';
     const d = new Date(props.closingDate);
     if (!Number.isFinite(d.getTime())) return '';
-    return d.toISOString().slice(0, 10);
+    const base = new Date(d);
+    base.setDate(base.getDate() - 1);
+    return base.toISOString().slice(0, 10);
   });
   const [selectedTime, setSelectedTime] = useState<string>('09:00');
-  const [reminderDays, setReminderDays] = useState<number>(1);
+  const [presetDays, setPresetDays] = useState<0 | 1 | 3 | 7 | null>(1);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const onCloseRef = useRef(props.onClose);
+  const deadlineDateRef = useRef<Date | null>(null);
 
   useEffect(() => {
     onCloseRef.current = props.onClose;
   }, [props.onClose]);
+
+  useEffect(() => {
+    if (!props.closingDate) {
+      deadlineDateRef.current = null;
+      return;
+    }
+    const d = new Date(props.closingDate);
+    deadlineDateRef.current = Number.isFinite(d.getTime()) ? d : null;
+  }, [props.closingDate]);
 
   useEffect(() => {
     if (!props.open) return;
@@ -622,7 +628,9 @@ function DeadlineControl(props: {
     if (!props.closingDate) return;
     const d = new Date(props.closingDate);
     if (!Number.isFinite(d.getTime())) return;
-    setSelectedDate(d.toISOString().slice(0, 10));
+    const base = new Date(d);
+    base.setDate(base.getDate() - (presetDays ?? 0));
+    setSelectedDate(base.toISOString().slice(0, 10));
   }, [props.closingDate, selectedDate]);
 
   const pill = (
@@ -720,11 +728,14 @@ function DeadlineControl(props: {
 
           <div className="p-4 space-y-3">
             <div>
-              <div className="text-[11px] text-slate-200/70">Deadline date</div>
+              <div className="text-[11px] text-slate-200/70">Alert date</div>
               <input
                 type="date"
                 value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
+                onChange={(e) => {
+                  setSelectedDate(e.target.value);
+                  setPresetDays(null);
+                }}
                 className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
               />
             </div>
@@ -742,36 +753,67 @@ function DeadlineControl(props: {
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setReminderDays(0)}
+                onClick={() => {
+                  const d = deadlineDateRef.current;
+                  setPresetDays(0);
+                  if (d) {
+                    const next = new Date(d);
+                    setSelectedDate(next.toISOString().slice(0, 10));
+                  }
+                }}
                 className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
-                  reminderDays === 0 ? 'border-blue-400/30 bg-gradient-to-r from-blue-500/20 to-cyan-400/10 text-blue-100' : 'border-white/10 bg-white/5 text-slate-200/80 hover:bg-white/10'
+                  presetDays === 0 ? 'border-blue-400/30 bg-gradient-to-r from-blue-500/20 to-cyan-400/10 text-blue-100' : 'border-white/10 bg-white/5 text-slate-200/80 hover:bg-white/10'
                 }`}
               >
                 Same day
               </button>
               <button
                 type="button"
-                onClick={() => setReminderDays(1)}
+                onClick={() => {
+                  const d = deadlineDateRef.current;
+                  setPresetDays(1);
+                  if (d) {
+                    const next = new Date(d);
+                    next.setDate(next.getDate() - 1);
+                    setSelectedDate(next.toISOString().slice(0, 10));
+                  }
+                }}
                 className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
-                  reminderDays === 1 ? 'border-blue-400/30 bg-gradient-to-r from-blue-500/20 to-cyan-400/10 text-blue-100' : 'border-white/10 bg-white/5 text-slate-200/80 hover:bg-white/10'
+                  presetDays === 1 ? 'border-blue-400/30 bg-gradient-to-r from-blue-500/20 to-cyan-400/10 text-blue-100' : 'border-white/10 bg-white/5 text-slate-200/80 hover:bg-white/10'
                 }`}
               >
                 1 day before
               </button>
               <button
                 type="button"
-                onClick={() => setReminderDays(3)}
+                onClick={() => {
+                  const d = deadlineDateRef.current;
+                  setPresetDays(3);
+                  if (d) {
+                    const next = new Date(d);
+                    next.setDate(next.getDate() - 3);
+                    setSelectedDate(next.toISOString().slice(0, 10));
+                  }
+                }}
                 className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
-                  reminderDays === 3 ? 'border-blue-400/30 bg-gradient-to-r from-blue-500/20 to-cyan-400/10 text-blue-100' : 'border-white/10 bg-white/5 text-slate-200/80 hover:bg-white/10'
+                  presetDays === 3 ? 'border-blue-400/30 bg-gradient-to-r from-blue-500/20 to-cyan-400/10 text-blue-100' : 'border-white/10 bg-white/5 text-slate-200/80 hover:bg-white/10'
                 }`}
               >
                 3 days before
               </button>
               <button
                 type="button"
-                onClick={() => setReminderDays(7)}
+                onClick={() => {
+                  const d = deadlineDateRef.current;
+                  setPresetDays(7);
+                  if (d) {
+                    const next = new Date(d);
+                    next.setDate(next.getDate() - 7);
+                    setSelectedDate(next.toISOString().slice(0, 10));
+                  }
+                }}
                 className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
-                  reminderDays === 7 ? 'border-blue-400/30 bg-gradient-to-r from-blue-500/20 to-cyan-400/10 text-blue-100' : 'border-white/10 bg-white/5 text-slate-200/80 hover:bg-white/10'
+                  presetDays === 7 ? 'border-blue-400/30 bg-gradient-to-r from-blue-500/20 to-cyan-400/10 text-blue-100' : 'border-white/10 bg-white/5 text-slate-200/80 hover:bg-white/10'
                 }`}
               >
                 7 days before
@@ -786,9 +828,9 @@ function DeadlineControl(props: {
                 downloadDeadlineAlertIcs({
                   title: props.title,
                   url: props.url,
-                  date: selectedDate,
-                  time: selectedTime,
-                  reminderDays,
+                  alertDate: selectedDate,
+                  alertTime: selectedTime,
+                  deadlineISO: props.closingDate,
                 });
                 props.onClose();
               }}
